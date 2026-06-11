@@ -1,0 +1,145 @@
+:root {
+  color: #1c2430;
+  background: #f5f7fb;
+  font-family:
+    Inter, "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.workspace {
+  width: min(1040px, 100%);
+  margin: 0 auto;
+}
+
+.workspace__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #5b6b80;
+  font-size: 14px;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.ghost-button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #c8d2df;
+  border-radius: 6px;
+  color: #1c2430;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.ghost-button:hover {
+  border-color: #7a8ba3;
+}
+
+.status-panel {
+  padding: 20px;
+  border: 1px solid #e0b4b4;
+  border-radius: 8px;
+  background: #fff6f6;
+}
+
+.status-panel--ok {
+  border-color: #a9d8bd;
+  background: #f2fbf5;
+}
+
+.status-panel__label {
+  margin-bottom: 8px;
+  color: #5b6b80;
+  font-size: 14px;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.tool-card {
+  min-height: 144px;
+  padding: 18px;
+  border: 1px solid #d9e1ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.tool-card__name {
+  margin-bottom: 8px;
+  color: #5b6b80;
+  font-size: 14px;
+}
+
+.tool-card__state {
+  margin-bottom: 12px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.tool-card__version {
+  margin-bottom: 0;
+  color: #334155;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 20px;
+  }
+
+  .workspace__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tool-grid {
+    grid-template-columns: 1fr;
+  }
+}
