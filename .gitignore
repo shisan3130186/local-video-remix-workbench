@@ -4,6 +4,7 @@ dist/
 build/
 .target/
 target/
+src-tauri/gen/
 
 # python
 __pycache__/
