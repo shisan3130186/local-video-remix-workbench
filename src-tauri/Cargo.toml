@@ -1,0 +1,17 @@
+[package]
+name = "local-video-remix-workbench"
+version = "0.1.0"
+description = "本地短视频批量混剪工作台"
+authors = ["shisan3130186"]
+edition = "2021"
+
+[lib]
+name = "local_video_remix_workbench_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
