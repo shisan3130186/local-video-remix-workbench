@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, ref } from "vue";
+import { listVideoFilesInFolder } from "./services/videoImportService";
 import {
   checkFfmpegEnvironment,
   readVideoMetadata,
@@ -60,24 +61,59 @@ async function importVideos() {
     }
 
     const filePaths = Array.isArray(selected) ? selected : [selected];
-    const videos = await Promise.all(
-      filePaths.map(async (filePath) => {
-        const metadata = await readVideoMetadata(filePath);
-
-        return {
-          ...metadata,
-          id: `${metadata.filePath}-${metadata.fileSizeBytes}`,
-        };
-      }),
-    );
-
-    importedVideos.value = videos;
+    await loadVideosFromPaths(filePaths);
   } catch (error) {
     importError.value =
       error instanceof Error ? error.message : String(error ?? "视频导入失败。");
   } finally {
     isImporting.value = false;
   }
+}
+
+async function importVideoFolder() {
+  importError.value = null;
+  isImporting.value = true;
+
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+    });
+
+    if (!selected || Array.isArray(selected)) {
+      return;
+    }
+
+    const filePaths = await listVideoFilesInFolder(selected);
+
+    if (filePaths.length === 0) {
+      importedVideos.value = [];
+      importError.value = "该文件夹中没有检测到 mp4 / mov / avi / mkv 视频文件。";
+      return;
+    }
+
+    await loadVideosFromPaths(filePaths);
+  } catch (error) {
+    importError.value =
+      error instanceof Error ? error.message : String(error ?? "文件夹导入失败。");
+  } finally {
+    isImporting.value = false;
+  }
+}
+
+async function loadVideosFromPaths(filePaths: string[]) {
+  const videos = await Promise.all(
+    filePaths.map(async (filePath) => {
+      const metadata = await readVideoMetadata(filePath);
+
+      return {
+        ...metadata,
+        id: `${metadata.filePath}-${metadata.fileSizeBytes}`,
+      };
+    }),
+  );
+
+  importedVideos.value = videos;
 }
 
 function formatDuration(durationSeconds: number | null) {
@@ -169,14 +205,24 @@ onMounted(() => {
             <p class="asset-panel__label">素材列表</p>
             <h2>导入视频并读取信息</h2>
           </div>
-          <button class="ghost-button" type="button" :disabled="isImporting" @click="importVideos">
-            {{ isImporting ? "正在导入..." : "导入视频" }}
-          </button>
+          <div class="asset-panel__actions">
+            <button class="ghost-button" type="button" :disabled="isImporting" @click="importVideos">
+              {{ isImporting ? "正在导入..." : "导入视频" }}
+            </button>
+            <button
+              class="ghost-button"
+              type="button"
+              :disabled="isImporting"
+              @click="importVideoFolder"
+            >
+              导入文件夹
+            </button>
+          </div>
         </div>
 
         <p v-if="importError" class="error-text">{{ importError }}</p>
         <p v-else-if="importedVideos.length === 0" class="empty-text">
-          支持导入 mp4 / mov / avi / mkv。
+          支持导入 mp4 / mov / avi / mkv 文件，或选择一个包含视频的文件夹。
         </p>
 
         <div v-else class="asset-list">

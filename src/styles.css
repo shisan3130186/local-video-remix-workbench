@@ -150,6 +150,12 @@ h2 {
   gap: 16px;
 }
 
+.asset-panel__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
 .asset-panel__label {
   margin-bottom: 8px;
   color: #5b6b80;
@@ -247,6 +253,10 @@ h3 {
 
   .asset-panel__header {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .asset-panel__actions {
     flex-direction: column;
   }
 
