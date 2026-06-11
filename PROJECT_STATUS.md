@@ -31,7 +31,7 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 
 ## 当前阻塞
 
-暂无。
+Tauri 启动依赖 Rust / Cargo。当前 Rustup 已安装，但 stable 工具链安装不完整，缺少 rustc，导致 `corepack pnpm tauri dev` 无法启动。
 
 ## 当前禁止修改
 
@@ -47,27 +47,13 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 ## 最近一次开发内容
 
 日期：2026-06-11
-完成：新增 V0.1 第一个功能，软件启动时检测 ffmpeg / ffprobe 是否可调用，并显示版本号或明确错误提示。
+完成：完成项目启动基础检查；前端依赖已安装，Vue / TypeScript / Vite 构建通过，FFmpeg / FFprobe 命令可返回版本；Tauri 启动阻塞在 Rust 工具链不完整。
 涉及文件：
 - PROJECT_STATUS.md
-- TODO_NEXT.md
-- package.json
-- index.html
-- tsconfig.json
-- vite.config.ts
-- src/main.ts
-- src/App.vue
-- src/styles.css
-- src/services/videoProbeService.ts
-- src/types/videoProbe.ts
-- src-tauri/Cargo.toml
-- src-tauri/build.rs
 - src-tauri/tauri.conf.json
-- src-tauri/src/main.rs
-- src-tauri/src/lib.rs
-- src-tauri/src/video_engine/mod.rs
-- src-tauri/src/video_engine/probe.rs
-遗留问题：本机尚未安装前端依赖，完整运行测试需要先执行依赖安装。
+- pnpm-lock.yaml
+- pnpm-workspace.yaml
+遗留问题：需要修复 Rust stable 工具链，确保 cargo 和 rustc 可用后再启动 Tauri。
 
 ## 下一步建议
 
