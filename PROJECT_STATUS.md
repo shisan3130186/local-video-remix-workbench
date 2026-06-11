@@ -24,14 +24,14 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 - [x] 视频导入按钮
 - [x] 基础页面布局
 - [x] 项目整体开发框架规划
-- [ ] FFmpeg环境检测
+- [x] FFmpeg环境检测
 - [ ] 视频信息读取
 - [ ] 视频预览
 - [ ] 基础导出任务
 
 ## 当前阻塞
 
-项目目录当前不是 Git 仓库，暂时无法按项目规则提交版本。
+暂无。
 
 ## 当前禁止修改
 
@@ -47,21 +47,30 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 ## 最近一次开发内容
 
 日期：2026-06-11
-完成：沉淀项目整体开发框架，明确 V0.1 最小闭环和后续版本路线图。
+完成：新增 V0.1 第一个功能，软件启动时检测 ffmpeg / ffprobe 是否可调用，并显示版本号或明确错误提示。
 涉及文件：
-- ROADMAP.md
 - PROJECT_STATUS.md
 - TODO_NEXT.md
-- DECISIONS.md
-- docs/00_总体开发框架.md
-- docs/02_技术架构说明书.md
-- docs/05_视频处理引擎设计.md
-- docs/09_测试验收清单.md
-遗留问题：项目目录尚未初始化 Git 仓库。
+- package.json
+- index.html
+- tsconfig.json
+- vite.config.ts
+- src/main.ts
+- src/App.vue
+- src/styles.css
+- src/services/videoProbeService.ts
+- src/types/videoProbe.ts
+- src-tauri/Cargo.toml
+- src-tauri/build.rs
+- src-tauri/tauri.conf.json
+- src-tauri/src/main.rs
+- src-tauri/src/lib.rs
+- src-tauri/src/video_engine/mod.rs
+- src-tauri/src/video_engine/probe.rs
+遗留问题：本机尚未安装前端依赖，完整运行测试需要先执行依赖安装。
 
 ## 下一步建议
 
-1. 完成 FFmpeg 环境检测
-2. 建立 VideoEngine 基础入口
-3. 完成视频信息读取
-4. 完成导入视频后的预览
+1. 完成视频信息读取
+2. 完成单视频导入
+3. 完成导入视频后的预览
