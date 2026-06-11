@@ -1,0 +1,51 @@
+# dependencies
+node_modules/
+dist/
+build/
+.target/
+target/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# env
+.env
+.env.local
+*.key
+*.pem
+
+# logs
+*.log
+logs/
+
+# temp
+tmp/
+temp/
+cache/
+
+# video output
+outputs/
+exports/
+rendered/
+processed/
+
+# local assets
+sample_assets/
+test_assets/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wav
+*.mp3
+
+# system
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/
