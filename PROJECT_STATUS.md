@@ -34,6 +34,7 @@ v0.2.0-dev
 - [x] 基础导出日志
 - [x] V0.1 主链路人工验收通过
 - [x] 固定时长视频切片
+- [x] 随机片段抽取
 
 ## 当前阻塞
 
@@ -53,21 +54,17 @@ v0.2.0-dev
 ## 最近一次开发内容
 
 日期：2026-06-12
-完成：实现固定时长视频切片。用户选择已导入视频、输出目录和切片秒数后，可以生成多个 mp4 片段，并在页面看到切片开始、切片中、切片成功或失败日志。
+完成：实现随机片段抽取。固定时长切片成功后，页面会保存当前片段列表，用户可以设置抽取数量并随机选择片段；抽取结果只展示文件名和路径，不复制、不删除、不拼接视频文件。
 涉及文件：
-- src-tauri/src/lib.rs
-- src-tauri/src/video_engine/mod.rs
-- src-tauri/src/video_engine/split.rs
-- src/services/videoSplitService.ts
+- src/services/videoMixService.ts
 - src/App.vue
 - src/styles.css
-- DECISIONS.md
 - PROJECT_STATUS.md
 - TODO_NEXT.md
-验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已用测试素材执行 FFmpeg 切片参数验证，输出到 `E:\Workspace\测试结果库\Project_03_本地短视频批量混剪工作台\manual_split_check`；已检查页面组件没有直接拼接 FFmpeg / FFprobe 命令。
+验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；本次没有新增 FFmpeg / FFprobe 命令。
 遗留问题：暂无。
 
 ## 下一步建议
 
-1. 测试固定时长视频切片功能
-2. 开发随机片段抽取
+1. 测试随机片段抽取功能
+2. 开发片段拼接导出

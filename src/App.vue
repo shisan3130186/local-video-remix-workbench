@@ -3,6 +3,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, ref } from "vue";
 import { listVideoFilesInFolder } from "./services/videoImportService";
+import { pickRandomSegments } from "./services/videoMixService";
 import {
   checkFfmpegEnvironment,
   readVideoMetadata,
@@ -38,7 +39,11 @@ const isSplitting = ref(false);
 const splitError = ref<string | null>(null);
 const splitOutputDirectory = ref<string | null>(null);
 const splitSegmentCount = ref<number | null>(null);
+const splitSegmentPaths = ref<string[]>([]);
 const splitLogs = ref<TaskLogEntry[]>([]);
+const randomPickCount = ref(1);
+const randomPickError = ref<string | null>(null);
+const randomSelectedSegments = ref<string[]>([]);
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -149,10 +154,12 @@ async function loadVideosFromPaths(filePaths: string[]) {
 
   importedVideos.value = videos;
   selectedVideo.value = videos[0] ?? null;
+  resetSplitAndRandomState();
 }
 
 function selectVideo(video: ImportedVideo) {
   selectedVideo.value = video;
+  resetSplitAndRandomState();
 }
 
 async function selectOutputDirectory() {
@@ -218,7 +225,9 @@ async function splitSelectedVideo() {
   splitError.value = null;
   splitOutputDirectory.value = null;
   splitSegmentCount.value = null;
+  splitSegmentPaths.value = [];
   splitLogs.value = [];
+  resetRandomPickState();
 
   if (!selectedVideo.value) {
     splitError.value = "请先选择一个要切片的视频。";
@@ -250,6 +259,7 @@ async function splitSelectedVideo() {
     );
     splitOutputDirectory.value = result.outputDirectory;
     splitSegmentCount.value = result.segmentCount;
+    splitSegmentPaths.value = result.segmentPaths;
     appendSplitLog(
       `切片成功：共生成 ${result.segmentCount} 个片段，保存到 ${result.outputDirectory}`,
       "success",
@@ -261,6 +271,35 @@ async function splitSelectedVideo() {
   } finally {
     isSplitting.value = false;
   }
+}
+
+function pickSegmentsRandomly() {
+  randomPickError.value = null;
+  randomSelectedSegments.value = [];
+
+  try {
+    randomSelectedSegments.value = pickRandomSegments(
+      splitSegmentPaths.value,
+      randomPickCount.value,
+    );
+  } catch (error) {
+    randomPickError.value =
+      error instanceof Error ? error.message : String(error ?? "随机抽取失败。");
+  }
+}
+
+function resetSplitAndRandomState() {
+  splitError.value = null;
+  splitOutputDirectory.value = null;
+  splitSegmentCount.value = null;
+  splitSegmentPaths.value = [];
+  splitLogs.value = [];
+  resetRandomPickState();
+}
+
+function resetRandomPickState() {
+  randomPickError.value = null;
+  randomSelectedSegments.value = [];
 }
 
 function appendSplitLog(message: string, level: TaskLogLevel) {
@@ -314,6 +353,10 @@ function formatFileSize(fileSizeBytes: number) {
   }
 
   return `${(fileSizeBytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatFileName(filePath: string) {
+  return filePath.split(/[\\/]/).pop() ?? filePath;
 }
 
 onMounted(() => {
@@ -548,6 +591,46 @@ onMounted(() => {
             >
               <span class="export-log-item__time">{{ log.time }}</span>
               <span class="export-log-item__message">{{ log.message }}</span>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="mix-panel" aria-label="随机片段抽取">
+        <div class="mix-panel__header">
+          <div>
+            <p class="mix-panel__label">基础混剪</p>
+            <h2>随机片段抽取</h2>
+          </div>
+          <div class="mix-panel__actions">
+            <label class="duration-field">
+              <span>抽取数量</span>
+              <input v-model.number="randomPickCount" type="number" min="1" step="1" />
+            </label>
+            <button class="primary-button" type="button" @click="pickSegmentsRandomly">
+              随机抽取
+            </button>
+          </div>
+        </div>
+
+        <p class="empty-text">
+          固定时长切片完成后，可以从当前片段列表里随机抽取素材。此步骤不会修改或拼接视频文件。
+        </p>
+
+        <p v-if="randomPickError" class="error-text">{{ randomPickError }}</p>
+        <p v-else-if="splitSegmentPaths.length > 0" class="output-path">
+          当前可抽取片段：{{ splitSegmentPaths.length }} 个
+        </p>
+
+        <div v-if="randomSelectedSegments.length > 0" class="random-result">
+          <div class="random-result__header">
+            <p class="mix-panel__label">抽取结果</p>
+            <span>共 {{ randomSelectedSegments.length }} 个片段</span>
+          </div>
+          <ol class="random-result__list">
+            <li v-for="segmentPath in randomSelectedSegments" :key="segmentPath">
+              <span>{{ formatFileName(segmentPath) }}</span>
+              <small>{{ segmentPath }}</small>
             </li>
           </ol>
         </div>

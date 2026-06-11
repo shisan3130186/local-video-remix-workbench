@@ -329,6 +329,14 @@ h3 {
   background: #ffffff;
 }
 
+.mix-panel {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #d9e1ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
 .output-panel__header {
   display: flex;
   align-items: center;
@@ -337,6 +345,13 @@ h3 {
 }
 
 .split-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mix-panel__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -356,6 +371,13 @@ h3 {
   gap: 10px;
 }
 
+.mix-panel__actions {
+  display: flex;
+  align-items: end;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
 .output-panel__label {
   margin-bottom: 8px;
   color: #5b6b80;
@@ -363,6 +385,12 @@ h3 {
 }
 
 .split-panel__label {
+  margin-bottom: 8px;
+  color: #5b6b80;
+  font-size: 14px;
+}
+
+.mix-panel__label {
   margin-bottom: 8px;
   color: #5b6b80;
   font-size: 14px;
@@ -460,6 +488,54 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+.random-result {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #e3e8ef;
+}
+
+.random-result__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.random-result__header span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.random-result__list {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.random-result__list li {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #d9e1ec;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.random-result__list span {
+  color: #1c2430;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.random-result__list small {
+  color: #64748b;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 20px;
@@ -489,11 +565,21 @@ h3 {
     flex-direction: column;
   }
 
+  .mix-panel__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .output-panel__actions {
     flex-direction: column;
   }
 
   .split-panel__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .mix-panel__actions {
     align-items: stretch;
     flex-direction: column;
   }
@@ -521,5 +607,10 @@ h3 {
 
   .export-log-item {
     grid-template-columns: 1fr;
+  }
+
+  .random-result__header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
