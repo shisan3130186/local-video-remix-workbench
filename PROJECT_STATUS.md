@@ -30,7 +30,7 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 - [x] 文件夹导入
 - [x] 视频预览
 - [x] 输出目录选择
-- [ ] 基础导出任务
+- [x] 基础导出任务
 
 ## 当前阻塞
 
@@ -50,17 +50,20 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 ## 最近一次开发内容
 
 日期：2026-06-11
-完成：实现输出目录选择。用户可以选择后续导出结果保存目录，页面会显示当前输出目录路径。
+完成：实现基础导出。用户选择已导入视频和输出目录后，可以导出一个新的 mp4 文件，页面会显示导出中、成功输出路径或失败原因。
 涉及文件：
+- src-tauri/src/lib.rs
+- src-tauri/src/video_engine/mod.rs
+- src-tauri/src/video_engine/render.rs
 - src/App.vue
+- src/services/videoRenderService.ts
 - src/styles.css
 - PROJECT_STATUS.md
 - TODO_NEXT.md
-验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过。
+验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已用测试素材导出 mp4 到 `E:\Workspace\测试结果库\Project_03_本地短视频批量混剪工作台\manual_basic_export_check.mp4`。
 遗留问题：暂无。
 
 ## 下一步建议
 
-1. 完成基础导出
-2. 完成任务进度和日志
-3. 完成日志和错误提示整理
+1. 完成任务进度和日志
+2. 完成日志和错误提示整理

@@ -7,6 +7,7 @@ import {
   checkFfmpegEnvironment,
   readVideoMetadata,
 } from "./services/videoProbeService";
+import { exportCurrentVideo } from "./services/videoRenderService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
 
 const environment = ref<FfmpegEnvironmentResult | null>(null);
@@ -18,6 +19,9 @@ const isImporting = ref(false);
 const importError = ref<string | null>(null);
 const outputDirectory = ref<string | null>(null);
 const outputDirectoryError = ref<string | null>(null);
+const isExporting = ref(false);
+const exportError = ref<string | null>(null);
+const exportResultPath = ref<string | null>(null);
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -153,6 +157,36 @@ async function selectOutputDirectory() {
       error instanceof Error
         ? error.message
         : String(error ?? "输出目录选择失败。");
+  }
+}
+
+async function exportSelectedVideo() {
+  exportError.value = null;
+  exportResultPath.value = null;
+
+  if (!selectedVideo.value) {
+    exportError.value = "请先选择一个要导出的视频。";
+    return;
+  }
+
+  if (!outputDirectory.value) {
+    exportError.value = "请先选择输出目录。";
+    return;
+  }
+
+  isExporting.value = true;
+
+  try {
+    const result = await exportCurrentVideo(
+      selectedVideo.value.filePath,
+      outputDirectory.value,
+    );
+    exportResultPath.value = result.outputPath;
+  } catch (error) {
+    exportError.value =
+      error instanceof Error ? error.message : String(error ?? "视频导出失败。");
+  } finally {
+    isExporting.value = false;
   }
 }
 
@@ -324,14 +358,29 @@ onMounted(() => {
             <p class="output-panel__label">输出设置</p>
             <h2>导出保存位置</h2>
           </div>
-          <button class="ghost-button" type="button" @click="selectOutputDirectory">
-            选择输出目录
-          </button>
+          <div class="output-panel__actions">
+            <button class="ghost-button" type="button" @click="selectOutputDirectory">
+              选择输出目录
+            </button>
+            <button
+              class="primary-button"
+              type="button"
+              :disabled="isExporting"
+              @click="exportSelectedVideo"
+            >
+              {{ isExporting ? "正在导出..." : "导出当前视频" }}
+            </button>
+          </div>
         </div>
 
         <p v-if="outputDirectoryError" class="error-text">{{ outputDirectoryError }}</p>
         <p v-else-if="outputDirectory" class="output-path">{{ outputDirectory }}</p>
         <p v-else class="empty-text">请选择后续导出视频的保存目录。</p>
+
+        <p v-if="exportError" class="error-text">{{ exportError }}</p>
+        <p v-else-if="exportResultPath" class="success-text">
+          导出完成：{{ exportResultPath }}
+        </p>
       </section>
     </section>
   </main>

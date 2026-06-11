@@ -82,6 +82,27 @@ h2 {
   background: #edf2f7;
 }
 
+.primary-button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #315f93;
+  border-radius: 6px;
+  color: #ffffff;
+  background: #315f93;
+  cursor: pointer;
+  font: inherit;
+}
+
+.primary-button:hover {
+  background: #264b75;
+}
+
+.primary-button:disabled {
+  border-color: #91a7c0;
+  cursor: not-allowed;
+  background: #91a7c0;
+}
+
 .status-panel {
   padding: 20px;
   border: 1px solid #e0b4b4;
@@ -170,6 +191,16 @@ h2 {
 
 .error-text {
   color: #b42318;
+}
+
+.success-text {
+  margin: 16px 0 0;
+  padding: 12px;
+  border: 1px solid #a9d8bd;
+  border-radius: 6px;
+  color: #25633c;
+  background: #f2fbf5;
+  overflow-wrap: anywhere;
 }
 
 .asset-list {
@@ -297,6 +328,12 @@ h3 {
   gap: 16px;
 }
 
+.output-panel__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
 .output-panel__label {
   margin-bottom: 8px;
   color: #5b6b80;
@@ -336,6 +373,10 @@ h3 {
 
   .output-panel__header {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .output-panel__actions {
     flex-direction: column;
   }
 
