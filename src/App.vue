@@ -8,15 +8,16 @@ import {
   readVideoMetadata,
 } from "./services/videoProbeService";
 import { exportCurrentVideo } from "./services/videoRenderService";
+import { splitCurrentVideo } from "./services/videoSplitService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
 
-type ExportLogLevel = "info" | "success" | "error";
+type TaskLogLevel = "info" | "success" | "error";
 
-interface ExportLogEntry {
+interface TaskLogEntry {
   id: number;
   time: string;
   message: string;
-  level: ExportLogLevel;
+  level: TaskLogLevel;
 }
 
 const environment = ref<FfmpegEnvironmentResult | null>(null);
@@ -31,7 +32,13 @@ const outputDirectoryError = ref<string | null>(null);
 const isExporting = ref(false);
 const exportError = ref<string | null>(null);
 const exportResultPath = ref<string | null>(null);
-const exportLogs = ref<ExportLogEntry[]>([]);
+const exportLogs = ref<TaskLogEntry[]>([]);
+const segmentDurationSeconds = ref(5);
+const isSplitting = ref(false);
+const splitError = ref<string | null>(null);
+const splitOutputDirectory = ref<string | null>(null);
+const splitSegmentCount = ref<number | null>(null);
+const splitLogs = ref<TaskLogEntry[]>([]);
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -207,9 +214,66 @@ async function exportSelectedVideo() {
   }
 }
 
-function appendExportLog(message: string, level: ExportLogLevel) {
-  exportLogs.value.push({
-    id: Date.now() + exportLogs.value.length,
+async function splitSelectedVideo() {
+  splitError.value = null;
+  splitOutputDirectory.value = null;
+  splitSegmentCount.value = null;
+  splitLogs.value = [];
+
+  if (!selectedVideo.value) {
+    splitError.value = "请先选择一个要切片的视频。";
+    appendSplitLog(`切片失败：${splitError.value}`, "error");
+    return;
+  }
+
+  if (!outputDirectory.value) {
+    splitError.value = "请先选择输出目录。";
+    appendSplitLog(`切片失败：${splitError.value}`, "error");
+    return;
+  }
+
+  if (!Number.isFinite(segmentDurationSeconds.value) || segmentDurationSeconds.value <= 0) {
+    splitError.value = "切片秒数必须大于 0。";
+    appendSplitLog(`切片失败：${splitError.value}`, "error");
+    return;
+  }
+
+  appendSplitLog("开始切片。", "info");
+  appendSplitLog("切片中。", "info");
+  isSplitting.value = true;
+
+  try {
+    const result = await splitCurrentVideo(
+      selectedVideo.value.filePath,
+      outputDirectory.value,
+      segmentDurationSeconds.value,
+    );
+    splitOutputDirectory.value = result.outputDirectory;
+    splitSegmentCount.value = result.segmentCount;
+    appendSplitLog(
+      `切片成功：共生成 ${result.segmentCount} 个片段，保存到 ${result.outputDirectory}`,
+      "success",
+    );
+  } catch (error) {
+    splitError.value =
+      error instanceof Error ? error.message : String(error ?? "视频切片失败。");
+    appendSplitLog(`切片失败：${splitError.value}`, "error");
+  } finally {
+    isSplitting.value = false;
+  }
+}
+
+function appendSplitLog(message: string, level: TaskLogLevel) {
+  appendTaskLog(splitLogs.value, message, level);
+}
+
+function appendExportLog(message: string, level: TaskLogLevel) {
+  appendTaskLog(exportLogs.value, message, level);
+}
+
+function appendTaskLog(logs: TaskLogEntry[], message: string, level: TaskLogLevel) {
+  logs.push({
+    id: Date.now() + logs.length,
     time: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
     message,
     level,
@@ -262,7 +326,7 @@ onMounted(() => {
     <section class="workspace">
       <header class="workspace__header">
         <div>
-          <p class="eyebrow">V0.1 基础可运行版</p>
+          <p class="eyebrow">V0.2 基础混剪版</p>
           <h1>本地短视频批量混剪工作台</h1>
         </div>
         <button class="ghost-button" type="button" @click="runEnvironmentCheck">
@@ -419,6 +483,65 @@ onMounted(() => {
           <ol v-else class="export-log-list">
             <li
               v-for="log in exportLogs"
+              :key="log.id"
+              class="export-log-item"
+              :class="`export-log-item--${log.level}`"
+            >
+              <span class="export-log-item__time">{{ log.time }}</span>
+              <span class="export-log-item__message">{{ log.message }}</span>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="split-panel" aria-label="视频切片">
+        <div class="split-panel__header">
+          <div>
+            <p class="split-panel__label">视频切片</p>
+            <h2>固定时长切片</h2>
+          </div>
+          <div class="split-panel__actions">
+            <label class="duration-field">
+              <span>切片秒数</span>
+              <input
+                v-model.number="segmentDurationSeconds"
+                type="number"
+                min="1"
+                step="1"
+                :disabled="isSplitting"
+              />
+            </label>
+            <button
+              class="primary-button"
+              type="button"
+              :disabled="isSplitting"
+              @click="splitSelectedVideo"
+            >
+              {{ isSplitting ? "正在切片..." : "切片当前视频" }}
+            </button>
+          </div>
+        </div>
+
+        <p class="empty-text">
+          选择一个视频和输出目录后，可以按固定秒数生成多个 mp4 片段。
+        </p>
+
+        <p v-if="splitError" class="error-text">{{ splitError }}</p>
+        <p v-else-if="splitOutputDirectory" class="success-text">
+          切片完成：共生成 {{ splitSegmentCount }} 个片段，保存到 {{ splitOutputDirectory }}
+        </p>
+
+        <div class="export-log-panel" aria-label="切片日志">
+          <div class="export-log-panel__header">
+            <p class="split-panel__label">切片日志</p>
+            <span>当前单个切片任务</span>
+          </div>
+          <p v-if="splitLogs.length === 0" class="empty-text">
+            点击切片后，这里会显示本次切片的过程和结果。
+          </p>
+          <ol v-else class="export-log-list">
+            <li
+              v-for="log in splitLogs"
               :key="log.id"
               class="export-log-item"
               :class="`export-log-item--${log.level}`"

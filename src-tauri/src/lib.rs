@@ -5,6 +5,7 @@ use video_engine::probe::{
     check_environment, probe_video_metadata, FfmpegEnvironmentResult, VideoMetadata,
 };
 use video_engine::render::{export_basic_video, RenderVideoResult};
+use video_engine::split::{split_video_by_duration, SplitVideoResult};
 
 #[tauri::command]
 fn check_ffmpeg_environment() -> FfmpegEnvironmentResult {
@@ -29,6 +30,15 @@ fn export_current_video(
     export_basic_video(input_file_path, output_directory)
 }
 
+#[tauri::command]
+fn split_current_video(
+    input_file_path: String,
+    output_directory: String,
+    segment_duration_seconds: f64,
+) -> Result<SplitVideoResult, String> {
+    split_video_by_duration(input_file_path, output_directory, segment_duration_seconds)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -36,7 +46,8 @@ pub fn run() {
             check_ffmpeg_environment,
             export_current_video,
             list_video_files_in_folder,
-            read_video_metadata
+            read_video_metadata,
+            split_current_video
         ])
         .run(tauri::generate_context!())
         .expect("failed to run tauri app");
