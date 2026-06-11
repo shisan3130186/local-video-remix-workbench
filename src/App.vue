@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, ref } from "vue";
 import { listVideoFilesInFolder } from "./services/videoImportService";
@@ -12,6 +13,7 @@ const environment = ref<FfmpegEnvironmentResult | null>(null);
 const isChecking = ref(true);
 const checkError = ref<string | null>(null);
 const importedVideos = ref<ImportedVideo[]>([]);
+const selectedVideo = ref<ImportedVideo | null>(null);
 const isImporting = ref(false);
 const importError = ref<string | null>(null);
 
@@ -25,6 +27,14 @@ const statusText = computed(() => {
   }
 
   return environment.value?.message ?? "未检测到 FFmpeg，请配置路径。";
+});
+
+const previewUrl = computed(() => {
+  if (!selectedVideo.value) {
+    return null;
+  }
+
+  return convertFileSrc(selectedVideo.value.filePath);
 });
 
 async function runEnvironmentCheck() {
@@ -88,6 +98,7 @@ async function importVideoFolder() {
 
     if (filePaths.length === 0) {
       importedVideos.value = [];
+      selectedVideo.value = null;
       importError.value = "该文件夹中没有检测到 mp4 / mov / avi / mkv 视频文件。";
       return;
     }
@@ -114,6 +125,11 @@ async function loadVideosFromPaths(filePaths: string[]) {
   );
 
   importedVideos.value = videos;
+  selectedVideo.value = videos[0] ?? null;
+}
+
+function selectVideo(video: ImportedVideo) {
+  selectedVideo.value = video;
 }
 
 function formatDuration(durationSeconds: number | null) {
@@ -226,7 +242,17 @@ onMounted(() => {
         </p>
 
         <div v-else class="asset-list">
-          <article v-for="video in importedVideos" :key="video.id" class="asset-card">
+          <article
+            v-for="video in importedVideos"
+            :key="video.id"
+            class="asset-card"
+            :class="{ 'asset-card--active': selectedVideo?.id === video.id }"
+            tabindex="0"
+            role="button"
+            @click="selectVideo(video)"
+            @keydown.enter="selectVideo(video)"
+            @keydown.space.prevent="selectVideo(video)"
+          >
             <div class="asset-card__title">
               <h3>{{ video.fileName }}</h3>
               <span>{{ video.hasAudio ? "有音频" : "无音频" }}</span>
@@ -252,6 +278,20 @@ onMounted(() => {
             </dl>
           </article>
         </div>
+      </section>
+
+      <section class="preview-panel" aria-label="视频预览">
+        <div class="preview-panel__header">
+          <div>
+            <p class="preview-panel__label">视频预览</p>
+            <h2>{{ selectedVideo?.fileName ?? "请选择一个素材" }}</h2>
+          </div>
+        </div>
+
+        <div v-if="previewUrl" class="video-frame">
+          <video :key="selectedVideo?.id" :src="previewUrl" controls preload="metadata"></video>
+        </div>
+        <p v-else class="empty-text">导入素材后，点击列表中的视频即可预览。</p>
       </section>
     </section>
   </main>

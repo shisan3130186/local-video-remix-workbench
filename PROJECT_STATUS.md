@@ -28,7 +28,7 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 - [x] 单视频/多视频文件导入
 - [x] 视频信息读取
 - [x] 文件夹导入
-- [ ] 视频预览
+- [x] 视频预览
 - [ ] 基础导出任务
 
 ## 当前阻塞
@@ -49,21 +49,17 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 ## 最近一次开发内容
 
 日期：2026-06-11
-完成：实现文件夹导入。支持选择一个文件夹，自动过滤 mp4 / mov / avi / mkv 文件，并复用 VideoEngine 元数据读取能力把文件夹内视频显示到素材列表。
+完成：实现视频预览。导入视频后默认选中第一个素材，点击素材列表可以切换预览，播放器支持播放和暂停。
 涉及文件：
+- src/App.vue
+- src/styles.css
 - PROJECT_STATUS.md
 - TODO_NEXT.md
-- src-tauri/src/lib.rs
-- src-tauri/src/video_engine/import.rs
-- src-tauri/src/video_engine/mod.rs
-- src/App.vue
-- src/services/videoImportService.ts
-- src/styles.css
 验证情况：`corepack pnpm build` 已通过；`cargo check` 已通过。
 遗留问题：暂无。
 
 ## 下一步建议
 
-1. 完成导入视频后的预览
-2. 完成输出目录选择
-3. 完成基础导出
+1. 完成输出目录选择
+2. 完成基础导出
+3. 完成任务进度和日志
