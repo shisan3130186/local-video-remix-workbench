@@ -2,22 +2,24 @@
 
 ## 当前最高优先级
 
-1. 修复 Rust stable 工具链，确保 cargo 和 rustc 可用
-2. 完成视频信息读取
-3. 完成单视频导入
-4. 完成文件夹导入
-5. 完成导入视频后的预览
+1. 完成视频信息读取
+2. 完成单视频导入
+3. 完成文件夹导入
+4. 完成导入视频后的预览
 
 ## 开发前置阻塞
 
-当前 `corepack pnpm build` 已通过，但 `corepack pnpm tauri dev` 仍无法启动。
+暂无。
 
-原因：
-Rustup 已安装，但 stable 工具链安装不完整，缺少 rustc，导致 Tauri 无法执行 cargo metadata。
+启动检查：
+
+1. `corepack pnpm build` 已通过。
+2. `corepack pnpm tauri dev` 已通过启动检查。
+3. Vite 已排除 `src-tauri/target` 和 `target` 目录，避免监听 Rust 编译产物。
 
 ## 本轮只允许开发
 
-启动环境修复或视频信息读取模块。
+视频信息读取模块。
 
 ## V0.1 推荐任务拆分
 
