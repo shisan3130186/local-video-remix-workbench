@@ -49,13 +49,13 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 ## 最近一次开发内容
 
 日期：2026-06-11
-完成：实现视频预览。导入视频后默认选中第一个素材，点击素材列表可以切换预览，播放器支持播放和暂停。
+完成：修复视频预览黑屏问题。开启 Tauri 本地资源协议，允许播放器通过 asset 协议加载本地视频文件。
 涉及文件：
-- src/App.vue
-- src/styles.css
+- src-tauri/Cargo.lock
+- src-tauri/Cargo.toml
+- src-tauri/tauri.conf.json
 - PROJECT_STATUS.md
-- TODO_NEXT.md
-验证情况：`corepack pnpm build` 已通过；`cargo check` 已通过。
+验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已重新启动工作台。
 遗留问题：暂无。
 
 ## 下一步建议
