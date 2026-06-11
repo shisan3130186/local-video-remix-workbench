@@ -25,8 +25,10 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 - [x] 基础页面布局
 - [x] 项目整体开发框架规划
 - [x] FFmpeg环境检测
-- [ ] 视频信息读取
+- [x] 单视频/多视频文件导入
+- [x] 视频信息读取
 - [ ] 视频预览
+- [ ] 文件夹导入
 - [ ] 基础导出任务
 
 ## 当前阻塞
@@ -47,18 +49,26 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 ## 最近一次开发内容
 
 日期：2026-06-11
-完成：修复 Vite 监听 Rust 编译目录导致的启动风险，排除 `src-tauri/target` 和 `target` 目录；补充 Tauri Windows 启动必需图标；`corepack pnpm build` 和 `corepack pnpm tauri dev` 已通过启动检查。
+完成：实现视频文件导入和视频信息读取。支持选择 mp4 / mov / avi / mkv 文件，导入后显示素材列表，并通过 VideoEngine 调用 ffprobe 读取文件名、路径、时长、分辨率、帧率、是否有音频和文件大小。
 涉及文件：
-- .gitignore
+- package.json
+- pnpm-lock.yaml
 - PROJECT_STATUS.md
 - TODO_NEXT.md
-- vite.config.ts
 - src-tauri/Cargo.lock
-- src-tauri/icons/icon.ico
-遗留问题：暂无。
+- src-tauri/Cargo.toml
+- src-tauri/capabilities/default.json
+- src-tauri/src/lib.rs
+- src-tauri/src/video_engine/probe.rs
+- src/App.vue
+- src/services/videoProbeService.ts
+- src/styles.css
+- src/types/videoProbe.ts
+验证情况：`corepack pnpm build` 已通过；`cargo check` 已通过；`corepack pnpm tauri build --debug` 已完成应用编译，后续打包阶段因下载 WiX 工具超时失败。
+遗留问题：打包器 WiX 下载超时，不影响本次功能代码编译；后续如需生成安装包再处理。
 
 ## 下一步建议
 
-1. 完成视频信息读取
-2. 完成单视频导入
-3. 完成导入视频后的预览
+1. 完成文件夹导入
+2. 完成导入视频后的预览
+3. 完成输出目录选择

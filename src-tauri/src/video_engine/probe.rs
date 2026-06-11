@@ -1,4 +1,5 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::fs;
 use std::process::Command;
 
 #[derive(Debug, Serialize)]
@@ -14,6 +15,40 @@ pub struct FfmpegEnvironmentResult {
     ffprobe: ToolProbeResult,
     available: bool,
     message: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoMetadata {
+    file_name: String,
+    file_path: String,
+    duration_seconds: Option<f64>,
+    width: Option<u32>,
+    height: Option<u32>,
+    frame_rate: Option<f64>,
+    has_audio: bool,
+    file_size_bytes: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct FfprobeOutput {
+    streams: Vec<FfprobeStream>,
+    format: Option<FfprobeFormat>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FfprobeStream {
+    codec_type: Option<String>,
+    width: Option<u32>,
+    height: Option<u32>,
+    avg_frame_rate: Option<String>,
+    r_frame_rate: Option<String>,
+    duration: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FfprobeFormat {
+    duration: Option<String>,
 }
 
 pub fn check_environment() -> FfmpegEnvironmentResult {
@@ -32,6 +67,73 @@ pub fn check_environment() -> FfmpegEnvironmentResult {
         available,
         message,
     }
+}
+
+pub fn probe_video_metadata(file_path: String) -> Result<VideoMetadata, String> {
+    let metadata =
+        fs::metadata(&file_path).map_err(|error| format!("无法读取视频文件：{error}"))?;
+
+    if !metadata.is_file() {
+        return Err("选择的路径不是视频文件。".to_string());
+    }
+
+    let output = Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            &file_path,
+        ])
+        .output()
+        .map_err(|error| format!("无法调用 ffprobe：{error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "ffprobe 读取视频信息失败。".to_string()
+        } else {
+            stderr
+        });
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let probe_output: FfprobeOutput =
+        serde_json::from_str(&stdout).map_err(|error| format!("ffprobe 结果解析失败：{error}"))?;
+
+    let video_stream = probe_output
+        .streams
+        .iter()
+        .find(|stream| stream.codec_type.as_deref() == Some("video"));
+
+    let has_audio = probe_output
+        .streams
+        .iter()
+        .any(|stream| stream.codec_type.as_deref() == Some("audio"));
+
+    let duration_seconds = probe_output
+        .format
+        .as_ref()
+        .and_then(|format| parse_optional_f64(format.duration.as_deref()))
+        .or_else(|| video_stream.and_then(|stream| parse_optional_f64(stream.duration.as_deref())));
+
+    let frame_rate = video_stream.and_then(|stream| {
+        parse_frame_rate(stream.avg_frame_rate.as_deref())
+            .or_else(|| parse_frame_rate(stream.r_frame_rate.as_deref()))
+    });
+
+    Ok(VideoMetadata {
+        file_name: file_name_from_path(&file_path),
+        file_path,
+        duration_seconds,
+        width: video_stream.and_then(|stream| stream.width),
+        height: video_stream.and_then(|stream| stream.height),
+        frame_rate,
+        has_audio,
+        file_size_bytes: metadata.len(),
+    })
 }
 
 fn probe_tool(binary_name: &str) -> ToolProbeResult {
@@ -65,4 +167,29 @@ fn probe_tool(binary_name: &str) -> ToolProbeResult {
             error: Some(error.to_string()),
         },
     }
+}
+
+fn parse_optional_f64(value: Option<&str>) -> Option<f64> {
+    value.and_then(|value| value.parse::<f64>().ok())
+}
+
+fn parse_frame_rate(value: Option<&str>) -> Option<f64> {
+    let value = value?;
+    let (numerator, denominator) = value.split_once('/')?;
+    let numerator = numerator.parse::<f64>().ok()?;
+    let denominator = denominator.parse::<f64>().ok()?;
+
+    if denominator == 0.0 {
+        None
+    } else {
+        Some(numerator / denominator)
+    }
+}
+
+fn file_name_from_path(file_path: &str) -> String {
+    std::path::Path::new(file_path)
+        .file_name()
+        .and_then(|file_name| file_name.to_str())
+        .unwrap_or(file_path)
+        .to_string()
 }

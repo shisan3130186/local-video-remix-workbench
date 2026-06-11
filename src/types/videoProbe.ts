@@ -10,3 +10,18 @@ export interface FfmpegEnvironmentResult {
   available: boolean;
   message: string;
 }
+
+export interface VideoMetadata {
+  fileName: string;
+  filePath: string;
+  durationSeconds: number | null;
+  width: number | null;
+  height: number | null;
+  frameRate: number | null;
+  hasAudio: boolean;
+  fileSizeBytes: number;
+}
+
+export interface ImportedVideo extends VideoMetadata {
+  id: string;
+}
