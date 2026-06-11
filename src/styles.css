@@ -352,6 +352,63 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+.export-log-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #e3e8ef;
+}
+
+.export-log-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.export-log-panel__header span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.export-log-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.export-log-item {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #d9e1ec;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.export-log-item--success {
+  border-color: #a9d8bd;
+  background: #f2fbf5;
+}
+
+.export-log-item--error {
+  border-color: #efb7b2;
+  background: #fff6f6;
+}
+
+.export-log-item__time {
+  color: #64748b;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 13px;
+}
+
+.export-log-item__message {
+  color: #1c2430;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 20px;
@@ -390,5 +447,14 @@ h3 {
 
   .asset-card__meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .export-log-panel__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .export-log-item {
+    grid-template-columns: 1fr;
   }
 }

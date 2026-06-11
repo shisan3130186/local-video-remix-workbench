@@ -31,6 +31,7 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 - [x] 视频预览
 - [x] 输出目录选择
 - [x] 基础导出任务
+- [x] 基础导出日志
 
 ## 当前阻塞
 
@@ -50,20 +51,16 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 ## 最近一次开发内容
 
 日期：2026-06-11
-完成：实现基础导出。用户选择已导入视频和输出目录后，可以导出一个新的 mp4 文件，页面会显示导出中、成功输出路径或失败原因。
+完成：实现基础导出日志。用户点击导出后，页面会按时间顺序显示开始导出、导出中、导出成功和输出路径；导出失败时显示失败原因。日志只服务当前单个导出任务，不包含百分比进度和任务队列。
 涉及文件：
-- src-tauri/src/lib.rs
-- src-tauri/src/video_engine/mod.rs
-- src-tauri/src/video_engine/render.rs
 - src/App.vue
-- src/services/videoRenderService.ts
 - src/styles.css
 - PROJECT_STATUS.md
 - TODO_NEXT.md
-验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已用测试素材导出 mp4 到 `E:\Workspace\测试结果库\Project_03_本地短视频批量混剪工作台\manual_basic_export_check.mp4`。
+验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已检查页面组件没有直接拼接 FFmpeg / FFprobe 命令。
 遗留问题：暂无。
 
 ## 下一步建议
 
-1. 完成任务进度和日志
-2. 完成日志和错误提示整理
+1. 按 `docs/09_测试验收清单.md` 完成 V0.1 主链路自检
+2. 确认 V0.1 是否进入收尾或开始规划 V0.2 基础混剪

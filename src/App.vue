@@ -10,6 +10,15 @@ import {
 import { exportCurrentVideo } from "./services/videoRenderService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
 
+type ExportLogLevel = "info" | "success" | "error";
+
+interface ExportLogEntry {
+  id: number;
+  time: string;
+  message: string;
+  level: ExportLogLevel;
+}
+
 const environment = ref<FfmpegEnvironmentResult | null>(null);
 const isChecking = ref(true);
 const checkError = ref<string | null>(null);
@@ -22,6 +31,7 @@ const outputDirectoryError = ref<string | null>(null);
 const isExporting = ref(false);
 const exportError = ref<string | null>(null);
 const exportResultPath = ref<string | null>(null);
+const exportLogs = ref<ExportLogEntry[]>([]);
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -163,17 +173,22 @@ async function selectOutputDirectory() {
 async function exportSelectedVideo() {
   exportError.value = null;
   exportResultPath.value = null;
+  exportLogs.value = [];
 
   if (!selectedVideo.value) {
     exportError.value = "请先选择一个要导出的视频。";
+    appendExportLog(`导出失败：${exportError.value}`, "error");
     return;
   }
 
   if (!outputDirectory.value) {
     exportError.value = "请先选择输出目录。";
+    appendExportLog(`导出失败：${exportError.value}`, "error");
     return;
   }
 
+  appendExportLog("开始导出。", "info");
+  appendExportLog("导出中。", "info");
   isExporting.value = true;
 
   try {
@@ -182,12 +197,23 @@ async function exportSelectedVideo() {
       outputDirectory.value,
     );
     exportResultPath.value = result.outputPath;
+    appendExportLog(`导出成功：${result.outputPath}`, "success");
   } catch (error) {
     exportError.value =
       error instanceof Error ? error.message : String(error ?? "视频导出失败。");
+    appendExportLog(`导出失败：${exportError.value}`, "error");
   } finally {
     isExporting.value = false;
   }
+}
+
+function appendExportLog(message: string, level: ExportLogLevel) {
+  exportLogs.value.push({
+    id: Date.now() + exportLogs.value.length,
+    time: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
+    message,
+    level,
+  });
 }
 
 function formatDuration(durationSeconds: number | null) {
@@ -381,6 +407,27 @@ onMounted(() => {
         <p v-else-if="exportResultPath" class="success-text">
           导出完成：{{ exportResultPath }}
         </p>
+
+        <div class="export-log-panel" aria-label="导出日志">
+          <div class="export-log-panel__header">
+            <p class="output-panel__label">导出日志</p>
+            <span>当前单个导出任务</span>
+          </div>
+          <p v-if="exportLogs.length === 0" class="empty-text">
+            点击导出后，这里会显示本次导出的过程和结果。
+          </p>
+          <ol v-else class="export-log-list">
+            <li
+              v-for="log in exportLogs"
+              :key="log.id"
+              class="export-log-item"
+              :class="`export-log-item--${log.level}`"
+            >
+              <span class="export-log-item__time">{{ log.time }}</span>
+              <span class="export-log-item__message">{{ log.message }}</span>
+            </li>
+          </ol>
+        </div>
       </section>
     </section>
   </main>
