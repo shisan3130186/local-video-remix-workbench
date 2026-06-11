@@ -282,6 +282,39 @@ h3 {
   background: #111827;
 }
 
+.output-panel {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #d9e1ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.output-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.output-panel__label {
+  margin-bottom: 8px;
+  color: #5b6b80;
+  font-size: 14px;
+}
+
+.output-path {
+  margin: 16px 0 0;
+  padding: 12px;
+  border: 1px solid #d9e1ec;
+  border-radius: 6px;
+  color: #334155;
+  background: #f8fafc;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 20px;
@@ -297,6 +330,11 @@ h3 {
   }
 
   .asset-panel__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .output-panel__header {
     align-items: stretch;
     flex-direction: column;
   }

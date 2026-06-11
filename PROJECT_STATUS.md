@@ -29,6 +29,7 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 - [x] 视频信息读取
 - [x] 文件夹导入
 - [x] 视频预览
+- [x] 输出目录选择
 - [ ] 基础导出任务
 
 ## 当前阻塞
@@ -49,17 +50,17 @@ FFmpeg 检测 → 导入素材 → 读取信息 → 视频预览 → 基础导�
 ## 最近一次开发内容
 
 日期：2026-06-11
-完成：修复视频预览黑屏问题。开启 Tauri 本地资源协议，允许播放器通过 asset 协议加载本地视频文件。
+完成：实现输出目录选择。用户可以选择后续导出结果保存目录，页面会显示当前输出目录路径。
 涉及文件：
-- src-tauri/Cargo.lock
-- src-tauri/Cargo.toml
-- src-tauri/tauri.conf.json
+- src/App.vue
+- src/styles.css
 - PROJECT_STATUS.md
-验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已重新启动工作台。
+- TODO_NEXT.md
+验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过。
 遗留问题：暂无。
 
 ## 下一步建议
 
-1. 完成输出目录选择
-2. 完成基础导出
-3. 完成任务进度和日志
+1. 完成基础导出
+2. 完成任务进度和日志
+3. 完成日志和错误提示整理

@@ -16,6 +16,8 @@ const importedVideos = ref<ImportedVideo[]>([]);
 const selectedVideo = ref<ImportedVideo | null>(null);
 const isImporting = ref(false);
 const importError = ref<string | null>(null);
+const outputDirectory = ref<string | null>(null);
+const outputDirectoryError = ref<string | null>(null);
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -130,6 +132,28 @@ async function loadVideosFromPaths(filePaths: string[]) {
 
 function selectVideo(video: ImportedVideo) {
   selectedVideo.value = video;
+}
+
+async function selectOutputDirectory() {
+  outputDirectoryError.value = null;
+
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+    });
+
+    if (!selected || Array.isArray(selected)) {
+      return;
+    }
+
+    outputDirectory.value = selected;
+  } catch (error) {
+    outputDirectoryError.value =
+      error instanceof Error
+        ? error.message
+        : String(error ?? "输出目录选择失败。");
+  }
 }
 
 function formatDuration(durationSeconds: number | null) {
@@ -292,6 +316,22 @@ onMounted(() => {
           <video :key="selectedVideo?.id" :src="previewUrl" controls preload="metadata"></video>
         </div>
         <p v-else class="empty-text">导入素材后，点击列表中的视频即可预览。</p>
+      </section>
+
+      <section class="output-panel" aria-label="输出设置">
+        <div class="output-panel__header">
+          <div>
+            <p class="output-panel__label">输出设置</p>
+            <h2>导出保存位置</h2>
+          </div>
+          <button class="ghost-button" type="button" @click="selectOutputDirectory">
+            选择输出目录
+          </button>
+        </div>
+
+        <p v-if="outputDirectoryError" class="error-text">{{ outputDirectoryError }}</p>
+        <p v-else-if="outputDirectory" class="output-path">{{ outputDirectory }}</p>
+        <p v-else class="empty-text">请选择后续导出视频的保存目录。</p>
       </section>
     </section>
   </main>
