@@ -1,5 +1,6 @@
 mod video_engine;
 
+use video_engine::canvas::{CanvasAspectRatio, CanvasBackgroundMode};
 use video_engine::import::list_supported_videos_in_folder;
 use video_engine::mix::{concat_video_segments, MixVideoResult};
 use video_engine::probe::{
@@ -27,8 +28,15 @@ fn list_video_files_in_folder(folder_path: String) -> Result<Vec<String>, String
 fn export_current_video(
     input_file_path: String,
     output_directory: String,
+    canvas_aspect_ratio: CanvasAspectRatio,
+    canvas_background_mode: CanvasBackgroundMode,
 ) -> Result<RenderVideoResult, String> {
-    export_basic_video(input_file_path, output_directory)
+    export_basic_video(
+        input_file_path,
+        output_directory,
+        canvas_aspect_ratio,
+        canvas_background_mode,
+    )
 }
 
 #[tauri::command]
@@ -46,12 +54,16 @@ fn concat_selected_segments(
     output_directory: String,
     apply_horizontal_mirror: bool,
     playback_speed: f64,
+    canvas_aspect_ratio: CanvasAspectRatio,
+    canvas_background_mode: CanvasBackgroundMode,
 ) -> Result<MixVideoResult, String> {
     concat_video_segments(
         segment_paths,
         output_directory,
         apply_horizontal_mirror,
         playback_speed,
+        canvas_aspect_ratio,
+        canvas_background_mode,
     )
 }
 

@@ -6,6 +6,14 @@ export interface MixVideoResult {
   message: string;
 }
 
+export type CanvasAspectRatio =
+  | "original"
+  | "portrait916"
+  | "square11"
+  | "landscape169";
+
+export type CanvasBackgroundMode = "black" | "blur";
+
 export function pickRandomSegments(
   segmentPaths: string[],
   pickCount: number,
@@ -30,12 +38,16 @@ export function concatSelectedSegments(
   outputDirectory: string,
   applyHorizontalMirror: boolean,
   playbackSpeed: number,
+  canvasAspectRatio: CanvasAspectRatio,
+  canvasBackgroundMode: CanvasBackgroundMode,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_selected_segments", {
     segmentPaths,
     outputDirectory,
     applyHorizontalMirror,
     playbackSpeed,
+    canvasAspectRatio,
+    canvasBackgroundMode,
   });
 }
 

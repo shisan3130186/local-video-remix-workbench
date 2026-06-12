@@ -1,3 +1,6 @@
+use crate::video_engine::canvas::{
+    build_canvas_filter, build_plain_video_filter, CanvasAspectRatio, CanvasBackgroundMode,
+};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,6 +20,8 @@ pub fn concat_video_segments(
     output_directory: String,
     apply_horizontal_mirror: bool,
     playback_speed: f64,
+    canvas_aspect_ratio: CanvasAspectRatio,
+    canvas_background_mode: CanvasBackgroundMode,
 ) -> Result<MixVideoResult, String> {
     let output_dir = Path::new(&output_directory);
     let normalized_playback_speed = normalize_playback_speed(playback_speed)?;
@@ -74,9 +79,22 @@ pub fn concat_video_segments(
         video_filters.push(format!("setpts=PTS/{normalized_playback_speed:.3}"));
     }
 
-    if !video_filters.is_empty() {
-        ffmpeg_args.push("-vf".to_string());
-        ffmpeg_args.push(video_filters.join(","));
+    let video_filter =
+        build_canvas_filter(canvas_aspect_ratio, canvas_background_mode, &video_filters)
+            .or_else(|| build_plain_video_filter(&video_filters));
+
+    if let Some(video_filter) = video_filter {
+        if video_filter.is_complex {
+            ffmpeg_args.push("-filter_complex".to_string());
+            ffmpeg_args.push(video_filter.filter);
+            ffmpeg_args.push("-map".to_string());
+            ffmpeg_args.push("[v]".to_string());
+            ffmpeg_args.push("-map".to_string());
+            ffmpeg_args.push("0:a?".to_string());
+        } else {
+            ffmpeg_args.push("-vf".to_string());
+            ffmpeg_args.push(video_filter.filter);
+        }
     }
 
     if should_apply_speed_filter(normalized_playback_speed) {

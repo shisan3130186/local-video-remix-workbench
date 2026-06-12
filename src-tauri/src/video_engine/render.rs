@@ -1,3 +1,6 @@
+use crate::video_engine::canvas::{
+    build_canvas_filter, CanvasAspectRatio, CanvasBackgroundMode,
+};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -14,6 +17,8 @@ pub struct RenderVideoResult {
 pub fn export_basic_video(
     input_file_path: String,
     output_directory: String,
+    canvas_aspect_ratio: CanvasAspectRatio,
+    canvas_background_mode: CanvasBackgroundMode,
 ) -> Result<RenderVideoResult, String> {
     let input_path = Path::new(&input_file_path);
     let output_dir = Path::new(&output_directory);
@@ -27,26 +32,43 @@ pub fn export_basic_video(
     }
 
     let output_path = build_output_path(input_path, output_dir)?;
+    let output_path_text = output_path
+        .to_str()
+        .ok_or_else(|| "输出路径包含无法识别的字符。".to_string())?;
+    let mut ffmpeg_args = vec!["-y".to_string(), "-i".to_string(), input_file_path];
+
+    if let Some(canvas_filter) =
+        build_canvas_filter(canvas_aspect_ratio, canvas_background_mode, &[])
+    {
+        if canvas_filter.is_complex {
+            ffmpeg_args.push("-filter_complex".to_string());
+            ffmpeg_args.push(canvas_filter.filter);
+            ffmpeg_args.push("-map".to_string());
+            ffmpeg_args.push("[v]".to_string());
+            ffmpeg_args.push("-map".to_string());
+            ffmpeg_args.push("0:a?".to_string());
+        } else {
+            ffmpeg_args.push("-vf".to_string());
+            ffmpeg_args.push(canvas_filter.filter);
+        }
+    }
+
+    ffmpeg_args.extend([
+        "-c:v".to_string(),
+        "libx264".to_string(),
+        "-preset".to_string(),
+        "veryfast".to_string(),
+        "-pix_fmt".to_string(),
+        "yuv420p".to_string(),
+        "-c:a".to_string(),
+        "aac".to_string(),
+        "-movflags".to_string(),
+        "+faststart".to_string(),
+        output_path_text.to_string(),
+    ]);
 
     let output = Command::new("ffmpeg")
-        .args([
-            "-y",
-            "-i",
-            &input_file_path,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-movflags",
-            "+faststart",
-            output_path
-                .to_str()
-                .ok_or_else(|| "输出路径包含无法识别的字符。".to_string())?,
-        ])
+        .args(ffmpeg_args)
         .output()
         .map_err(|error| format!("无法调用 ffmpeg：{error}"))?;
 

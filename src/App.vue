@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { listVideoFilesInFolder } from "./services/videoImportService";
 import {
   concatSelectedSegments,
   pickRandomSegments,
+} from "./services/videoMixService";
+import type {
+  CanvasAspectRatio,
+  CanvasBackgroundMode,
 } from "./services/videoMixService";
 import {
   checkFfmpegEnvironment,
@@ -58,6 +62,10 @@ const isBatchMixing = ref(false);
 const batchMixError = ref<string | null>(null);
 const batchMixResults = ref<string[]>([]);
 const batchMixLogs = ref<TaskLogEntry[]>([]);
+const canvasAspectRatio = ref<CanvasAspectRatio>("original");
+const canvasBackgroundMode = ref<CanvasBackgroundMode>("black");
+const previewVideoRef = ref<HTMLVideoElement | null>(null);
+const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -78,6 +86,14 @@ const previewUrl = computed(() => {
 
   return convertFileSrc(selectedVideo.value.filePath);
 });
+
+const previewCanvasStyle = computed(() => ({
+  aspectRatio: getCanvasAspectRatioValue(canvasAspectRatio.value),
+}));
+
+const shouldShowBlurBackground = computed(
+  () => canvasAspectRatio.value !== "original" && canvasBackgroundMode.value === "blur",
+);
 
 const taskLogs = computed(() => [
   ...exportLogs.value.map((log) => ({ ...log, group: "基础导出" })),
@@ -230,6 +246,8 @@ async function exportSelectedVideo() {
     const result = await exportCurrentVideo(
       selectedVideo.value.filePath,
       outputDirectory.value,
+      canvasAspectRatio.value,
+      canvasBackgroundMode.value,
     );
     exportResultPath.value = result.outputPath;
     appendExportLog(`导出成功：${result.outputPath}`, "success");
@@ -345,6 +363,8 @@ async function concatRandomSegments() {
       outputDirectory.value,
       applyHorizontalMirror.value,
       playbackSpeed.value,
+      canvasAspectRatio.value,
+      canvasBackgroundMode.value,
     );
     mixResultPath.value = result.outputPath;
     appendMixLog(
@@ -412,6 +432,8 @@ async function generateBatchMixes() {
         outputDirectory.value,
         applyHorizontalMirror.value,
         playbackSpeed.value,
+        canvasAspectRatio.value,
+        canvasBackgroundMode.value,
       );
       batchMixResults.value.push(result.outputPath);
       appendBatchMixLog(
@@ -503,6 +525,54 @@ function buildMixOptionSummary() {
 
   return options.length > 0 ? `，${options.join("，")}。` : "。";
 }
+
+function getCanvasAspectRatioValue(aspectRatio: CanvasAspectRatio) {
+  if (aspectRatio === "portrait916") {
+    return "9 / 16";
+  }
+
+  if (aspectRatio === "square11") {
+    return "1 / 1";
+  }
+
+  if (aspectRatio === "landscape169") {
+    return "16 / 9";
+  }
+
+  if (selectedVideo.value?.width && selectedVideo.value?.height) {
+    return `${selectedVideo.value.width} / ${selectedVideo.value.height}`;
+  }
+
+  return "16 / 9";
+}
+
+function syncPreviewBackground() {
+  const foregroundVideo = previewVideoRef.value;
+  const backgroundVideo = previewBackgroundVideoRef.value;
+
+  if (!foregroundVideo || !backgroundVideo) {
+    return;
+  }
+
+  if (Math.abs(backgroundVideo.currentTime - foregroundVideo.currentTime) > 0.08) {
+    backgroundVideo.currentTime = foregroundVideo.currentTime;
+  }
+
+  backgroundVideo.playbackRate = foregroundVideo.playbackRate;
+
+  if (foregroundVideo.paused) {
+    backgroundVideo.pause();
+    return;
+  }
+
+  void backgroundVideo.play().catch(() => {
+    backgroundVideo.pause();
+  });
+}
+
+watch([previewUrl, shouldShowBlurBackground], () => {
+  requestAnimationFrame(syncPreviewBackground);
+});
 
 function appendTaskLog(logs: TaskLogEntry[], message: string, level: TaskLogLevel) {
   logs.push({
@@ -678,8 +748,39 @@ onMounted(() => {
             </div>
           </div>
 
-          <div v-if="previewUrl" class="video-frame">
-            <video :key="selectedVideo?.id" :src="previewUrl" controls preload="metadata"></video>
+          <div
+            v-if="previewUrl"
+            class="video-frame"
+            :class="{
+              'video-frame--canvas': canvasAspectRatio !== 'original',
+              'video-frame--blur': shouldShowBlurBackground,
+            }"
+            :style="previewCanvasStyle"
+          >
+            <video
+              v-if="shouldShowBlurBackground"
+              ref="previewBackgroundVideoRef"
+              class="video-frame__background"
+              :src="previewUrl"
+              muted
+              playsinline
+              preload="metadata"
+              tabindex="-1"
+              aria-hidden="true"
+            ></video>
+            <video
+              :key="selectedVideo?.id"
+              ref="previewVideoRef"
+              class="video-frame__foreground"
+              :src="previewUrl"
+              controls
+              preload="metadata"
+              @play="syncPreviewBackground"
+              @pause="syncPreviewBackground"
+              @seeked="syncPreviewBackground"
+              @timeupdate="syncPreviewBackground"
+              @ratechange="syncPreviewBackground"
+            ></video>
           </div>
           <div v-else class="video-placeholder">
             导入素材后，点击左侧视频即可预览。
@@ -811,6 +912,24 @@ onMounted(() => {
             随机抽取
           </button>
           <p v-if="randomPickError" class="error-text">{{ randomPickError }}</p>
+
+          <label class="field">
+            <span>视频比例</span>
+            <select v-model="canvasAspectRatio">
+              <option value="original">原画</option>
+              <option value="portrait916">9:16 竖屏</option>
+              <option value="square11">1:1 方屏</option>
+              <option value="landscape169">16:9 横屏</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>背景方式</span>
+            <select v-model="canvasBackgroundMode" :disabled="canvasAspectRatio === 'original'">
+              <option value="black">黑边</option>
+              <option value="blur">模糊背景</option>
+            </select>
+          </label>
 
           <label class="option-toggle">
             <input v-model="applyHorizontalMirror" type="checkbox" />
