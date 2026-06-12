@@ -51,6 +51,11 @@ const isMixing = ref(false);
 const mixError = ref<string | null>(null);
 const mixResultPath = ref<string | null>(null);
 const mixLogs = ref<TaskLogEntry[]>([]);
+const batchGenerateCount = ref(3);
+const isBatchMixing = ref(false);
+const batchMixError = ref<string | null>(null);
+const batchMixResults = ref<string[]>([]);
+const batchMixLogs = ref<TaskLogEntry[]>([]);
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -336,6 +341,55 @@ async function concatRandomSegments() {
   }
 }
 
+async function generateBatchMixes() {
+  batchMixError.value = null;
+  batchMixResults.value = [];
+  batchMixLogs.value = [];
+
+  if (!outputDirectory.value) {
+    batchMixError.value = "请先选择输出目录。";
+    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
+    return;
+  }
+
+  if (!Number.isInteger(batchGenerateCount.value) || batchGenerateCount.value <= 0) {
+    batchMixError.value = "批量生成数量必须大于 0。";
+    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
+    return;
+  }
+
+  if (!Number.isInteger(randomPickCount.value) || randomPickCount.value < 2) {
+    batchMixError.value = "每条混剪至少需要抽取 2 个片段。";
+    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
+    return;
+  }
+
+  appendBatchMixLog(`开始批量生成：计划生成 ${batchGenerateCount.value} 条。`, "info");
+  isBatchMixing.value = true;
+
+  try {
+    for (let index = 0; index < batchGenerateCount.value; index += 1) {
+      const pickedSegments = pickRandomSegments(splitSegmentPaths.value, randomPickCount.value);
+      appendBatchMixLog(
+        `正在生成第 ${index + 1} 条，使用 ${pickedSegments.length} 个随机片段。`,
+        "info",
+      );
+
+      const result = await concatSelectedSegments(pickedSegments, outputDirectory.value);
+      batchMixResults.value.push(result.outputPath);
+      appendBatchMixLog(`第 ${index + 1} 条生成成功：${result.outputPath}`, "success");
+    }
+
+    appendBatchMixLog(`批量生成完成：共生成 ${batchMixResults.value.length} 条。`, "success");
+  } catch (error) {
+    batchMixError.value =
+      error instanceof Error ? error.message : String(error ?? "批量生成失败。");
+    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
+  } finally {
+    isBatchMixing.value = false;
+  }
+}
+
 function resetSplitAndRandomState() {
   splitError.value = null;
   splitOutputDirectory.value = null;
@@ -356,6 +410,14 @@ function resetMixState() {
   mixError.value = null;
   mixResultPath.value = null;
   mixLogs.value = [];
+  resetBatchMixState();
+}
+
+function resetBatchMixState() {
+  isBatchMixing.value = false;
+  batchMixError.value = null;
+  batchMixResults.value = [];
+  batchMixLogs.value = [];
 }
 
 function appendSplitLog(message: string, level: TaskLogLevel) {
@@ -364,6 +426,10 @@ function appendSplitLog(message: string, level: TaskLogLevel) {
 
 function appendMixLog(message: string, level: TaskLogLevel) {
   appendTaskLog(mixLogs.value, message, level);
+}
+
+function appendBatchMixLog(message: string, level: TaskLogLevel) {
+  appendTaskLog(batchMixLogs.value, message, level);
 }
 
 function appendExportLog(message: string, level: TaskLogLevel) {
@@ -731,6 +797,75 @@ onMounted(() => {
             <ol v-else class="export-log-list">
               <li
                 v-for="log in mixLogs"
+                :key="log.id"
+                class="export-log-item"
+                :class="`export-log-item--${log.level}`"
+              >
+                <span class="export-log-item__time">{{ log.time }}</span>
+                <span class="export-log-item__message">{{ log.message }}</span>
+              </li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="mix-export-panel">
+          <div class="mix-export-panel__header">
+            <div>
+              <p class="mix-panel__label">批量生成</p>
+              <h2>生成多条混剪视频</h2>
+            </div>
+            <div class="mix-panel__actions">
+              <label class="duration-field">
+                <span>生成数量</span>
+                <input
+                  v-model.number="batchGenerateCount"
+                  type="number"
+                  min="1"
+                  step="1"
+                  :disabled="isBatchMixing"
+                />
+              </label>
+              <button
+                class="primary-button"
+                type="button"
+                :disabled="isBatchMixing"
+                @click="generateBatchMixes"
+              >
+                {{ isBatchMixing ? "正在批量生成..." : "批量生成混剪" }}
+              </button>
+            </div>
+          </div>
+
+          <p class="empty-text">
+            使用当前切片结果作为素材池，每条视频都会重新随机抽取片段并生成一个新的 mp4。
+          </p>
+
+          <p v-if="batchMixError" class="error-text">{{ batchMixError }}</p>
+
+          <div v-if="batchMixResults.length > 0" class="random-result">
+            <div class="random-result__header">
+              <p class="mix-panel__label">批量生成结果</p>
+              <span>共 {{ batchMixResults.length }} 条</span>
+            </div>
+            <ol class="random-result__list">
+              <li v-for="resultPath in batchMixResults" :key="resultPath">
+                <span>{{ formatFileName(resultPath) }}</span>
+                <small>{{ resultPath }}</small>
+              </li>
+            </ol>
+          </div>
+
+          <div class="export-log-panel" aria-label="批量生成日志">
+            <div class="export-log-panel__header">
+              <p class="mix-panel__label">批量日志</p>
+              <span>顺序生成，不并发</span>
+            </div>
+            <p v-if="batchMixLogs.length === 0" class="empty-text">
+              点击批量生成后，这里会显示每条视频的生成过程和结果。
+            </p>
+            <ol v-else class="export-log-list">
+              <li
+                v-for="log in batchMixLogs"
                 :key="log.id"
                 class="export-log-item"
                 :class="`export-log-item--${log.level}`"

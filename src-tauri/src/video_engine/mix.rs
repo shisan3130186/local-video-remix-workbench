@@ -103,7 +103,7 @@ fn current_timestamp() -> Result<u64, String> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|error| format!("无法生成拼接文件名：{error}"))
-        .map(|duration| duration.as_secs())
+        .map(|duration| duration.as_millis() as u64)
 }
 
 fn build_concat_list_content(segment_paths: &[String]) -> String {

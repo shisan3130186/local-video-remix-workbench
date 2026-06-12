@@ -36,6 +36,7 @@ v0.2.0-dev
 - [x] 固定时长视频切片
 - [x] 随机片段抽取
 - [x] 片段拼接导出
+- [x] 批量生成混剪结果
 
 ## 当前阻塞
 
@@ -55,14 +56,16 @@ v0.2.0-dev
 ## 最近一次开发内容
 
 日期：2026-06-12
-完成：片段拼接导出人工测试通过。用户使用 2 分 47 秒视频进行测试，按 10 秒固定切片生成 17 个片段，随机抽取 5 个片段后成功拼接出约 46 秒的新 mp4 视频。
+完成：实现批量生成混剪结果。用户完成切片后，可以设置每条混剪抽取片段数量和批量生成数量，软件会顺序生成多条随机组合的 mp4 混剪视频。
 涉及文件：
+- src-tauri/src/video_engine/mix.rs
+- src/App.vue
 - PROJECT_STATUS.md
 - TODO_NEXT.md
-验证情况：用户人工测试通过；此前 `corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已检查页面组件没有直接拼接 FFmpeg / FFprobe 命令。
+验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已检查页面组件没有直接拼接 FFmpeg / FFprobe 命令。
 遗留问题：暂无。
 
 ## 下一步建议
 
-1. 测试片段拼接导出功能
-2. 规划 V0.2 后续批量生成、镜像、变速和裁剪比例
+1. 测试批量生成混剪结果
+2. 规划 V0.2 后续镜像、变速和裁剪比例
