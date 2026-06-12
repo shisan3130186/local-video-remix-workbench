@@ -55,17 +55,11 @@ v0.2.0-dev
 ## 最近一次开发内容
 
 日期：2026-06-12
-完成：实现片段拼接导出。用户随机抽取至少 2 个片段后，可以点击拼接生成一个新的 mp4 混剪视频；页面会显示拼接开始、拼接中、拼接成功输出路径或失败原因。
+完成：片段拼接导出人工测试通过。用户使用 2 分 47 秒视频进行测试，按 10 秒固定切片生成 17 个片段，随机抽取 5 个片段后成功拼接出约 46 秒的新 mp4 视频。
 涉及文件：
-- src-tauri/src/lib.rs
-- src-tauri/src/video_engine/mod.rs
-- src-tauri/src/video_engine/mix.rs
-- src/services/videoMixService.ts
-- src/App.vue
-- src/styles.css
 - PROJECT_STATUS.md
 - TODO_NEXT.md
-验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已用测试素材生成多个片段，并用无 BOM concat 列表验证 FFmpeg 拼接成功，输出到 `E:\Workspace\测试结果库\Project_03_本地短视频批量混剪工作台\manual_concat_check\manual_remix.mp4`；已检查页面组件没有直接拼接 FFmpeg / FFprobe 命令。
+验证情况：用户人工测试通过；此前 `corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已检查页面组件没有直接拼接 FFmpeg / FFprobe 命令。
 遗留问题：暂无。
 
 ## 下一步建议
