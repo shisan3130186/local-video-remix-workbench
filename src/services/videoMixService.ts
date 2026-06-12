@@ -1,3 +1,11 @@
+import { invoke } from "@tauri-apps/api/core";
+
+export interface MixVideoResult {
+  outputPath: string;
+  inputCount: number;
+  message: string;
+}
+
 export function pickRandomSegments(
   segmentPaths: string[],
   pickCount: number,
@@ -15,6 +23,16 @@ export function pickRandomSegments(
   }
 
   return shuffleSegments(segmentPaths).slice(0, pickCount);
+}
+
+export function concatSelectedSegments(
+  segmentPaths: string[],
+  outputDirectory: string,
+): Promise<MixVideoResult> {
+  return invoke<MixVideoResult>("concat_selected_segments", {
+    segmentPaths,
+    outputDirectory,
+  });
 }
 
 function shuffleSegments(segmentPaths: string[]) {

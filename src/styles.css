@@ -536,6 +536,19 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+.mix-export-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #e3e8ef;
+}
+
+.mix-export-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 20px;
@@ -611,6 +624,11 @@ h3 {
 
   .random-result__header {
     align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mix-export-panel__header {
+    align-items: stretch;
     flex-direction: column;
   }
 }

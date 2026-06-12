@@ -1,6 +1,7 @@
 mod video_engine;
 
 use video_engine::import::list_supported_videos_in_folder;
+use video_engine::mix::{concat_video_segments, MixVideoResult};
 use video_engine::probe::{
     check_environment, probe_video_metadata, FfmpegEnvironmentResult, VideoMetadata,
 };
@@ -39,11 +40,20 @@ fn split_current_video(
     split_video_by_duration(input_file_path, output_directory, segment_duration_seconds)
 }
 
+#[tauri::command]
+fn concat_selected_segments(
+    segment_paths: Vec<String>,
+    output_directory: String,
+) -> Result<MixVideoResult, String> {
+    concat_video_segments(segment_paths, output_directory)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             check_ffmpeg_environment,
+            concat_selected_segments,
             export_current_video,
             list_video_files_in_folder,
             read_video_metadata,

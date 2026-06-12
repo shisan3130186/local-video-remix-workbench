@@ -3,7 +3,10 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, ref } from "vue";
 import { listVideoFilesInFolder } from "./services/videoImportService";
-import { pickRandomSegments } from "./services/videoMixService";
+import {
+  concatSelectedSegments,
+  pickRandomSegments,
+} from "./services/videoMixService";
 import {
   checkFfmpegEnvironment,
   readVideoMetadata,
@@ -44,6 +47,10 @@ const splitLogs = ref<TaskLogEntry[]>([]);
 const randomPickCount = ref(1);
 const randomPickError = ref<string | null>(null);
 const randomSelectedSegments = ref<string[]>([]);
+const isMixing = ref(false);
+const mixError = ref<string | null>(null);
+const mixResultPath = ref<string | null>(null);
+const mixLogs = ref<TaskLogEntry[]>([]);
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -276,6 +283,7 @@ async function splitSelectedVideo() {
 function pickSegmentsRandomly() {
   randomPickError.value = null;
   randomSelectedSegments.value = [];
+  resetMixState();
 
   try {
     randomSelectedSegments.value = pickRandomSegments(
@@ -285,6 +293,46 @@ function pickSegmentsRandomly() {
   } catch (error) {
     randomPickError.value =
       error instanceof Error ? error.message : String(error ?? "随机抽取失败。");
+  }
+}
+
+async function concatRandomSegments() {
+  mixError.value = null;
+  mixResultPath.value = null;
+  mixLogs.value = [];
+
+  if (!outputDirectory.value) {
+    mixError.value = "请先选择输出目录。";
+    appendMixLog(`拼接失败：${mixError.value}`, "error");
+    return;
+  }
+
+  if (randomSelectedSegments.value.length < 2) {
+    mixError.value = "至少需要随机抽取 2 个片段才能拼接。";
+    appendMixLog(`拼接失败：${mixError.value}`, "error");
+    return;
+  }
+
+  appendMixLog("开始拼接。", "info");
+  appendMixLog("拼接中。", "info");
+  isMixing.value = true;
+
+  try {
+    const result = await concatSelectedSegments(
+      randomSelectedSegments.value,
+      outputDirectory.value,
+    );
+    mixResultPath.value = result.outputPath;
+    appendMixLog(
+      `拼接成功：已使用 ${result.inputCount} 个片段生成 ${result.outputPath}`,
+      "success",
+    );
+  } catch (error) {
+    mixError.value =
+      error instanceof Error ? error.message : String(error ?? "片段拼接失败。");
+    appendMixLog(`拼接失败：${mixError.value}`, "error");
+  } finally {
+    isMixing.value = false;
   }
 }
 
@@ -300,10 +348,22 @@ function resetSplitAndRandomState() {
 function resetRandomPickState() {
   randomPickError.value = null;
   randomSelectedSegments.value = [];
+  resetMixState();
+}
+
+function resetMixState() {
+  isMixing.value = false;
+  mixError.value = null;
+  mixResultPath.value = null;
+  mixLogs.value = [];
 }
 
 function appendSplitLog(message: string, level: TaskLogLevel) {
   appendTaskLog(splitLogs.value, message, level);
+}
+
+function appendMixLog(message: string, level: TaskLogLevel) {
+  appendTaskLog(mixLogs.value, message, level);
 }
 
 function appendExportLog(message: string, level: TaskLogLevel) {
@@ -633,6 +693,53 @@ onMounted(() => {
               <small>{{ segmentPath }}</small>
             </li>
           </ol>
+        </div>
+
+        <div class="mix-export-panel">
+          <div class="mix-export-panel__header">
+            <div>
+              <p class="mix-panel__label">片段拼接</p>
+              <h2>生成混剪视频</h2>
+            </div>
+            <button
+              class="primary-button"
+              type="button"
+              :disabled="isMixing"
+              @click="concatRandomSegments"
+            >
+              {{ isMixing ? "正在拼接..." : "拼接抽中片段" }}
+            </button>
+          </div>
+
+          <p class="empty-text">
+            使用当前随机抽中的片段生成一个新的 mp4 文件。至少需要 2 个片段。
+          </p>
+
+          <p v-if="mixError" class="error-text">{{ mixError }}</p>
+          <p v-else-if="mixResultPath" class="success-text">
+            拼接完成：{{ mixResultPath }}
+          </p>
+
+          <div class="export-log-panel" aria-label="拼接日志">
+            <div class="export-log-panel__header">
+              <p class="mix-panel__label">拼接日志</p>
+              <span>当前单个拼接任务</span>
+            </div>
+            <p v-if="mixLogs.length === 0" class="empty-text">
+              点击拼接后，这里会显示本次拼接的过程和结果。
+            </p>
+            <ol v-else class="export-log-list">
+              <li
+                v-for="log in mixLogs"
+                :key="log.id"
+                class="export-log-item"
+                :class="`export-log-item--${log.level}`"
+              >
+                <span class="export-log-item__time">{{ log.time }}</span>
+                <span class="export-log-item__message">{{ log.message }}</span>
+              </li>
+            </ol>
+          </div>
         </div>
       </section>
     </section>
