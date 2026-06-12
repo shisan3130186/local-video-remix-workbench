@@ -78,6 +78,13 @@ const previewUrl = computed(() => {
   return convertFileSrc(selectedVideo.value.filePath);
 });
 
+const taskLogs = computed(() => [
+  ...exportLogs.value.map((log) => ({ ...log, group: "基础导出" })),
+  ...splitLogs.value.map((log) => ({ ...log, group: "视频切片" })),
+  ...mixLogs.value.map((log) => ({ ...log, group: "片段拼接" })),
+  ...batchMixLogs.value.map((log) => ({ ...log, group: "批量生成" })),
+]);
+
 async function runEnvironmentCheck() {
   isChecking.value = true;
   checkError.value = null;
@@ -505,53 +512,34 @@ onMounted(() => {
 
 <template>
   <main class="app-shell">
-    <section class="workspace">
-      <header class="workspace__header">
-        <div>
-          <p class="eyebrow">V0.2 基础混剪版</p>
-          <h1>本地短视频批量混剪工作台</h1>
-        </div>
+    <header class="top-bar">
+      <div class="product-mark">
+        <p class="eyebrow">V0.2 基础混剪版</p>
+        <h1>本地短视频批量混剪工作台</h1>
+      </div>
+      <div class="top-status">
+        <span class="mode-pill">本地处理模式</span>
+        <span class="health-pill" :class="{ 'health-pill--ok': environment?.available }">
+          {{ environment?.available ? "FFmpeg 就绪" : "FFmpeg 未就绪" }}
+        </span>
         <button class="ghost-button" type="button" @click="runEnvironmentCheck">
           重新检测
         </button>
-      </header>
+      </div>
+    </header>
 
-      <section class="status-panel" :class="{ 'status-panel--ok': environment?.available }">
-        <div>
-          <p class="status-panel__label">FFmpeg 环境</p>
-          <h2>{{ statusText }}</h2>
-        </div>
-      </section>
-
-      <section class="tool-grid" aria-label="FFmpeg 检测结果">
-        <article class="tool-card">
-          <p class="tool-card__name">ffmpeg</p>
-          <p class="tool-card__state">
-            {{ environment?.ffmpeg.available ? "已检测到" : "未检测到" }}
-          </p>
-          <p class="tool-card__version">
-            {{ environment?.ffmpeg.version ?? "未检测到 FFmpeg，请配置路径。" }}
-          </p>
-        </article>
-
-        <article class="tool-card">
-          <p class="tool-card__name">ffprobe</p>
-          <p class="tool-card__state">
-            {{ environment?.ffprobe.available ? "已检测到" : "未检测到" }}
-          </p>
-          <p class="tool-card__version">
-            {{ environment?.ffprobe.version ?? "未检测到 FFmpeg，请配置路径。" }}
-          </p>
-        </article>
-      </section>
-
-      <section class="asset-panel" aria-label="素材列表">
-        <div class="asset-panel__header">
-          <div>
-            <p class="asset-panel__label">素材列表</p>
-            <h2>导入视频并读取信息</h2>
+    <section class="workbench">
+      <aside class="left-rail" aria-label="素材和片段">
+        <section class="panel panel--stretch">
+          <div class="panel__header">
+            <div>
+              <p class="panel__label">素材</p>
+              <h2>视频素材列表</h2>
+            </div>
+            <span class="count-badge">{{ importedVideos.length }}</span>
           </div>
-          <div class="asset-panel__actions">
+
+          <div class="button-row">
             <button class="ghost-button" type="button" :disabled="isImporting" @click="importVideos">
               {{ isImporting ? "正在导入..." : "导入视频" }}
             </button>
@@ -564,337 +552,308 @@ onMounted(() => {
               导入文件夹
             </button>
           </div>
-        </div>
 
-        <p v-if="importError" class="error-text">{{ importError }}</p>
-        <p v-else-if="importedVideos.length === 0" class="empty-text">
-          支持导入 mp4 / mov / avi / mkv 文件，或选择一个包含视频的文件夹。
-        </p>
-
-        <div v-else class="asset-list">
-          <article
-            v-for="video in importedVideos"
-            :key="video.id"
-            class="asset-card"
-            :class="{ 'asset-card--active': selectedVideo?.id === video.id }"
-            tabindex="0"
-            role="button"
-            @click="selectVideo(video)"
-            @keydown.enter="selectVideo(video)"
-            @keydown.space.prevent="selectVideo(video)"
-          >
-            <div class="asset-card__title">
-              <h3>{{ video.fileName }}</h3>
-              <span>{{ video.hasAudio ? "有音频" : "无音频" }}</span>
-            </div>
-            <p class="asset-card__path">{{ video.filePath }}</p>
-            <dl class="asset-card__meta">
-              <div>
-                <dt>时长</dt>
-                <dd>{{ formatDuration(video.durationSeconds) }}</dd>
-              </div>
-              <div>
-                <dt>分辨率</dt>
-                <dd>{{ formatResolution(video) }}</dd>
-              </div>
-              <div>
-                <dt>帧率</dt>
-                <dd>{{ formatFrameRate(video.frameRate) }}</dd>
-              </div>
-              <div>
-                <dt>大小</dt>
-                <dd>{{ formatFileSize(video.fileSizeBytes) }}</dd>
-              </div>
-            </dl>
-          </article>
-        </div>
-      </section>
-
-      <section class="preview-panel" aria-label="视频预览">
-        <div class="preview-panel__header">
-          <div>
-            <p class="preview-panel__label">视频预览</p>
-            <h2>{{ selectedVideo?.fileName ?? "请选择一个素材" }}</h2>
-          </div>
-        </div>
-
-        <div v-if="previewUrl" class="video-frame">
-          <video :key="selectedVideo?.id" :src="previewUrl" controls preload="metadata"></video>
-        </div>
-        <p v-else class="empty-text">导入素材后，点击列表中的视频即可预览。</p>
-      </section>
-
-      <section class="output-panel" aria-label="输出设置">
-        <div class="output-panel__header">
-          <div>
-            <p class="output-panel__label">输出设置</p>
-            <h2>导出保存位置</h2>
-          </div>
-          <div class="output-panel__actions">
-            <button class="ghost-button" type="button" @click="selectOutputDirectory">
-              选择输出目录
-            </button>
-            <button
-              class="primary-button"
-              type="button"
-              :disabled="isExporting"
-              @click="exportSelectedVideo"
-            >
-              {{ isExporting ? "正在导出..." : "导出当前视频" }}
-            </button>
-          </div>
-        </div>
-
-        <p v-if="outputDirectoryError" class="error-text">{{ outputDirectoryError }}</p>
-        <p v-else-if="outputDirectory" class="output-path">{{ outputDirectory }}</p>
-        <p v-else class="empty-text">请选择后续导出视频的保存目录。</p>
-
-        <p v-if="exportError" class="error-text">{{ exportError }}</p>
-        <p v-else-if="exportResultPath" class="success-text">
-          导出完成：{{ exportResultPath }}
-        </p>
-
-        <div class="export-log-panel" aria-label="导出日志">
-          <div class="export-log-panel__header">
-            <p class="output-panel__label">导出日志</p>
-            <span>当前单个导出任务</span>
-          </div>
-          <p v-if="exportLogs.length === 0" class="empty-text">
-            点击导出后，这里会显示本次导出的过程和结果。
+          <p v-if="importError" class="error-text">{{ importError }}</p>
+          <p v-else-if="importedVideos.length === 0" class="empty-text">
+            支持 mp4 / mov / avi / mkv。
           </p>
-          <ol v-else class="export-log-list">
-            <li
-              v-for="log in exportLogs"
-              :key="log.id"
-              class="export-log-item"
-              :class="`export-log-item--${log.level}`"
+
+          <div v-else class="asset-list">
+            <article
+              v-for="video in importedVideos"
+              :key="video.id"
+              class="asset-card"
+              :class="{ 'asset-card--active': selectedVideo?.id === video.id }"
+              tabindex="0"
+              role="button"
+              @click="selectVideo(video)"
+              @keydown.enter="selectVideo(video)"
+              @keydown.space.prevent="selectVideo(video)"
             >
-              <span class="export-log-item__time">{{ log.time }}</span>
-              <span class="export-log-item__message">{{ log.message }}</span>
-            </li>
-          </ol>
-        </div>
-      </section>
-
-      <section class="split-panel" aria-label="视频切片">
-        <div class="split-panel__header">
-          <div>
-            <p class="split-panel__label">视频切片</p>
-            <h2>固定时长切片</h2>
+              <div class="asset-card__title">
+                <h3>{{ video.fileName }}</h3>
+                <span>{{ video.hasAudio ? "有音频" : "无音频" }}</span>
+              </div>
+              <p class="asset-card__path">{{ video.filePath }}</p>
+              <dl class="asset-card__meta">
+                <div>
+                  <dt>时长</dt>
+                  <dd>{{ formatDuration(video.durationSeconds) }}</dd>
+                </div>
+                <div>
+                  <dt>分辨率</dt>
+                  <dd>{{ formatResolution(video) }}</dd>
+                </div>
+              </dl>
+            </article>
           </div>
-          <div class="split-panel__actions">
-            <label class="duration-field">
-              <span>切片秒数</span>
-              <input
-                v-model.number="segmentDurationSeconds"
-                type="number"
-                min="1"
-                step="1"
-                :disabled="isSplitting"
-              />
-            </label>
-            <button
-              class="primary-button"
-              type="button"
-              :disabled="isSplitting"
-              @click="splitSelectedVideo"
-            >
-              {{ isSplitting ? "正在切片..." : "切片当前视频" }}
-            </button>
-          </div>
-        </div>
+        </section>
 
-        <p class="empty-text">
-          选择一个视频和输出目录后，可以按固定秒数生成多个 mp4 片段。
-        </p>
-
-        <p v-if="splitError" class="error-text">{{ splitError }}</p>
-        <p v-else-if="splitOutputDirectory" class="success-text">
-          切片完成：共生成 {{ splitSegmentCount }} 个片段，保存到 {{ splitOutputDirectory }}
-        </p>
-
-        <div class="export-log-panel" aria-label="切片日志">
-          <div class="export-log-panel__header">
-            <p class="split-panel__label">切片日志</p>
-            <span>当前单个切片任务</span>
-          </div>
-          <p v-if="splitLogs.length === 0" class="empty-text">
-            点击切片后，这里会显示本次切片的过程和结果。
-          </p>
-          <ol v-else class="export-log-list">
-            <li
-              v-for="log in splitLogs"
-              :key="log.id"
-              class="export-log-item"
-              :class="`export-log-item--${log.level}`"
-            >
-              <span class="export-log-item__time">{{ log.time }}</span>
-              <span class="export-log-item__message">{{ log.message }}</span>
-            </li>
-          </ol>
-        </div>
-      </section>
-
-      <section class="mix-panel" aria-label="随机片段抽取">
-        <div class="mix-panel__header">
-          <div>
-            <p class="mix-panel__label">基础混剪</p>
-            <h2>随机片段抽取</h2>
-          </div>
-          <div class="mix-panel__actions">
-            <label class="duration-field">
-              <span>抽取数量</span>
-              <input v-model.number="randomPickCount" type="number" min="1" step="1" />
-            </label>
-            <button class="primary-button" type="button" @click="pickSegmentsRandomly">
-              随机抽取
-            </button>
-          </div>
-        </div>
-
-        <p class="empty-text">
-          固定时长切片完成后，可以从当前片段列表里随机抽取素材。此步骤不会修改或拼接视频文件。
-        </p>
-
-        <p v-if="randomPickError" class="error-text">{{ randomPickError }}</p>
-        <p v-else-if="splitSegmentPaths.length > 0" class="output-path">
-          当前可抽取片段：{{ splitSegmentPaths.length }} 个
-        </p>
-
-        <div v-if="randomSelectedSegments.length > 0" class="random-result">
-          <div class="random-result__header">
-            <p class="mix-panel__label">抽取结果</p>
-            <span>共 {{ randomSelectedSegments.length }} 个片段</span>
-          </div>
-          <ol class="random-result__list">
-            <li v-for="segmentPath in randomSelectedSegments" :key="segmentPath">
-              <span>{{ formatFileName(segmentPath) }}</span>
-              <small>{{ segmentPath }}</small>
-            </li>
-          </ol>
-        </div>
-
-        <div class="mix-export-panel">
-          <div class="mix-export-panel__header">
+        <section class="panel">
+          <div class="panel__header">
             <div>
-              <p class="mix-panel__label">片段拼接</p>
-              <h2>生成混剪视频</h2>
+              <p class="panel__label">片段</p>
+              <h2>切片和抽取结果</h2>
             </div>
-            <button
-              class="primary-button"
-              type="button"
-              :disabled="isMixing"
-              @click="concatRandomSegments"
-            >
-              {{ isMixing ? "正在拼接..." : "拼接抽中片段" }}
-            </button>
+            <span class="count-badge">{{ splitSegmentPaths.length }}</span>
           </div>
 
-          <p class="empty-text">
-            使用当前随机抽中的片段生成一个新的 mp4 文件。至少需要 2 个片段。
+          <p v-if="splitSegmentPaths.length === 0" class="empty-text">
+            完成固定切片后，这里会出现片段列表。
           </p>
+          <ol v-else class="compact-list">
+            <li v-for="segmentPath in splitSegmentPaths" :key="segmentPath">
+              <span>{{ formatFileName(segmentPath) }}</span>
+            </li>
+          </ol>
 
-          <label class="option-toggle">
-            <input v-model="applyHorizontalMirror" type="checkbox" />
-            <span>水平镜像，拼接和批量生成都会应用</span>
-          </label>
-
-          <p v-if="mixError" class="error-text">{{ mixError }}</p>
-          <p v-else-if="mixResultPath" class="success-text">
-            拼接完成：{{ mixResultPath }}
-          </p>
-
-          <div class="export-log-panel" aria-label="拼接日志">
-            <div class="export-log-panel__header">
-              <p class="mix-panel__label">拼接日志</p>
-              <span>当前单个拼接任务</span>
+          <div v-if="randomSelectedSegments.length > 0" class="sub-block">
+            <div class="section-title">
+              <span>已抽取</span>
+              <strong>{{ randomSelectedSegments.length }}</strong>
             </div>
-            <p v-if="mixLogs.length === 0" class="empty-text">
-              点击拼接后，这里会显示本次拼接的过程和结果。
-            </p>
-            <ol v-else class="export-log-list">
-              <li
-                v-for="log in mixLogs"
-                :key="log.id"
-                class="export-log-item"
-                :class="`export-log-item--${log.level}`"
-              >
-                <span class="export-log-item__time">{{ log.time }}</span>
-                <span class="export-log-item__message">{{ log.message }}</span>
+            <ol class="compact-list compact-list--selected">
+              <li v-for="segmentPath in randomSelectedSegments" :key="segmentPath">
+                <span>{{ formatFileName(segmentPath) }}</span>
               </li>
             </ol>
           </div>
-        </div>
+        </section>
+      </aside>
 
-        <div class="mix-export-panel">
-          <div class="mix-export-panel__header">
+      <section class="center-stage" aria-label="预览和结果">
+        <section class="panel preview-panel">
+          <div class="panel__header">
             <div>
-              <p class="mix-panel__label">批量生成</p>
-              <h2>生成多条混剪视频</h2>
-            </div>
-            <div class="mix-panel__actions">
-              <label class="duration-field">
-                <span>生成数量</span>
-                <input
-                  v-model.number="batchGenerateCount"
-                  type="number"
-                  min="1"
-                  step="1"
-                  :disabled="isBatchMixing"
-                />
-              </label>
-              <button
-                class="primary-button"
-                type="button"
-                :disabled="isBatchMixing"
-                @click="generateBatchMixes"
-              >
-                {{ isBatchMixing ? "正在批量生成..." : "批量生成混剪" }}
-              </button>
+              <p class="panel__label">预览</p>
+              <h2>{{ selectedVideo?.fileName ?? "请选择一个素材" }}</h2>
             </div>
           </div>
 
-          <p class="empty-text">
-            使用当前切片结果作为素材池，每条视频都会重新随机抽取片段并生成一个新的 mp4。
-          </p>
+          <div v-if="previewUrl" class="video-frame">
+            <video :key="selectedVideo?.id" :src="previewUrl" controls preload="metadata"></video>
+          </div>
+          <div v-else class="video-placeholder">
+            导入素材后，点击左侧视频即可预览。
+          </div>
+        </section>
 
-          <p v-if="batchMixError" class="error-text">{{ batchMixError }}</p>
+        <section class="panel info-grid">
+          <div class="info-card">
+            <p>时长</p>
+            <strong>{{ selectedVideo ? formatDuration(selectedVideo.durationSeconds) : "未知" }}</strong>
+          </div>
+          <div class="info-card">
+            <p>分辨率</p>
+            <strong>{{ selectedVideo ? formatResolution(selectedVideo) : "未知" }}</strong>
+          </div>
+          <div class="info-card">
+            <p>帧率</p>
+            <strong>{{ selectedVideo ? formatFrameRate(selectedVideo.frameRate) : "未知" }}</strong>
+          </div>
+          <div class="info-card">
+            <p>大小</p>
+            <strong>{{ selectedVideo ? formatFileSize(selectedVideo.fileSizeBytes) : "未知" }}</strong>
+          </div>
+        </section>
 
-          <div v-if="batchMixResults.length > 0" class="random-result">
-            <div class="random-result__header">
-              <p class="mix-panel__label">批量生成结果</p>
-              <span>共 {{ batchMixResults.length }} 条</span>
+        <section class="panel result-panel">
+          <div class="panel__header">
+            <div>
+              <p class="panel__label">结果</p>
+              <h2>混剪输出</h2>
             </div>
-            <ol class="random-result__list">
+          </div>
+
+          <div class="result-grid">
+            <div>
+              <p class="result-label">基础导出</p>
+              <p v-if="exportError" class="error-text">{{ exportError }}</p>
+              <p v-else-if="exportResultPath" class="result-path">{{ exportResultPath }}</p>
+              <p v-else class="empty-text">暂无导出结果。</p>
+            </div>
+            <div>
+              <p class="result-label">拼接导出</p>
+              <p v-if="mixError" class="error-text">{{ mixError }}</p>
+              <p v-else-if="mixResultPath" class="result-path">{{ mixResultPath }}</p>
+              <p v-else class="empty-text">暂无拼接结果。</p>
+            </div>
+          </div>
+
+          <div v-if="batchMixError" class="error-text">{{ batchMixError }}</div>
+          <div v-if="batchMixResults.length > 0" class="sub-block">
+            <div class="section-title">
+              <span>批量生成结果</span>
+              <strong>{{ batchMixResults.length }}</strong>
+            </div>
+            <ol class="compact-list">
               <li v-for="resultPath in batchMixResults" :key="resultPath">
                 <span>{{ formatFileName(resultPath) }}</span>
                 <small>{{ resultPath }}</small>
               </li>
             </ol>
           </div>
-
-          <div class="export-log-panel" aria-label="批量生成日志">
-            <div class="export-log-panel__header">
-              <p class="mix-panel__label">批量日志</p>
-              <span>顺序生成，不并发</span>
-            </div>
-            <p v-if="batchMixLogs.length === 0" class="empty-text">
-              点击批量生成后，这里会显示每条视频的生成过程和结果。
-            </p>
-            <ol v-else class="export-log-list">
-              <li
-                v-for="log in batchMixLogs"
-                :key="log.id"
-                class="export-log-item"
-                :class="`export-log-item--${log.level}`"
-              >
-                <span class="export-log-item__time">{{ log.time }}</span>
-                <span class="export-log-item__message">{{ log.message }}</span>
-              </li>
-            </ol>
-          </div>
-        </div>
+        </section>
       </section>
+
+      <aside class="right-rail" aria-label="参数设置">
+        <section class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="panel__label">环境</p>
+              <h2>本地引擎</h2>
+            </div>
+          </div>
+          <p class="engine-message">{{ statusText }}</p>
+          <div class="engine-list">
+            <div>
+              <span>ffmpeg</span>
+              <strong>{{ environment?.ffmpeg.available ? "已检测到" : "未检测到" }}</strong>
+            </div>
+            <div>
+              <span>ffprobe</span>
+              <strong>{{ environment?.ffprobe.available ? "已检测到" : "未检测到" }}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="panel__label">切片</p>
+              <h2>固定时长切片</h2>
+            </div>
+          </div>
+          <label class="field">
+            <span>切片秒数</span>
+            <input
+              v-model.number="segmentDurationSeconds"
+              type="number"
+              min="1"
+              step="1"
+              :disabled="isSplitting"
+            />
+          </label>
+          <button
+            class="primary-button primary-button--full"
+            type="button"
+            :disabled="isSplitting"
+            @click="splitSelectedVideo"
+          >
+            {{ isSplitting ? "正在切片..." : "切片当前视频" }}
+          </button>
+          <p v-if="splitError" class="error-text">{{ splitError }}</p>
+          <p v-else-if="splitOutputDirectory" class="success-text">
+            已生成 {{ splitSegmentCount }} 个片段。
+          </p>
+        </section>
+
+        <section class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="panel__label">混剪</p>
+              <h2>随机和批量</h2>
+            </div>
+          </div>
+          <label class="field">
+            <span>抽取数量</span>
+            <input v-model.number="randomPickCount" type="number" min="1" step="1" />
+          </label>
+          <button class="ghost-button ghost-button--full" type="button" @click="pickSegmentsRandomly">
+            随机抽取
+          </button>
+          <p v-if="randomPickError" class="error-text">{{ randomPickError }}</p>
+
+          <label class="option-toggle">
+            <input v-model="applyHorizontalMirror" type="checkbox" />
+            <span>水平镜像</span>
+          </label>
+
+          <button
+            class="primary-button primary-button--full"
+            type="button"
+            :disabled="isMixing"
+            @click="concatRandomSegments"
+          >
+            {{ isMixing ? "正在拼接..." : "拼接抽中片段" }}
+          </button>
+
+          <div class="divider"></div>
+
+          <label class="field">
+            <span>批量生成数量</span>
+            <input
+              v-model.number="batchGenerateCount"
+              type="number"
+              min="1"
+              step="1"
+              :disabled="isBatchMixing"
+            />
+          </label>
+          <button
+            class="primary-button primary-button--full"
+            type="button"
+            :disabled="isBatchMixing"
+            @click="generateBatchMixes"
+          >
+            {{ isBatchMixing ? "正在批量生成..." : "批量生成混剪" }}
+          </button>
+        </section>
+
+        <section class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="panel__label">导出</p>
+              <h2>输出设置</h2>
+            </div>
+          </div>
+          <button class="ghost-button ghost-button--full" type="button" @click="selectOutputDirectory">
+            选择输出目录
+          </button>
+          <button
+            class="primary-button primary-button--full"
+            type="button"
+            :disabled="isExporting"
+            @click="exportSelectedVideo"
+          >
+            {{ isExporting ? "正在导出..." : "导出当前视频" }}
+          </button>
+          <p v-if="outputDirectoryError" class="error-text">{{ outputDirectoryError }}</p>
+        </section>
+      </aside>
     </section>
+
+    <footer class="bottom-console" aria-label="任务日志和输出">
+      <section class="output-strip">
+        <p class="panel__label">输出目录</p>
+        <p v-if="outputDirectory" class="output-path">{{ outputDirectory }}</p>
+        <p v-else class="empty-text">请选择导出结果保存位置。</p>
+      </section>
+
+      <section class="task-console">
+        <div class="console-header">
+          <div>
+            <p class="panel__label">任务日志</p>
+            <h2>当前处理记录</h2>
+          </div>
+          <span>顺序执行，不并发</span>
+        </div>
+        <p v-if="taskLogs.length === 0" class="empty-text">
+          开始导出、切片、拼接或批量生成后，这里会显示任务过程。
+        </p>
+        <ol v-else class="log-list">
+          <li
+            v-for="log in taskLogs"
+            :key="`${log.group}-${log.id}`"
+            class="log-item"
+            :class="`log-item--${log.level}`"
+          >
+            <span class="log-item__time">{{ log.time }}</span>
+            <span class="log-item__group">{{ log.group }}</span>
+            <span class="log-item__message">{{ log.message }}</span>
+          </li>
+        </ol>
+      </section>
+    </footer>
   </main>
 </template>
