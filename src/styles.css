@@ -53,7 +53,7 @@ h3 {
 
 .app-shell {
   display: grid;
-  grid-template-rows: 58px minmax(0, 1fr) 178px;
+  grid-template-rows: 58px minmax(0, 1fr) minmax(240px, 30vh);
   min-height: 100vh;
   background: #eef2f6;
 }
@@ -557,6 +557,8 @@ h3 {
 
 .output-strip,
 .task-console {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   padding: 12px 14px;
   border: 1px solid #cfd7e2;
@@ -579,8 +581,9 @@ h3 {
 
 .log-list {
   display: grid;
+  align-content: start;
   gap: 6px;
-  max-height: 104px;
+  min-height: 0;
   margin: 0;
   padding: 0;
   overflow: auto;
