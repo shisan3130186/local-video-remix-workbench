@@ -29,6 +29,13 @@ interface TaskLogEntry {
   level: TaskLogLevel;
 }
 
+interface ExportResultItem {
+  id: number;
+  type: "基础导出" | "拼接导出" | "批量生成";
+  path: string;
+  time: string;
+}
+
 const environment = ref<FfmpegEnvironmentResult | null>(null);
 const isChecking = ref(true);
 const checkError = ref<string | null>(null);
@@ -63,6 +70,7 @@ const isBatchMixing = ref(false);
 const batchMixError = ref<string | null>(null);
 const batchMixResults = ref<string[]>([]);
 const batchMixLogs = ref<TaskLogEntry[]>([]);
+const exportResultItems = ref<ExportResultItem[]>([]);
 const canvasAspectRatio = ref<CanvasAspectRatio>("original");
 const canvasBackgroundMode = ref<CanvasBackgroundMode>("black");
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
@@ -254,6 +262,7 @@ async function exportSelectedVideo() {
       canvasBackgroundMode.value,
     );
     exportResultPath.value = result.outputPath;
+    addExportResult("基础导出", result.outputPath);
     appendExportLog(`导出成功：${result.outputPath}`, "success");
   } catch (error) {
     exportError.value =
@@ -371,6 +380,7 @@ async function concatRandomSegments() {
       canvasBackgroundMode.value,
     );
     mixResultPath.value = result.outputPath;
+    addExportResult("拼接导出", result.outputPath);
     appendMixLog(buildRemixCanvasLog(result), "info");
     appendMixLog(
       `拼接成功：已使用 ${result.inputCount} 个片段生成 ${result.outputPath}${
@@ -441,6 +451,7 @@ async function generateBatchMixes() {
         canvasBackgroundMode.value,
       );
       batchMixResults.value.push(result.outputPath);
+      addExportResult("批量生成", result.outputPath);
       appendBatchMixLog(buildRemixCanvasLog(result), "info");
       appendBatchMixLog(
         `第 ${index + 1} 条生成成功：${result.outputPath}${
@@ -617,6 +628,15 @@ function appendTaskLog(logs: TaskLogEntry[], message: string, level: TaskLogLeve
     time: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
     message,
     level,
+  });
+}
+
+function addExportResult(type: ExportResultItem["type"], path: string) {
+  exportResultItems.value.unshift({
+    id: Date.now() + exportResultItems.value.length,
+    type,
+    path,
+    time: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
   });
 }
 
@@ -853,21 +873,25 @@ onMounted(() => {
           </div>
 
           <div class="result-grid">
-            <div>
-              <p class="result-label">基础导出</p>
-              <p v-if="exportError" class="error-text">{{ exportError }}</p>
-              <p v-else-if="exportResultPath" class="result-path">{{ exportResultPath }}</p>
-              <p v-else class="empty-text">暂无导出结果。</p>
-            </div>
-            <div>
-              <p class="result-label">拼接导出</p>
-              <p v-if="mixError" class="error-text">{{ mixError }}</p>
-              <p v-else-if="mixResultPath" class="result-path">{{ mixResultPath }}</p>
-              <p v-else class="empty-text">暂无拼接结果。</p>
-            </div>
+            <p v-if="exportError" class="error-text">{{ exportError }}</p>
+            <p v-if="mixError" class="error-text">{{ mixError }}</p>
+            <p v-if="batchMixError" class="error-text">{{ batchMixError }}</p>
           </div>
 
-          <div v-if="batchMixError" class="error-text">{{ batchMixError }}</div>
+          <div class="sub-block">
+            <div class="section-title">
+              <span>导出结果列表</span>
+              <strong>{{ exportResultItems.length }}</strong>
+            </div>
+            <ol v-if="exportResultItems.length > 0" class="compact-list result-list">
+              <li v-for="item in exportResultItems" :key="item.id">
+                <span>{{ item.type }} · {{ formatFileName(item.path) }}</span>
+                <small>{{ item.time }} · {{ item.path }}</small>
+              </li>
+            </ol>
+            <p v-else class="empty-text">暂无导出结果。</p>
+          </div>
+
           <div v-if="batchMixResults.length > 0" class="sub-block">
             <div class="section-title">
               <span>批量生成结果</span>
