@@ -12,6 +12,7 @@ import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
 } from "./services/videoMixService";
+import { openPathInFileManager } from "./services/fileManagerService";
 import {
   checkFfmpegEnvironment,
   readVideoMetadata,
@@ -45,6 +46,7 @@ const isImporting = ref(false);
 const importError = ref<string | null>(null);
 const outputDirectory = ref<string | null>(null);
 const outputDirectoryError = ref<string | null>(null);
+const fileManagerError = ref<string | null>(null);
 const isExporting = ref(false);
 const exportError = ref<string | null>(null);
 const exportResultPath = ref<string | null>(null);
@@ -213,6 +215,7 @@ function selectVideo(video: ImportedVideo) {
 
 async function selectOutputDirectory() {
   outputDirectoryError.value = null;
+  fileManagerError.value = null;
 
   try {
     const selected = await open({
@@ -541,6 +544,31 @@ function buildMixOptionSummary() {
   }
 
   return options.length > 0 ? `，${options.join("，")}。` : "。";
+}
+
+async function openOutputDirectory() {
+  fileManagerError.value = null;
+
+  if (!outputDirectory.value) {
+    fileManagerError.value = "请先选择输出目录。";
+    return;
+  }
+
+  await openPath(outputDirectory.value);
+}
+
+async function openResultLocation(path: string) {
+  fileManagerError.value = null;
+  await openPath(path);
+}
+
+async function openPath(path: string) {
+  try {
+    await openPathInFileManager(path);
+  } catch (error) {
+    fileManagerError.value =
+      error instanceof Error ? error.message : String(error ?? "打开目录失败。");
+  }
 }
 
 function buildRemixCanvasLog(result: {
@@ -886,10 +914,14 @@ onMounted(() => {
             <ol v-if="exportResultItems.length > 0" class="compact-list result-list">
               <li v-for="item in exportResultItems" :key="item.id">
                 <span>{{ item.type }} · {{ formatFileName(item.path) }}</span>
+                <button class="ghost-button result-action" type="button" @click="openResultLocation(item.path)">
+                  打开位置
+                </button>
                 <small>{{ item.time }} · {{ item.path }}</small>
               </li>
             </ol>
-            <p v-else class="empty-text">暂无导出结果。</p>
+            <p v-if="fileManagerError" class="error-text">{{ fileManagerError }}</p>
+            <p v-if="exportResultItems.length === 0" class="empty-text">暂无导出结果。</p>
           </div>
 
           <div v-if="batchMixResults.length > 0" class="sub-block">
@@ -1050,6 +1082,14 @@ onMounted(() => {
           </div>
           <button class="ghost-button ghost-button--full" type="button" @click="selectOutputDirectory">
             选择输出目录
+          </button>
+          <button
+            class="ghost-button ghost-button--full"
+            type="button"
+            :disabled="!outputDirectory"
+            @click="openOutputDirectory"
+          >
+            打开输出目录
           </button>
           <button
             class="primary-button primary-button--full"

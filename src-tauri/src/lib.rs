@@ -1,5 +1,7 @@
 mod video_engine;
 
+use std::path::Path;
+use std::process::Command;
 use video_engine::canvas::{CanvasAspectRatio, CanvasBackgroundMode};
 use video_engine::import::list_supported_videos_in_folder;
 use video_engine::mix::{concat_video_segments, MixVideoResult};
@@ -22,6 +24,40 @@ fn read_video_metadata(file_path: String) -> Result<VideoMetadata, String> {
 #[tauri::command]
 fn list_video_files_in_folder(folder_path: String) -> Result<Vec<String>, String> {
     list_supported_videos_in_folder(folder_path)
+}
+
+#[tauri::command]
+fn open_path_in_file_manager(path: String) -> Result<(), String> {
+    let target_path = Path::new(&path);
+
+    if !target_path.exists() {
+        return Err("路径不存在，无法打开。".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut command = Command::new("explorer");
+
+        if target_path.is_file() {
+            command.arg(format!("/select,{}", target_path.to_string_lossy()));
+        } else {
+            command.arg(target_path);
+        }
+
+        command
+            .spawn()
+            .map_err(|error| format!("无法打开资源管理器：{error}"))?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Command::new("open")
+            .arg(target_path)
+            .spawn()
+            .map_err(|error| format!("无法打开文件管理器：{error}"))?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -75,6 +111,7 @@ pub fn run() {
             concat_selected_segments,
             export_current_video,
             list_video_files_in_folder,
+            open_path_in_file_manager,
             read_video_metadata,
             split_current_video
         ])

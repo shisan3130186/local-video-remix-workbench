@@ -513,6 +513,21 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+.result-list li {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.result-list small {
+  grid-column: 1 / -1;
+}
+
+.result-action {
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
 .compact-list--selected li {
   border-color: #bdd2eb;
   background: #f1f7ff;
