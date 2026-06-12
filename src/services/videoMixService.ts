@@ -29,11 +29,13 @@ export function concatSelectedSegments(
   segmentPaths: string[],
   outputDirectory: string,
   applyHorizontalMirror: boolean,
+  playbackSpeed: number,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_selected_segments", {
     segmentPaths,
     outputDirectory,
     applyHorizontalMirror,
+    playbackSpeed,
   });
 }
 

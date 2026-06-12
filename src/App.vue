@@ -52,6 +52,7 @@ const mixError = ref<string | null>(null);
 const mixResultPath = ref<string | null>(null);
 const mixLogs = ref<TaskLogEntry[]>([]);
 const applyHorizontalMirror = ref(false);
+const playbackSpeed = ref(1.0);
 const batchGenerateCount = ref(3);
 const isBatchMixing = ref(false);
 const batchMixError = ref<string | null>(null);
@@ -326,8 +327,16 @@ async function concatRandomSegments() {
     return;
   }
 
+  const speedValidationError = validatePlaybackSpeed();
+
+  if (speedValidationError) {
+    mixError.value = speedValidationError;
+    appendMixLog(`拼接失败：${mixError.value}`, "error");
+    return;
+  }
+
   appendMixLog("开始拼接。", "info");
-  appendMixLog("拼接中。", "info");
+  appendMixLog(`拼接中，变速倍数 ${playbackSpeed.value.toFixed(2)}x。`, "info");
   isMixing.value = true;
 
   try {
@@ -335,11 +344,12 @@ async function concatRandomSegments() {
       randomSelectedSegments.value,
       outputDirectory.value,
       applyHorizontalMirror.value,
+      playbackSpeed.value,
     );
     mixResultPath.value = result.outputPath;
     appendMixLog(
       `拼接成功：已使用 ${result.inputCount} 个片段生成 ${result.outputPath}${
-        applyHorizontalMirror.value ? "，已应用水平镜像。" : "。"
+        buildMixOptionSummary()
       }`,
       "success",
     );
@@ -375,7 +385,18 @@ async function generateBatchMixes() {
     return;
   }
 
-  appendBatchMixLog(`开始批量生成：计划生成 ${batchGenerateCount.value} 条。`, "info");
+  const speedValidationError = validatePlaybackSpeed();
+
+  if (speedValidationError) {
+    batchMixError.value = speedValidationError;
+    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
+    return;
+  }
+
+  appendBatchMixLog(
+    `开始批量生成：计划生成 ${batchGenerateCount.value} 条，变速倍数 ${playbackSpeed.value.toFixed(2)}x。`,
+    "info",
+  );
   isBatchMixing.value = true;
 
   try {
@@ -390,11 +411,12 @@ async function generateBatchMixes() {
         pickedSegments,
         outputDirectory.value,
         applyHorizontalMirror.value,
+        playbackSpeed.value,
       );
       batchMixResults.value.push(result.outputPath);
       appendBatchMixLog(
         `第 ${index + 1} 条生成成功：${result.outputPath}${
-          applyHorizontalMirror.value ? "，已应用水平镜像。" : "。"
+          buildMixOptionSummary()
         }`,
         "success",
       );
@@ -454,6 +476,32 @@ function appendBatchMixLog(message: string, level: TaskLogLevel) {
 
 function appendExportLog(message: string, level: TaskLogLevel) {
   appendTaskLog(exportLogs.value, message, level);
+}
+
+function validatePlaybackSpeed() {
+  if (!Number.isFinite(playbackSpeed.value)) {
+    return "变速倍数必须是有效数字。";
+  }
+
+  if (playbackSpeed.value < 0.5 || playbackSpeed.value > 2) {
+    return "变速倍数暂时只支持 0.5 到 2.0。";
+  }
+
+  return null;
+}
+
+function buildMixOptionSummary() {
+  const options = [];
+
+  if (applyHorizontalMirror.value) {
+    options.push("已应用水平镜像");
+  }
+
+  if (Math.abs(playbackSpeed.value - 1) > 0.001) {
+    options.push(`已应用 ${playbackSpeed.value.toFixed(2)}x 变速`);
+  }
+
+  return options.length > 0 ? `，${options.join("，")}。` : "。";
 }
 
 function appendTaskLog(logs: TaskLogEntry[], message: string, level: TaskLogLevel) {
@@ -767,6 +815,18 @@ onMounted(() => {
           <label class="option-toggle">
             <input v-model="applyHorizontalMirror" type="checkbox" />
             <span>水平镜像</span>
+          </label>
+
+          <label class="field">
+            <span>变速倍数</span>
+            <input
+              v-model.number="playbackSpeed"
+              type="number"
+              min="0.5"
+              max="2"
+              step="0.1"
+              :disabled="isMixing || isBatchMixing"
+            />
           </label>
 
           <button

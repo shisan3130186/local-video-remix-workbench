@@ -45,8 +45,14 @@ fn concat_selected_segments(
     segment_paths: Vec<String>,
     output_directory: String,
     apply_horizontal_mirror: bool,
+    playback_speed: f64,
 ) -> Result<MixVideoResult, String> {
-    concat_video_segments(segment_paths, output_directory, apply_horizontal_mirror)
+    concat_video_segments(
+        segment_paths,
+        output_directory,
+        apply_horizontal_mirror,
+        playback_speed,
+    )
 }
 
 pub fn run() {

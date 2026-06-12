@@ -39,6 +39,7 @@ v0.2.0-dev
 - [x] 批量生成混剪结果
 - [x] 基础水平镜像
 - [x] 桌面软件工作台 UI 框架升级
+- [x] 基础变速
 
 ## 当前阻塞
 
@@ -58,17 +59,19 @@ v0.2.0-dev
 ## 最近一次开发内容
 
 日期：2026-06-12
-完成：完成桌面软件工作台 UI 框架升级。页面从工程测试版整理为顶部状态栏、左侧素材/片段区、中间预览/结果区、右侧参数设置区、底部任务日志区的工作台布局。
+完成：实现基础变速。用户可以在混剪参数中设置 0.5x 到 2.0x 的变速倍数，单次片段拼接和批量生成都会通过 VideoEngine 应用对应变速。
 涉及文件：
+- src-tauri/src/video_engine/mix.rs
+- src-tauri/src/lib.rs
+- src/services/videoMixService.ts
 - src/App.vue
-- src/styles.css
 - PROJECT_STATUS.md
 - TODO_NEXT.md
-验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已检查页面组件没有新增 FFmpeg / FFprobe 命令拼接。
-遗留问题：需要用户人工检查新工作台布局是否符合使用习惯，并复测导入、预览、切片、拼接、批量生成、水平镜像。
+验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已检查变速参数由页面传入，FFmpeg 滤镜仍只在 VideoEngine 中拼接。
+遗留问题：需要用户人工检查 0.8x、1.0x、1.2x 等变速导出效果和时长变化。
 
 ## 下一步建议
 
-1. 人工测试桌面工作台 UI 框架
-2. 确认所有既有功能在新布局中仍可正常使用
-3. 通过后继续规划 V0.2 后续变速和裁剪比例
+1. 人工测试基础变速
+2. 确认单次拼接和批量生成在 1.0x、快放、慢放下均可导出
+3. 通过后继续规划 V0.2 裁剪比例

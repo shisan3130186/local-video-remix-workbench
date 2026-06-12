@@ -16,8 +16,10 @@ pub fn concat_video_segments(
     segment_paths: Vec<String>,
     output_directory: String,
     apply_horizontal_mirror: bool,
+    playback_speed: f64,
 ) -> Result<MixVideoResult, String> {
     let output_dir = Path::new(&output_directory);
+    let normalized_playback_speed = normalize_playback_speed(playback_speed)?;
 
     if segment_paths.len() < 2 {
         return Err("至少需要 2 个片段才能拼接。".to_string());
@@ -62,9 +64,24 @@ pub fn concat_video_segments(
         list_path_text.to_string(),
     ];
 
+    let mut video_filters = Vec::new();
+
     if apply_horizontal_mirror {
+        video_filters.push("hflip".to_string());
+    }
+
+    if should_apply_speed_filter(normalized_playback_speed) {
+        video_filters.push(format!("setpts=PTS/{normalized_playback_speed:.3}"));
+    }
+
+    if !video_filters.is_empty() {
         ffmpeg_args.push("-vf".to_string());
-        ffmpeg_args.push("hflip".to_string());
+        ffmpeg_args.push(video_filters.join(","));
+    }
+
+    if should_apply_speed_filter(normalized_playback_speed) {
+        ffmpeg_args.push("-af".to_string());
+        ffmpeg_args.push(format!("atempo={normalized_playback_speed:.3}"));
     }
 
     ffmpeg_args.extend([
@@ -108,6 +125,22 @@ pub fn concat_video_segments(
         input_count: segment_paths.len(),
         message: "片段拼接完成。".to_string(),
     })
+}
+
+fn normalize_playback_speed(playback_speed: f64) -> Result<f64, String> {
+    if !playback_speed.is_finite() {
+        return Err("变速倍数必须是有效数字。".to_string());
+    }
+
+    if !(0.5..=2.0).contains(&playback_speed) {
+        return Err("变速倍数暂时只支持 0.5 到 2.0。".to_string());
+    }
+
+    Ok((playback_speed * 1000.0).round() / 1000.0)
+}
+
+fn should_apply_speed_filter(playback_speed: f64) -> bool {
+    (playback_speed - 1.0).abs() > 0.001
 }
 
 fn current_timestamp() -> Result<u64, String> {
