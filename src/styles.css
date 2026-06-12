@@ -419,6 +419,22 @@ h3 {
   background: #edf2f7;
 }
 
+.option-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  color: #334155;
+  font-size: 14px;
+}
+
+.option-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #315f93;
+}
+
 .output-path {
   margin: 16px 0 0;
   padding: 12px;

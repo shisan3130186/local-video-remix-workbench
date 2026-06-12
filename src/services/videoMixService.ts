@@ -28,10 +28,12 @@ export function pickRandomSegments(
 export function concatSelectedSegments(
   segmentPaths: string[],
   outputDirectory: string,
+  applyHorizontalMirror: boolean,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_selected_segments", {
     segmentPaths,
     outputDirectory,
+    applyHorizontalMirror,
   });
 }
 

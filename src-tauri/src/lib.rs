@@ -44,8 +44,9 @@ fn split_current_video(
 fn concat_selected_segments(
     segment_paths: Vec<String>,
     output_directory: String,
+    apply_horizontal_mirror: bool,
 ) -> Result<MixVideoResult, String> {
-    concat_video_segments(segment_paths, output_directory)
+    concat_video_segments(segment_paths, output_directory, apply_horizontal_mirror)
 }
 
 pub fn run() {

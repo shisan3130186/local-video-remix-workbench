@@ -51,6 +51,7 @@ const isMixing = ref(false);
 const mixError = ref<string | null>(null);
 const mixResultPath = ref<string | null>(null);
 const mixLogs = ref<TaskLogEntry[]>([]);
+const applyHorizontalMirror = ref(false);
 const batchGenerateCount = ref(3);
 const isBatchMixing = ref(false);
 const batchMixError = ref<string | null>(null);
@@ -326,10 +327,13 @@ async function concatRandomSegments() {
     const result = await concatSelectedSegments(
       randomSelectedSegments.value,
       outputDirectory.value,
+      applyHorizontalMirror.value,
     );
     mixResultPath.value = result.outputPath;
     appendMixLog(
-      `拼接成功：已使用 ${result.inputCount} 个片段生成 ${result.outputPath}`,
+      `拼接成功：已使用 ${result.inputCount} 个片段生成 ${result.outputPath}${
+        applyHorizontalMirror.value ? "，已应用水平镜像。" : "。"
+      }`,
       "success",
     );
   } catch (error) {
@@ -375,9 +379,18 @@ async function generateBatchMixes() {
         "info",
       );
 
-      const result = await concatSelectedSegments(pickedSegments, outputDirectory.value);
+      const result = await concatSelectedSegments(
+        pickedSegments,
+        outputDirectory.value,
+        applyHorizontalMirror.value,
+      );
       batchMixResults.value.push(result.outputPath);
-      appendBatchMixLog(`第 ${index + 1} 条生成成功：${result.outputPath}`, "success");
+      appendBatchMixLog(
+        `第 ${index + 1} 条生成成功：${result.outputPath}${
+          applyHorizontalMirror.value ? "，已应用水平镜像。" : "。"
+        }`,
+        "success",
+      );
     }
 
     appendBatchMixLog(`批量生成完成：共生成 ${batchMixResults.value.length} 条。`, "success");
@@ -780,6 +793,11 @@ onMounted(() => {
           <p class="empty-text">
             使用当前随机抽中的片段生成一个新的 mp4 文件。至少需要 2 个片段。
           </p>
+
+          <label class="option-toggle">
+            <input v-model="applyHorizontalMirror" type="checkbox" />
+            <span>水平镜像，拼接和批量生成都会应用</span>
+          </label>
 
           <p v-if="mixError" class="error-text">{{ mixError }}</p>
           <p v-else-if="mixResultPath" class="success-text">

@@ -37,6 +37,7 @@ v0.2.0-dev
 - [x] 随机片段抽取
 - [x] 片段拼接导出
 - [x] 批量生成混剪结果
+- [x] 基础水平镜像
 
 ## 当前阻塞
 
@@ -56,16 +57,19 @@ v0.2.0-dev
 ## 最近一次开发内容
 
 日期：2026-06-12
-完成：实现批量生成混剪结果。用户完成切片后，可以设置每条混剪抽取片段数量和批量生成数量，软件会顺序生成多条随机组合的 mp4 混剪视频。
+完成：实现基础水平镜像。用户在片段拼接或批量生成混剪时，可以开启“水平镜像”开关，导出结果会通过 VideoEngine 应用 FFmpeg `hflip` 滤镜。
 涉及文件：
 - src-tauri/src/video_engine/mix.rs
+- src-tauri/src/lib.rs
+- src/services/videoMixService.ts
 - src/App.vue
+- src/styles.css
 - PROJECT_STATUS.md
 - TODO_NEXT.md
-验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已检查页面组件没有直接拼接 FFmpeg / FFprobe 命令。
-遗留问题：暂无。
+验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已检查页面组件没有直接拼接 FFmpeg / FFprobe 命令，镜像滤镜只在 VideoEngine 中使用。
+遗留问题：镜像效果需要人工用视频画面对比确认。
 
 ## 下一步建议
 
-1. 测试批量生成混剪结果
-2. 规划 V0.2 后续镜像、变速和裁剪比例
+1. 测试基础水平镜像
+2. 通过后规划 V0.2 后续变速和裁剪比例

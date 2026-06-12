@@ -15,6 +15,7 @@ pub struct MixVideoResult {
 pub fn concat_video_segments(
     segment_paths: Vec<String>,
     output_directory: String,
+    apply_horizontal_mirror: bool,
 ) -> Result<MixVideoResult, String> {
     let output_dir = Path::new(&output_directory);
 
@@ -51,27 +52,37 @@ pub fn concat_video_segments(
         .to_str()
         .ok_or_else(|| "拼接输出路径包含无法识别的字符。".to_string())?;
 
+    let mut ffmpeg_args = vec![
+        "-y".to_string(),
+        "-f".to_string(),
+        "concat".to_string(),
+        "-safe".to_string(),
+        "0".to_string(),
+        "-i".to_string(),
+        list_path_text.to_string(),
+    ];
+
+    if apply_horizontal_mirror {
+        ffmpeg_args.push("-vf".to_string());
+        ffmpeg_args.push("hflip".to_string());
+    }
+
+    ffmpeg_args.extend([
+        "-c:v".to_string(),
+        "libx264".to_string(),
+        "-preset".to_string(),
+        "veryfast".to_string(),
+        "-pix_fmt".to_string(),
+        "yuv420p".to_string(),
+        "-c:a".to_string(),
+        "aac".to_string(),
+        "-movflags".to_string(),
+        "+faststart".to_string(),
+        output_path_text.to_string(),
+    ]);
+
     let output = Command::new("ffmpeg")
-        .args([
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            list_path_text,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-movflags",
-            "+faststart",
-            output_path_text,
-        ])
+        .args(ffmpeg_args)
         .output()
         .map_err(|error| format!("无法调用 ffmpeg：{error}"));
 
