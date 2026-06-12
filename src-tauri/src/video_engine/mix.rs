@@ -13,6 +13,10 @@ pub struct MixVideoResult {
     output_path: String,
     input_count: usize,
     message: String,
+    output_aspect_ratio: String,
+    output_resolution: String,
+    background_mode: String,
+    applied_to_remix_export: bool,
 }
 
 pub fn concat_video_segments(
@@ -44,6 +48,7 @@ pub fn concat_video_segments(
     let list_path = output_dir.join(format!("concat_list_{timestamp}.txt"));
     let output_path = output_dir.join(format!("remix_{timestamp}.mp4"));
     let concat_list_content = build_concat_list_content(&segment_paths);
+    let output_dimensions = canvas_aspect_ratio.dimensions();
 
     fs::write(&list_path, concat_list_content).map_err(|error| {
         format!(
@@ -142,6 +147,12 @@ pub fn concat_video_segments(
         output_path: output_path.to_string_lossy().to_string(),
         input_count: segment_paths.len(),
         message: "片段拼接完成。".to_string(),
+        output_aspect_ratio: canvas_aspect_ratio_label(canvas_aspect_ratio).to_string(),
+        output_resolution: output_dimensions
+            .map(|(width, height)| format!("{width}x{height}"))
+            .unwrap_or_else(|| "原画".to_string()),
+        background_mode: canvas_background_mode_label(canvas_background_mode).to_string(),
+        applied_to_remix_export: true,
     })
 }
 
@@ -159,6 +170,22 @@ fn normalize_playback_speed(playback_speed: f64) -> Result<f64, String> {
 
 fn should_apply_speed_filter(playback_speed: f64) -> bool {
     (playback_speed - 1.0).abs() > 0.001
+}
+
+fn canvas_aspect_ratio_label(aspect_ratio: CanvasAspectRatio) -> &'static str {
+    match aspect_ratio {
+        CanvasAspectRatio::Original => "原画",
+        CanvasAspectRatio::Portrait916 => "9:16",
+        CanvasAspectRatio::Square11 => "1:1",
+        CanvasAspectRatio::Landscape169 => "16:9",
+    }
+}
+
+fn canvas_background_mode_label(background_mode: CanvasBackgroundMode) -> &'static str {
+    match background_mode {
+        CanvasBackgroundMode::Black => "黑边背景",
+        CanvasBackgroundMode::Blur => "模糊背景",
+    }
 }
 
 fn current_timestamp() -> Result<u64, String> {

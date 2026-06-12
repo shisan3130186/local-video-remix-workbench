@@ -38,20 +38,23 @@ pub fn build_canvas_filter(
     video_filters: &[String],
 ) -> Option<CanvasFilter> {
     let (width, height) = aspect_ratio.dimensions()?;
-    let foreground_filters = build_foreground_filters(video_filters, width, height);
 
     if background_mode == CanvasBackgroundMode::Blur {
+        let background_filters = build_blur_background_filters(video_filters, width, height);
+        let foreground_filters = build_scaled_foreground_filters(video_filters, width, height);
+
         return Some(CanvasFilter {
             filter: format!(
                 "[0:v]split=2[bgsrc][fgsrc];\
-                 [bgsrc]scale={width}:{height}:force_original_aspect_ratio=increase,\
-                 crop={width}:{height},gblur=sigma=24[bg];\
+                 [bgsrc]{background_filters}[bg];\
                  [fgsrc]{foreground_filters}[fg];\
                  [bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p[v]"
             ),
             is_complex: true,
         });
     }
+
+    let foreground_filters = build_padded_foreground_filters(video_filters, width, height);
 
     Some(CanvasFilter {
         filter: foreground_filters,
@@ -70,7 +73,30 @@ pub fn build_plain_video_filter(video_filters: &[String]) -> Option<CanvasFilter
     })
 }
 
-fn build_foreground_filters(video_filters: &[String], width: u32, height: u32) -> String {
+fn build_blur_background_filters(video_filters: &[String], width: u32, height: u32) -> String {
+    let mut filters = video_filters.to_vec();
+
+    filters.push(format!(
+        "scale={width}:{height}:force_original_aspect_ratio=increase"
+    ));
+    filters.push(format!("crop={width}:{height}"));
+    filters.push("gblur=sigma=24".to_string());
+
+    filters.join(",")
+}
+
+fn build_scaled_foreground_filters(video_filters: &[String], width: u32, height: u32) -> String {
+    let mut filters = video_filters.to_vec();
+
+    filters.push(format!(
+        "scale={width}:{height}:force_original_aspect_ratio=decrease"
+    ));
+    filters.push("format=yuv420p".to_string());
+
+    filters.join(",")
+}
+
+fn build_padded_foreground_filters(video_filters: &[String], width: u32, height: u32) -> String {
     let mut filters = video_filters.to_vec();
 
     filters.push(format!(

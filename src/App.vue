@@ -2,6 +2,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, ref, watch } from "vue";
+import type { CSSProperties } from "vue";
 import { listVideoFilesInFolder } from "./services/videoImportService";
 import {
   concatSelectedSegments,
@@ -87,9 +88,12 @@ const previewUrl = computed(() => {
   return convertFileSrc(selectedVideo.value.filePath);
 });
 
-const previewCanvasStyle = computed(() => ({
-  aspectRatio: getCanvasAspectRatioValue(canvasAspectRatio.value),
-}));
+const previewCanvasStyle = computed(
+  (): CSSProperties => ({
+    aspectRatio: getCanvasAspectRatioValue(canvasAspectRatio.value),
+    "--preview-ratio": String(getCanvasRatioNumber(canvasAspectRatio.value)),
+  }),
+);
 
 const shouldShowBlurBackground = computed(
   () => canvasAspectRatio.value !== "original" && canvasBackgroundMode.value === "blur",
@@ -367,6 +371,7 @@ async function concatRandomSegments() {
       canvasBackgroundMode.value,
     );
     mixResultPath.value = result.outputPath;
+    appendMixLog(buildRemixCanvasLog(result), "info");
     appendMixLog(
       `拼接成功：已使用 ${result.inputCount} 个片段生成 ${result.outputPath}${
         buildMixOptionSummary()
@@ -436,6 +441,7 @@ async function generateBatchMixes() {
         canvasBackgroundMode.value,
       );
       batchMixResults.value.push(result.outputPath);
+      appendBatchMixLog(buildRemixCanvasLog(result), "info");
       appendBatchMixLog(
         `第 ${index + 1} 条生成成功：${result.outputPath}${
           buildMixOptionSummary()
@@ -526,6 +532,17 @@ function buildMixOptionSummary() {
   return options.length > 0 ? `，${options.join("，")}。` : "。";
 }
 
+function buildRemixCanvasLog(result: {
+  outputAspectRatio: string;
+  outputResolution: string;
+  backgroundMode: string;
+  appliedToRemixExport: boolean;
+}) {
+  return `混剪画布：输出比例 ${result.outputAspectRatio}，输出分辨率 ${result.outputResolution}，背景方式 ${result.backgroundMode}，已应用到混剪导出：${
+    result.appliedToRemixExport ? "是" : "否"
+  }。`;
+}
+
 function getCanvasAspectRatioValue(aspectRatio: CanvasAspectRatio) {
   if (aspectRatio === "portrait916") {
     return "9 / 16";
@@ -544,6 +561,26 @@ function getCanvasAspectRatioValue(aspectRatio: CanvasAspectRatio) {
   }
 
   return "16 / 9";
+}
+
+function getCanvasRatioNumber(aspectRatio: CanvasAspectRatio) {
+  if (aspectRatio === "portrait916") {
+    return 9 / 16;
+  }
+
+  if (aspectRatio === "square11") {
+    return 1;
+  }
+
+  if (aspectRatio === "landscape169") {
+    return 16 / 9;
+  }
+
+  if (selectedVideo.value?.width && selectedVideo.value?.height) {
+    return selectedVideo.value.width / selectedVideo.value.height;
+  }
+
+  return 16 / 9;
 }
 
 function syncPreviewBackground() {
@@ -748,39 +785,40 @@ onMounted(() => {
             </div>
           </div>
 
-          <div
-            v-if="previewUrl"
-            class="video-frame"
-            :class="{
-              'video-frame--canvas': canvasAspectRatio !== 'original',
-              'video-frame--blur': shouldShowBlurBackground,
-            }"
-            :style="previewCanvasStyle"
-          >
-            <video
-              v-if="shouldShowBlurBackground"
-              ref="previewBackgroundVideoRef"
-              class="video-frame__background"
-              :src="previewUrl"
-              muted
-              playsinline
-              preload="metadata"
-              tabindex="-1"
-              aria-hidden="true"
-            ></video>
-            <video
-              :key="selectedVideo?.id"
-              ref="previewVideoRef"
-              class="video-frame__foreground"
-              :src="previewUrl"
-              controls
-              preload="metadata"
-              @play="syncPreviewBackground"
-              @pause="syncPreviewBackground"
-              @seeked="syncPreviewBackground"
-              @timeupdate="syncPreviewBackground"
-              @ratechange="syncPreviewBackground"
-            ></video>
+          <div v-if="previewUrl" class="video-frame">
+            <div
+              class="video-frame__canvas"
+              :class="{
+                'video-frame__canvas--fit': canvasAspectRatio !== 'original',
+                'video-frame__canvas--blur': shouldShowBlurBackground,
+              }"
+              :style="previewCanvasStyle"
+            >
+              <video
+                v-if="shouldShowBlurBackground"
+                ref="previewBackgroundVideoRef"
+                class="video-frame__background"
+                :src="previewUrl"
+                muted
+                playsinline
+                preload="metadata"
+                tabindex="-1"
+                aria-hidden="true"
+              ></video>
+              <video
+                :key="selectedVideo?.id"
+                ref="previewVideoRef"
+                class="video-frame__foreground"
+                :src="previewUrl"
+                controls
+                preload="metadata"
+                @play="syncPreviewBackground"
+                @pause="syncPreviewBackground"
+                @seeked="syncPreviewBackground"
+                @timeupdate="syncPreviewBackground"
+                @ratechange="syncPreviewBackground"
+              ></video>
+            </div>
           </div>
           <div v-else class="video-placeholder">
             导入素材后，点击左侧视频即可预览。

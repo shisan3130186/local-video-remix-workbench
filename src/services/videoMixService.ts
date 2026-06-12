@@ -4,6 +4,10 @@ export interface MixVideoResult {
   outputPath: string;
   inputCount: number;
   message: string;
+  outputAspectRatio: string;
+  outputResolution: string;
+  backgroundMode: string;
+  appliedToRemixExport: boolean;
 }
 
 export type CanvasAspectRatio =
