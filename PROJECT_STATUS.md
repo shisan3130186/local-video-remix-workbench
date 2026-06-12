@@ -68,10 +68,11 @@ v0.2.0-dev
 - PROJECT_STATUS.md
 - TODO_NEXT.md
 验证情况：`corepack pnpm build` 已通过；设置 `CARGO_HTTP_CHECK_REVOKE=false` 后 `cargo check` 已通过；已检查变速参数由页面传入，FFmpeg 滤镜仍只在 VideoEngine 中拼接。
-遗留问题：需要用户人工检查 0.8x、1.0x、1.2x 等变速导出效果和时长变化。
+人工验收：用户已确认基础变速测试完美通过。
+遗留问题：暂无。
 
 ## 下一步建议
 
-1. 人工测试基础变速
-2. 确认单次拼接和批量生成在 1.0x、快放、慢放下均可导出
-3. 通过后继续规划 V0.2 裁剪比例
+1. 继续开发 V0.2 裁剪比例
+2. 裁剪比例先支持原画、9:16 竖屏、1:1 方屏、16:9 横屏
+3. 保持裁剪逻辑通过 VideoEngine 封装，不让页面组件直接拼接 FFmpeg 命令
