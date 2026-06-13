@@ -53,7 +53,7 @@ h3 {
 
 .app-shell {
   display: grid;
-  grid-template-rows: 58px minmax(0, 1fr) minmax(240px, 30vh);
+  grid-template-rows: 58px minmax(0, 1fr) minmax(180px, 24vh);
   height: 100vh;
   min-height: 100vh;
   overflow: hidden;
@@ -61,7 +61,7 @@ h3 {
 }
 
 .app-shell--log-collapsed {
-  grid-template-rows: 58px minmax(0, 1fr) 82px;
+  grid-template-rows: 58px minmax(0, 1fr) 180px;
 }
 
 .top-bar {
@@ -142,7 +142,7 @@ h3 {
 }
 
 .center-stage {
-  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(0, 1fr) auto minmax(54px, 240px);
 }
 
 .panel {
@@ -414,7 +414,10 @@ h3 {
 }
 
 .result-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
+  overflow: hidden;
 }
 
 .result-panel--collapsed .panel__header {
@@ -425,6 +428,7 @@ h3 {
   display: grid;
   gap: 12px;
   min-height: 0;
+  overflow: auto;
 }
 
 .result-grid {
