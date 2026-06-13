@@ -77,6 +77,8 @@ const canvasAspectRatio = ref<CanvasAspectRatio>("original");
 const canvasBackgroundMode = ref<CanvasBackgroundMode>("black");
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
+const isResultPanelExpanded = ref(false);
+const isTaskLogExpanded = ref(false);
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -714,7 +716,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="app-shell">
+  <main class="app-shell" :class="{ 'app-shell--log-collapsed': !isTaskLogExpanded }">
     <header class="top-bar">
       <div class="product-mark">
         <p class="eyebrow">V0.2 基础混剪版</p>
@@ -892,49 +894,54 @@ onMounted(() => {
           </div>
         </section>
 
-        <section class="panel result-panel">
+        <section class="panel result-panel" :class="{ 'result-panel--collapsed': !isResultPanelExpanded }">
           <div class="panel__header">
             <div>
               <p class="panel__label">结果</p>
               <h2>混剪输出</h2>
             </div>
+            <button class="panel-toggle" type="button" @click="isResultPanelExpanded = !isResultPanelExpanded">
+              {{ isResultPanelExpanded ? "收起" : `展开 ${exportResultItems.length}` }}
+            </button>
           </div>
 
-          <div class="result-grid">
-            <p v-if="exportError" class="error-text">{{ exportError }}</p>
-            <p v-if="mixError" class="error-text">{{ mixError }}</p>
-            <p v-if="batchMixError" class="error-text">{{ batchMixError }}</p>
-          </div>
-
-          <div class="sub-block">
-            <div class="section-title">
-              <span>导出结果列表</span>
-              <strong>{{ exportResultItems.length }}</strong>
+          <div v-if="isResultPanelExpanded" class="collapsible-content">
+            <div class="result-grid">
+              <p v-if="exportError" class="error-text">{{ exportError }}</p>
+              <p v-if="mixError" class="error-text">{{ mixError }}</p>
+              <p v-if="batchMixError" class="error-text">{{ batchMixError }}</p>
             </div>
-            <ol v-if="exportResultItems.length > 0" class="compact-list result-list">
-              <li v-for="item in exportResultItems" :key="item.id">
-                <span>{{ item.type }} · {{ formatFileName(item.path) }}</span>
-                <button class="ghost-button result-action" type="button" @click="openResultLocation(item.path)">
-                  打开位置
-                </button>
-                <small>{{ item.time }} · {{ item.path }}</small>
-              </li>
-            </ol>
-            <p v-if="fileManagerError" class="error-text">{{ fileManagerError }}</p>
-            <p v-if="exportResultItems.length === 0" class="empty-text">暂无导出结果。</p>
-          </div>
 
-          <div v-if="batchMixResults.length > 0" class="sub-block">
-            <div class="section-title">
-              <span>批量生成结果</span>
-              <strong>{{ batchMixResults.length }}</strong>
+            <div class="sub-block">
+              <div class="section-title">
+                <span>导出结果列表</span>
+                <strong>{{ exportResultItems.length }}</strong>
+              </div>
+              <ol v-if="exportResultItems.length > 0" class="compact-list result-list">
+                <li v-for="item in exportResultItems" :key="item.id">
+                  <span>{{ item.type }} · {{ formatFileName(item.path) }}</span>
+                  <button class="ghost-button result-action" type="button" @click="openResultLocation(item.path)">
+                    打开位置
+                  </button>
+                  <small>{{ item.time }} · {{ item.path }}</small>
+                </li>
+              </ol>
+              <p v-if="fileManagerError" class="error-text">{{ fileManagerError }}</p>
+              <p v-if="exportResultItems.length === 0" class="empty-text">暂无导出结果。</p>
             </div>
-            <ol class="compact-list">
-              <li v-for="resultPath in batchMixResults" :key="resultPath">
-                <span>{{ formatFileName(resultPath) }}</span>
-                <small>{{ resultPath }}</small>
-              </li>
-            </ol>
+
+            <div v-if="batchMixResults.length > 0" class="sub-block">
+              <div class="section-title">
+                <span>批量生成结果</span>
+                <strong>{{ batchMixResults.length }}</strong>
+              </div>
+              <ol class="compact-list">
+                <li v-for="resultPath in batchMixResults" :key="resultPath">
+                  <span>{{ formatFileName(resultPath) }}</span>
+                  <small>{{ resultPath }}</small>
+                </li>
+              </ol>
+            </div>
           </div>
         </section>
       </section>
@@ -1112,28 +1119,32 @@ onMounted(() => {
       </section>
 
       <section class="task-console">
-        <div class="console-header">
-          <div>
-            <p class="panel__label">任务日志</p>
-            <h2>当前处理记录</h2>
+          <div class="console-header">
+            <div>
+              <p class="panel__label">任务日志</p>
+              <h2>当前处理记录</h2>
+            </div>
+            <button class="panel-toggle" type="button" @click="isTaskLogExpanded = !isTaskLogExpanded">
+              {{ isTaskLogExpanded ? "收起" : `展开 ${taskLogs.length}` }}
+            </button>
           </div>
-          <span>顺序执行，不并发</span>
-        </div>
-        <p v-if="taskLogs.length === 0" class="empty-text">
-          开始导出、切片、拼接或批量生成后，这里会显示任务过程。
-        </p>
-        <ol v-else class="log-list">
-          <li
-            v-for="log in taskLogs"
-            :key="`${log.group}-${log.id}`"
-            class="log-item"
-            :class="`log-item--${log.level}`"
-          >
-            <span class="log-item__time">{{ log.time }}</span>
-            <span class="log-item__group">{{ log.group }}</span>
-            <span class="log-item__message">{{ log.message }}</span>
-          </li>
-        </ol>
+          <div v-if="isTaskLogExpanded" class="collapsible-content">
+            <p v-if="taskLogs.length === 0" class="empty-text">
+              开始导出、切片、拼接或批量生成后，这里会显示任务过程。
+            </p>
+            <ol v-else class="log-list">
+              <li
+                v-for="log in taskLogs"
+                :key="`${log.group}-${log.id}`"
+                class="log-item"
+                :class="`log-item--${log.level}`"
+              >
+                <span class="log-item__time">{{ log.time }}</span>
+                <span class="log-item__group">{{ log.group }}</span>
+                <span class="log-item__message">{{ log.message }}</span>
+              </li>
+            </ol>
+          </div>
       </section>
     </footer>
   </main>

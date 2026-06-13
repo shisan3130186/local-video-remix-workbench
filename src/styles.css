@@ -60,6 +60,10 @@ h3 {
   background: #eef2f6;
 }
 
+.app-shell--log-collapsed {
+  grid-template-rows: 58px minmax(0, 1fr) 82px;
+}
+
 .top-bar {
   display: flex;
   align-items: center;
@@ -161,6 +165,22 @@ h3 {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.panel-toggle {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #c4ceda;
+  border-radius: 6px;
+  color: #334155;
+  background: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.panel-toggle:hover {
+  border-color: #2f67a8;
+  color: #23558f;
 }
 
 .button-row {
@@ -397,6 +417,16 @@ h3 {
   min-height: 0;
 }
 
+.result-panel--collapsed .panel__header {
+  margin-bottom: 0;
+}
+
+.collapsible-content {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+}
+
 .result-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -569,6 +599,14 @@ h3 {
   border: 1px solid #cfd7e2;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.app-shell--log-collapsed .task-console {
+  grid-template-rows: auto;
+}
+
+.app-shell--log-collapsed .console-header {
+  margin-bottom: 0;
 }
 
 .console-header {
