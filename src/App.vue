@@ -79,6 +79,46 @@ const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
 const isResultPanelExpanded = ref(false);
 const isTaskLogExpanded = ref(false);
+const isWorkspaceVisible = ref(false);
+
+const moduleCards = [
+  {
+    title: "AI 智能混剪",
+    description: "导入素材后，按切片、抽取、拼接和批量生成形成本地混剪流程。",
+    tags: ["视频混剪", "批量生成", "画布适配"],
+    available: true,
+  },
+  {
+    title: "视频效果处理",
+    description: "面向镜像、变速、画布比例和背景填充的本地视频处理入口。",
+    tags: ["镜像", "变速", "模糊背景"],
+    available: true,
+  },
+  {
+    title: "视频混剪",
+    description: "固定切片、随机抽取、拼接抽中片段和批量导出。",
+    tags: ["切片", "随机抽取", "拼接"],
+    available: true,
+  },
+  {
+    title: "分类混剪",
+    description: "按素材分类和规则生成不同混剪版本。",
+    tags: ["分类素材", "规则混剪"],
+    available: false,
+  },
+  {
+    title: "文案改写",
+    description: "后续用于文案多版本整理和创意表达。",
+    tags: ["文案", "多版本"],
+    available: false,
+  },
+  {
+    title: "视频内容提炼",
+    description: "后续用于从素材中提取片段价值和内容标签。",
+    tags: ["内容提炼", "素材标签"],
+    available: false,
+  },
+];
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -716,24 +756,66 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="app-shell" :class="{ 'app-shell--log-collapsed': !isTaskLogExpanded }">
+  <main
+    class="app-shell"
+    :class="{
+      'app-shell--home': !isWorkspaceVisible,
+      'app-shell--log-collapsed': isWorkspaceVisible && !isTaskLogExpanded,
+    }"
+  >
     <header class="top-bar">
       <div class="product-mark">
-        <p class="eyebrow">V0.2 基础混剪版</p>
+        <button v-if="isWorkspaceVisible" class="back-button" type="button" @click="isWorkspaceVisible = false">
+          返回首页
+        </button>
+        <p v-else class="eyebrow">V0.2 基础混剪版</p>
         <h1>本地短视频批量混剪工作台</h1>
       </div>
       <div class="top-status">
-        <span class="mode-pill">本地处理模式</span>
+        <span class="mode-pill">本地处理 / 批量混剪 / API Key 自带</span>
         <span class="health-pill" :class="{ 'health-pill--ok': environment?.available }">
           {{ environment?.available ? "FFmpeg 就绪" : "FFmpeg 未就绪" }}
         </span>
-        <button class="ghost-button" type="button" @click="runEnvironmentCheck">
-          重新检测
-        </button>
+        <span class="title-icon" aria-hidden="true">人</span>
+        <span class="title-icon" aria-hidden="true">≡</span>
       </div>
     </header>
 
-    <section class="workbench">
+    <section v-if="!isWorkspaceVisible" class="home-screen">
+      <div class="home-hero">
+        <p class="eyebrow">本地桌面端视频处理</p>
+        <h2>本地短视频批量混剪工作台</h2>
+        <p>本地处理 / 批量混剪 / API Key 自带</p>
+      </div>
+
+      <div class="module-grid">
+        <article
+          v-for="card in moduleCards"
+          :key="card.title"
+          class="module-card"
+          :class="{ 'module-card--disabled': !card.available }"
+        >
+          <div class="module-card__header">
+            <h3>{{ card.title }}</h3>
+            <span>{{ card.available ? "功能可用" : "敬请期待" }}</span>
+          </div>
+          <p>{{ card.description }}</p>
+          <div class="module-card__tags">
+            <span v-for="tag in card.tags" :key="tag">{{ tag }}</span>
+          </div>
+          <button
+            class="primary-button primary-button--full"
+            type="button"
+            :disabled="!card.available"
+            @click="isWorkspaceVisible = true"
+          >
+            {{ card.available ? "进入工作台" : "暂未开放" }}
+          </button>
+        </article>
+      </div>
+    </section>
+
+    <section v-else class="workbench">
       <aside class="left-rail" aria-label="素材和片段">
         <section class="panel panel--stretch">
           <div class="panel__header">
@@ -1111,7 +1193,7 @@ onMounted(() => {
       </aside>
     </section>
 
-    <footer class="bottom-console" aria-label="任务日志和输出">
+    <footer v-if="isWorkspaceVisible" class="bottom-console" aria-label="任务日志和输出">
       <section class="output-strip">
         <p class="panel__label">输出目录</p>
         <p v-if="outputDirectory" class="output-path">{{ outputDirectory }}</p>
