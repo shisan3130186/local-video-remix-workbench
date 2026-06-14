@@ -12,6 +12,17 @@ export interface MixVideoResult {
   skippedShortSegmentCount: number;
 }
 
+export type RotationMode = "none" | "clockwise90" | "counterclockwise90" | "rotate180";
+
+export interface VideoEffectSettings {
+  verticalMirror: boolean;
+  rotation: RotationMode;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  scale: number;
+}
+
 export type CanvasAspectRatio =
   | "original"
   | "portrait916"
@@ -47,6 +58,7 @@ export function concatSelectedSegments(
   canvasAspectRatio: CanvasAspectRatio,
   canvasBackgroundMode: CanvasBackgroundMode,
   smoothRemixEnabled: boolean,
+  videoEffectSettings: VideoEffectSettings,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_selected_segments", {
     segmentPaths,
@@ -56,6 +68,7 @@ export function concatSelectedSegments(
     canvasAspectRatio,
     canvasBackgroundMode,
     smoothRemixEnabled,
+    videoEffectSettings,
   });
 }
 

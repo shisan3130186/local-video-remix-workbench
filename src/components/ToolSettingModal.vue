@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import type { CanvasAspectRatio, CanvasBackgroundMode } from "../services/videoMixService";
+import type {
+  CanvasAspectRatio,
+  CanvasBackgroundMode,
+  RotationMode,
+} from "../services/videoMixService";
 
 type ToolKey =
   | "remix"
@@ -42,8 +46,14 @@ const props = defineProps<{
   canvasAspectRatio: CanvasAspectRatio;
   canvasBackgroundMode: CanvasBackgroundMode;
   applyHorizontalMirror: boolean;
+  applyVerticalMirror: boolean;
   smoothRemixEnabled: boolean;
   playbackSpeed: number;
+  rotationMode: RotationMode;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  effectScale: number;
 }>();
 
 const emit = defineEmits<{
@@ -62,8 +72,14 @@ const emit = defineEmits<{
   "update:canvasAspectRatio": [value: CanvasAspectRatio];
   "update:canvasBackgroundMode": [value: CanvasBackgroundMode];
   "update:applyHorizontalMirror": [value: boolean];
+  "update:applyVerticalMirror": [value: boolean];
   "update:smoothRemixEnabled": [value: boolean];
   "update:playbackSpeed": [value: number];
+  "update:rotationMode": [value: RotationMode];
+  "update:brightness": [value: number];
+  "update:contrast": [value: number];
+  "update:saturation": [value: number];
+  "update:effectScale": [value: number];
 }>();
 
 const titles: Record<ToolKey, string> = {
@@ -90,7 +106,18 @@ const titles: Record<ToolKey, string> = {
   export: "导出设置",
 };
 
-function updateNumber(event: Event, name: "segmentDurationSeconds" | "randomPickCount" | "batchGenerateCount" | "playbackSpeed") {
+function updateNumber(
+  event: Event,
+  name:
+    | "segmentDurationSeconds"
+    | "randomPickCount"
+    | "batchGenerateCount"
+    | "playbackSpeed"
+    | "brightness"
+    | "contrast"
+    | "saturation"
+    | "effectScale",
+) {
   const value = Number((event.target as HTMLInputElement).value);
   if (name === "segmentDurationSeconds") {
     emit("update:segmentDurationSeconds", value);
@@ -107,10 +134,33 @@ function updateNumber(event: Event, name: "segmentDurationSeconds" | "randomPick
     return;
   }
 
-  emit("update:playbackSpeed", value);
+  if (name === "playbackSpeed") {
+    emit("update:playbackSpeed", value);
+    return;
+  }
+
+  if (name === "brightness") {
+    emit("update:brightness", value);
+    return;
+  }
+
+  if (name === "contrast") {
+    emit("update:contrast", value);
+    return;
+  }
+
+  if (name === "saturation") {
+    emit("update:saturation", value);
+    return;
+  }
+
+  emit("update:effectScale", value);
 }
 
-function updateCheckbox(event: Event, name: "applyHorizontalMirror" | "smoothRemixEnabled") {
+function updateCheckbox(
+  event: Event,
+  name: "applyHorizontalMirror" | "applyVerticalMirror" | "smoothRemixEnabled",
+) {
   const value = (event.target as HTMLInputElement).checked;
 
   if (name === "applyHorizontalMirror") {
@@ -118,10 +168,15 @@ function updateCheckbox(event: Event, name: "applyHorizontalMirror" | "smoothRem
     return;
   }
 
+  if (name === "applyVerticalMirror") {
+    emit("update:applyVerticalMirror", value);
+    return;
+  }
+
   emit("update:smoothRemixEnabled", value);
 }
 
-function updateSelect(event: Event, name: "canvasAspectRatio" | "canvasBackgroundMode") {
+function updateSelect(event: Event, name: "canvasAspectRatio" | "canvasBackgroundMode" | "rotationMode") {
   const value = (event.target as HTMLSelectElement).value;
 
   if (name === "canvasAspectRatio") {
@@ -129,7 +184,12 @@ function updateSelect(event: Event, name: "canvasAspectRatio" | "canvasBackgroun
     return;
   }
 
-  emit("update:canvasBackgroundMode", value as CanvasBackgroundMode);
+  if (name === "canvasBackgroundMode") {
+    emit("update:canvasBackgroundMode", value as CanvasBackgroundMode);
+    return;
+  }
+
+  emit("update:rotationMode", value as RotationMode);
 }
 </script>
 
@@ -232,7 +292,27 @@ function updateSelect(event: Event, name: "canvasAspectRatio" | "canvasBackgroun
             />
             <span>水平镜像</span>
           </label>
-          <p class="empty-text">当前版本只开放水平镜像；旋转能力作为后续入口保留。</p>
+          <label class="option-toggle">
+            <input
+              :checked="applyVerticalMirror"
+              type="checkbox"
+              @change="updateCheckbox($event, 'applyVerticalMirror')"
+            />
+            <span>垂直镜像</span>
+          </label>
+          <p class="empty-text">镜像效果会应用到拼接抽中片段和批量生成混剪。</p>
+        </template>
+
+        <template v-else-if="activeTool === 'rotate'">
+          <label class="field">
+            <span>旋转方式</span>
+            <select :value="rotationMode" @change="updateSelect($event, 'rotationMode')">
+              <option value="none">不旋转</option>
+              <option value="clockwise90">顺时针 90°</option>
+              <option value="counterclockwise90">逆时针 90°</option>
+              <option value="rotate180">旋转 180°</option>
+            </select>
+          </label>
         </template>
 
         <template v-else-if="activeTool === 'speed'">
@@ -248,6 +328,61 @@ function updateSelect(event: Event, name: "canvasAspectRatio" | "canvasBackgroun
               @input="updateNumber($event, 'playbackSpeed')"
             />
           </label>
+        </template>
+
+        <template v-else-if="activeTool === 'effects' || activeTool === 'adjust'">
+          <label class="field">
+            <span>亮度</span>
+            <input
+              :value="brightness"
+              type="number"
+              min="-1"
+              max="1"
+              step="0.05"
+              :disabled="isMixing || isBatchMixing"
+              @input="updateNumber($event, 'brightness')"
+            />
+          </label>
+          <label class="field">
+            <span>对比度</span>
+            <input
+              :value="contrast"
+              type="number"
+              min="0"
+              max="3"
+              step="0.05"
+              :disabled="isMixing || isBatchMixing"
+              @input="updateNumber($event, 'contrast')"
+            />
+          </label>
+          <label class="field">
+            <span>饱和度</span>
+            <input
+              :value="saturation"
+              type="number"
+              min="0"
+              max="3"
+              step="0.05"
+              :disabled="isMixing || isBatchMixing"
+              @input="updateNumber($event, 'saturation')"
+            />
+          </label>
+        </template>
+
+        <template v-else-if="activeTool === 'zoom'">
+          <label class="field">
+            <span>轻微缩放</span>
+            <input
+              :value="effectScale"
+              type="number"
+              min="1"
+              max="1.2"
+              step="0.01"
+              :disabled="isMixing || isBatchMixing"
+              @input="updateNumber($event, 'effectScale')"
+            />
+          </label>
+          <p class="empty-text">建议范围 1.00 到 1.20，用于轻微放大画面。</p>
         </template>
 
         <template v-else-if="activeTool === 'export'">

@@ -21,6 +21,8 @@ import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
   MixVideoResult,
+  RotationMode,
+  VideoEffectSettings,
 } from "./services/videoMixService";
 import { openPathInFileManager } from "./services/fileManagerService";
 import {
@@ -101,6 +103,12 @@ const mixLogs = ref<TaskLogEntry[]>([]);
 const applyHorizontalMirror = ref(false);
 const playbackSpeed = ref(1.0);
 const smoothRemixEnabled = ref(false);
+const applyVerticalMirror = ref(false);
+const rotationMode = ref<RotationMode>("none");
+const brightness = ref(0);
+const contrast = ref(1);
+const saturation = ref(1);
+const effectScale = ref(1);
 const batchGenerateCount = ref(3);
 const isBatchMixing = ref(false);
 const batchMixError = ref<string | null>(null);
@@ -198,6 +206,17 @@ const taskLogs = computed(() => [
   ...mixLogs.value.map((log) => ({ ...log, group: "片段拼接" })),
   ...batchMixLogs.value.map((log) => ({ ...log, group: "批量生成" })),
 ]);
+
+const videoEffectSettings = computed(
+  (): VideoEffectSettings => ({
+    verticalMirror: applyVerticalMirror.value,
+    rotation: rotationMode.value,
+    brightness: brightness.value,
+    contrast: contrast.value,
+    saturation: saturation.value,
+    scale: effectScale.value,
+  }),
+);
 
 async function runEnvironmentCheck() {
   isChecking.value = true;
@@ -470,6 +489,7 @@ async function concatRandomSegments() {
       canvasAspectRatio.value,
       canvasBackgroundMode.value,
       smoothRemixEnabled.value,
+      videoEffectSettings.value,
     );
     mixResultPath.value = result.outputPath;
     addExportResult("拼接导出", result.outputPath);
@@ -545,6 +565,7 @@ async function generateBatchMixes() {
         canvasAspectRatio.value,
         canvasBackgroundMode.value,
         smoothRemixEnabled.value,
+        videoEffectSettings.value,
       );
       batchMixResults.value.push(result.outputPath);
       addExportResult("批量生成", result.outputPath);
@@ -633,8 +654,28 @@ function buildMixOptionSummary() {
     options.push("已应用水平镜像");
   }
 
+  if (applyVerticalMirror.value) {
+    options.push("已应用垂直镜像");
+  }
+
   if (smoothRemixEnabled.value) {
     options.push("已应用平滑混剪");
+  }
+
+  if (rotationMode.value !== "none") {
+    options.push("已应用旋转");
+  }
+
+  if (
+    Math.abs(brightness.value) > 0.001 ||
+    Math.abs(contrast.value - 1) > 0.001 ||
+    Math.abs(saturation.value - 1) > 0.001
+  ) {
+    options.push("已应用画面调整");
+  }
+
+  if (Math.abs(effectScale.value - 1) > 0.001) {
+    options.push(`已应用 ${effectScale.value.toFixed(2)}x 轻微缩放`);
   }
 
   if (Math.abs(playbackSpeed.value - 1) > 0.001) {
@@ -673,11 +714,29 @@ function resetToolSettings(tool: ToolKey) {
 
   if (tool === "mirror") {
     applyHorizontalMirror.value = false;
+    applyVerticalMirror.value = false;
     return;
   }
 
   if (tool === "speed") {
     playbackSpeed.value = 1;
+    return;
+  }
+
+  if (tool === "rotate") {
+    rotationMode.value = "none";
+    return;
+  }
+
+  if (tool === "effects" || tool === "adjust") {
+    brightness.value = 0;
+    contrast.value = 1;
+    saturation.value = 1;
+    return;
+  }
+
+  if (tool === "zoom") {
+    effectScale.value = 1;
   }
 }
 
@@ -966,8 +1025,14 @@ onMounted(() => {
       :canvas-aspect-ratio="canvasAspectRatio"
       :canvas-background-mode="canvasBackgroundMode"
       :apply-horizontal-mirror="applyHorizontalMirror"
+      :apply-vertical-mirror="applyVerticalMirror"
       :smooth-remix-enabled="smoothRemixEnabled"
       :playback-speed="playbackSpeed"
+      :rotation-mode="rotationMode"
+      :brightness="brightness"
+      :contrast="contrast"
+      :saturation="saturation"
+      :effect-scale="effectScale"
       @close="activeTool = null"
       @reset="resetToolSettings"
       @split-selected-video="splitSelectedVideo"
@@ -983,8 +1048,14 @@ onMounted(() => {
       @update:canvas-aspect-ratio="canvasAspectRatio = $event"
       @update:canvas-background-mode="canvasBackgroundMode = $event"
       @update:apply-horizontal-mirror="applyHorizontalMirror = $event"
+      @update:apply-vertical-mirror="applyVerticalMirror = $event"
       @update:smooth-remix-enabled="smoothRemixEnabled = $event"
       @update:playback-speed="playbackSpeed = $event"
+      @update:rotation-mode="rotationMode = $event"
+      @update:brightness="brightness = $event"
+      @update:contrast="contrast = $event"
+      @update:saturation="saturation = $event"
+      @update:effect-scale="effectScale = $event"
     />
 
     <TaskLogDrawer

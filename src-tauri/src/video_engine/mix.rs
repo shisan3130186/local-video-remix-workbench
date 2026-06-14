@@ -1,7 +1,7 @@
 use crate::video_engine::canvas::{
     build_canvas_filter, build_plain_video_filter, CanvasAspectRatio, CanvasBackgroundMode,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -21,6 +21,26 @@ pub struct MixVideoResult {
     skipped_short_segment_count: usize,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoEffectSettings {
+    vertical_mirror: bool,
+    rotation: RotationMode,
+    brightness: f64,
+    contrast: f64,
+    saturation: f64,
+    scale: f64,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RotationMode {
+    None,
+    Clockwise90,
+    Counterclockwise90,
+    Rotate180,
+}
+
 pub fn concat_video_segments(
     segment_paths: Vec<String>,
     output_directory: String,
@@ -29,9 +49,11 @@ pub fn concat_video_segments(
     canvas_aspect_ratio: CanvasAspectRatio,
     canvas_background_mode: CanvasBackgroundMode,
     smooth_remix_enabled: bool,
+    video_effect_settings: VideoEffectSettings,
 ) -> Result<MixVideoResult, String> {
     let output_dir = Path::new(&output_directory);
     let normalized_playback_speed = normalize_playback_speed(playback_speed)?;
+    let normalized_effect_settings = normalize_video_effect_settings(video_effect_settings)?;
 
     if segment_paths.len() < 2 {
         return Err("至少需要 2 个片段才能拼接。".to_string());
@@ -97,6 +119,8 @@ pub fn concat_video_segments(
     if apply_horizontal_mirror {
         video_filters.push("hflip".to_string());
     }
+
+    video_filters.extend(build_video_effect_filters(normalized_effect_settings));
 
     if should_apply_speed_filter(normalized_playback_speed) {
         video_filters.push(format!("setpts=PTS/{normalized_playback_speed:.3}"));
@@ -175,6 +199,70 @@ pub fn concat_video_segments(
         smooth_remix_enabled,
         skipped_short_segment_count: prepared_segments.skipped_short_segment_count,
     })
+}
+
+fn normalize_video_effect_settings(
+    settings: VideoEffectSettings,
+) -> Result<VideoEffectSettings, String> {
+    if !settings.brightness.is_finite() || settings.brightness < -1.0 || settings.brightness > 1.0
+    {
+        return Err("亮度调整范围必须在 -1.0 到 1.0 之间。".to_string());
+    }
+
+    if !settings.contrast.is_finite() || settings.contrast < 0.0 || settings.contrast > 3.0 {
+        return Err("对比度调整范围必须在 0.0 到 3.0 之间。".to_string());
+    }
+
+    if !settings.saturation.is_finite() || settings.saturation < 0.0 || settings.saturation > 3.0 {
+        return Err("饱和度调整范围必须在 0.0 到 3.0 之间。".to_string());
+    }
+
+    if !settings.scale.is_finite() || settings.scale < 1.0 || settings.scale > 1.2 {
+        return Err("轻微缩放范围必须在 1.0 到 1.2 之间。".to_string());
+    }
+
+    Ok(settings)
+}
+
+fn build_video_effect_filters(settings: VideoEffectSettings) -> Vec<String> {
+    let mut filters = Vec::new();
+
+    if settings.vertical_mirror {
+        filters.push("vflip".to_string());
+    }
+
+    match settings.rotation {
+        RotationMode::None => {}
+        RotationMode::Clockwise90 => filters.push("transpose=1".to_string()),
+        RotationMode::Counterclockwise90 => filters.push("transpose=2".to_string()),
+        RotationMode::Rotate180 => filters.push("hflip,vflip".to_string()),
+    }
+
+    if should_apply_eq_filter(settings) {
+        filters.push(format!(
+            "eq=brightness={:.3}:contrast={:.3}:saturation={:.3}",
+            settings.brightness, settings.contrast, settings.saturation
+        ));
+    }
+
+    if should_apply_scale_filter(settings.scale) {
+        filters.push(format!(
+            "scale=iw*{:.3}:ih*{:.3},crop=iw/{:.3}:ih/{:.3}",
+            settings.scale, settings.scale, settings.scale, settings.scale
+        ));
+    }
+
+    filters
+}
+
+fn should_apply_eq_filter(settings: VideoEffectSettings) -> bool {
+    settings.brightness.abs() > 0.001
+        || (settings.contrast - 1.0).abs() > 0.001
+        || (settings.saturation - 1.0).abs() > 0.001
+}
+
+fn should_apply_scale_filter(scale: f64) -> bool {
+    (scale - 1.0).abs() > 0.001
 }
 
 struct PreparedSegments {
