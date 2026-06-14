@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
+
+const FFPROBE_METADATA_TIMEOUT_SECONDS: u64 = 12;
 
 #[derive(Debug, Serialize)]
 pub struct ToolProbeResult {
@@ -77,8 +81,8 @@ pub fn probe_video_metadata(file_path: String) -> Result<VideoMetadata, String> 
         return Err("选择的路径不是视频文件。".to_string());
     }
 
-    let output = Command::new("ffprobe")
-        .args([
+    let output = run_ffprobe_with_timeout(
+        &[
             "-v",
             "error",
             "-print_format",
@@ -86,9 +90,9 @@ pub fn probe_video_metadata(file_path: String) -> Result<VideoMetadata, String> 
             "-show_format",
             "-show_streams",
             &file_path,
-        ])
-        .output()
-        .map_err(|error| format!("无法调用 ffprobe：{error}"))?;
+        ],
+        FFPROBE_METADATA_TIMEOUT_SECONDS,
+    )?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -166,6 +170,36 @@ fn probe_tool(binary_name: &str) -> ToolProbeResult {
             version: None,
             error: Some(error.to_string()),
         },
+    }
+}
+
+fn run_ffprobe_with_timeout(args: &[&str], timeout_seconds: u64) -> Result<Output, String> {
+    let mut child = Command::new("ffprobe")
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("无法调用 ffprobe：{error}"))?;
+    let started_at = Instant::now();
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                return child
+                    .wait_with_output()
+                    .map_err(|error| format!("读取 ffprobe 输出失败：{error}"));
+            }
+            Ok(None) if started_at.elapsed() >= Duration::from_secs(timeout_seconds) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("ffprobe 读取视频信息超时，已跳过该文件。"));
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(100)),
+            Err(error) => {
+                let _ = child.kill();
+                return Err(format!("等待 ffprobe 结束失败：{error}"));
+            }
+        }
     }
 }
 
