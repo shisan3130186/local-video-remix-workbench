@@ -21,6 +21,8 @@ import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
   MixVideoResult,
+  PictureInPictureSettings,
+  PipPosition,
   RotationMode,
   VideoEffectSettings,
 } from "./services/videoMixService";
@@ -109,6 +111,12 @@ const brightness = ref(0);
 const contrast = ref(1);
 const saturation = ref(1);
 const effectScale = ref(1);
+const pipEnabled = ref(false);
+const pipOverlayFilePath = ref<string | null>(null);
+const pipPosition = ref<PipPosition>("topRight");
+const pipSizeRatio = ref(0.3);
+const pipOpacity = ref(1);
+const pipMargin = ref(24);
 const batchGenerateCount = ref(3);
 const isBatchMixing = ref(false);
 const batchMixError = ref<string | null>(null);
@@ -215,6 +223,17 @@ const videoEffectSettings = computed(
     contrast: contrast.value,
     saturation: saturation.value,
     scale: effectScale.value,
+  }),
+);
+
+const pictureInPictureSettings = computed(
+  (): PictureInPictureSettings => ({
+    enabled: pipEnabled.value,
+    overlayFilePath: pipOverlayFilePath.value,
+    position: pipPosition.value,
+    sizeRatio: pipSizeRatio.value,
+    opacity: pipOpacity.value,
+    margin: pipMargin.value,
   }),
 );
 
@@ -490,6 +509,7 @@ async function concatRandomSegments() {
       canvasBackgroundMode.value,
       smoothRemixEnabled.value,
       videoEffectSettings.value,
+      pictureInPictureSettings.value,
     );
     mixResultPath.value = result.outputPath;
     addExportResult("拼接导出", result.outputPath);
@@ -566,6 +586,7 @@ async function generateBatchMixes() {
         canvasBackgroundMode.value,
         smoothRemixEnabled.value,
         videoEffectSettings.value,
+        pictureInPictureSettings.value,
       );
       batchMixResults.value.push(result.outputPath);
       addExportResult("批量生成", result.outputPath);
@@ -678,6 +699,10 @@ function buildMixOptionSummary() {
     options.push(`已应用 ${effectScale.value.toFixed(2)}x 轻微缩放`);
   }
 
+  if (pipEnabled.value) {
+    options.push("已应用画中画");
+  }
+
   if (Math.abs(playbackSpeed.value - 1) > 0.001) {
     options.push(`已应用 ${playbackSpeed.value.toFixed(2)}x 变速`);
   }
@@ -737,6 +762,40 @@ function resetToolSettings(tool: ToolKey) {
 
   if (tool === "zoom") {
     effectScale.value = 1;
+    return;
+  }
+
+  if (tool === "pip") {
+    pipEnabled.value = false;
+    pipOverlayFilePath.value = null;
+    pipPosition.value = "topRight";
+    pipSizeRatio.value = 0.3;
+    pipOpacity.value = 1;
+    pipMargin.value = 24;
+  }
+}
+
+async function selectPipOverlayFile() {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [
+        {
+          name: "画中画素材",
+          extensions: ["mp4", "mov", "avi", "mkv", "png", "jpg", "jpeg", "webp", "bmp"],
+        },
+      ],
+    });
+
+    if (!selected || Array.isArray(selected)) {
+      return;
+    }
+
+    pipOverlayFilePath.value = selected;
+    pipEnabled.value = true;
+  } catch (error) {
+    mixError.value =
+      error instanceof Error ? error.message : String(error ?? "选择画中画素材失败。");
   }
 }
 
@@ -1033,6 +1092,12 @@ onMounted(() => {
       :contrast="contrast"
       :saturation="saturation"
       :effect-scale="effectScale"
+      :pip-enabled="pipEnabled"
+      :pip-overlay-file-path="pipOverlayFilePath"
+      :pip-position="pipPosition"
+      :pip-size-ratio="pipSizeRatio"
+      :pip-opacity="pipOpacity"
+      :pip-margin="pipMargin"
       @close="activeTool = null"
       @reset="resetToolSettings"
       @split-selected-video="splitSelectedVideo"
@@ -1042,6 +1107,7 @@ onMounted(() => {
       @select-output-directory="selectOutputDirectory"
       @open-output-directory="openOutputDirectory"
       @export-selected-video="exportSelectedVideo"
+      @select-pip-overlay-file="selectPipOverlayFile"
       @update:segment-duration-seconds="segmentDurationSeconds = $event"
       @update:random-pick-count="randomPickCount = $event"
       @update:batch-generate-count="batchGenerateCount = $event"
@@ -1056,6 +1122,11 @@ onMounted(() => {
       @update:contrast="contrast = $event"
       @update:saturation="saturation = $event"
       @update:effect-scale="effectScale = $event"
+      @update:pip-enabled="pipEnabled = $event"
+      @update:pip-position="pipPosition = $event"
+      @update:pip-size-ratio="pipSizeRatio = $event"
+      @update:pip-opacity="pipOpacity = $event"
+      @update:pip-margin="pipMargin = $event"
     />
 
     <TaskLogDrawer

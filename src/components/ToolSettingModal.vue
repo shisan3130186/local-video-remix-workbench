@@ -2,6 +2,7 @@
 import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
+  PipPosition,
   RotationMode,
 } from "../services/videoMixService";
 
@@ -54,6 +55,12 @@ const props = defineProps<{
   contrast: number;
   saturation: number;
   effectScale: number;
+  pipEnabled: boolean;
+  pipOverlayFilePath: string | null;
+  pipPosition: PipPosition;
+  pipSizeRatio: number;
+  pipOpacity: number;
+  pipMargin: number;
 }>();
 
 const emit = defineEmits<{
@@ -66,6 +73,7 @@ const emit = defineEmits<{
   selectOutputDirectory: [];
   openOutputDirectory: [];
   exportSelectedVideo: [];
+  selectPipOverlayFile: [];
   "update:segmentDurationSeconds": [value: number];
   "update:randomPickCount": [value: number];
   "update:batchGenerateCount": [value: number];
@@ -80,6 +88,11 @@ const emit = defineEmits<{
   "update:contrast": [value: number];
   "update:saturation": [value: number];
   "update:effectScale": [value: number];
+  "update:pipEnabled": [value: boolean];
+  "update:pipPosition": [value: PipPosition];
+  "update:pipSizeRatio": [value: number];
+  "update:pipOpacity": [value: number];
+  "update:pipMargin": [value: number];
 }>();
 
 const titles: Record<ToolKey, string> = {
@@ -116,7 +129,10 @@ function updateNumber(
     | "brightness"
     | "contrast"
     | "saturation"
-    | "effectScale",
+    | "effectScale"
+    | "pipSizeRatio"
+    | "pipOpacity"
+    | "pipMargin",
 ) {
   const value = Number((event.target as HTMLInputElement).value);
   if (name === "segmentDurationSeconds") {
@@ -154,12 +170,27 @@ function updateNumber(
     return;
   }
 
-  emit("update:effectScale", value);
+  if (name === "effectScale") {
+    emit("update:effectScale", value);
+    return;
+  }
+
+  if (name === "pipSizeRatio") {
+    emit("update:pipSizeRatio", value);
+    return;
+  }
+
+  if (name === "pipOpacity") {
+    emit("update:pipOpacity", value);
+    return;
+  }
+
+  emit("update:pipMargin", value);
 }
 
 function updateCheckbox(
   event: Event,
-  name: "applyHorizontalMirror" | "applyVerticalMirror" | "smoothRemixEnabled",
+  name: "applyHorizontalMirror" | "applyVerticalMirror" | "smoothRemixEnabled" | "pipEnabled",
 ) {
   const value = (event.target as HTMLInputElement).checked;
 
@@ -173,10 +204,18 @@ function updateCheckbox(
     return;
   }
 
-  emit("update:smoothRemixEnabled", value);
+  if (name === "smoothRemixEnabled") {
+    emit("update:smoothRemixEnabled", value);
+    return;
+  }
+
+  emit("update:pipEnabled", value);
 }
 
-function updateSelect(event: Event, name: "canvasAspectRatio" | "canvasBackgroundMode" | "rotationMode") {
+function updateSelect(
+  event: Event,
+  name: "canvasAspectRatio" | "canvasBackgroundMode" | "rotationMode" | "pipPosition",
+) {
   const value = (event.target as HTMLSelectElement).value;
 
   if (name === "canvasAspectRatio") {
@@ -189,7 +228,16 @@ function updateSelect(event: Event, name: "canvasAspectRatio" | "canvasBackgroun
     return;
   }
 
-  emit("update:rotationMode", value as RotationMode);
+  if (name === "rotationMode") {
+    emit("update:rotationMode", value as RotationMode);
+    return;
+  }
+
+  emit("update:pipPosition", value as PipPosition);
+}
+
+function formatFileName(filePath: string | null) {
+  return filePath?.split(/[\\/]/).pop() ?? "未选择画中画素材";
 }
 </script>
 
@@ -281,6 +329,64 @@ function updateSelect(event: Event, name: "canvasAspectRatio" | "canvasBackgroun
             <span>平滑混剪</span>
           </label>
           <p class="empty-text">开启后，拼接和批量生成会应用 0.2 秒淡入淡出，并过滤小于 1.5 秒的片段。</p>
+        </template>
+
+        <template v-else-if="activeTool === 'pip'">
+          <label class="option-toggle">
+            <input
+              :checked="pipEnabled"
+              type="checkbox"
+              @change="updateCheckbox($event, 'pipEnabled')"
+            />
+            <span>启用画中画</span>
+          </label>
+          <p class="output-path">{{ formatFileName(pipOverlayFilePath) }}</p>
+          <button class="ghost-button ghost-button--full" type="button" @click="$emit('selectPipOverlayFile')">
+            选择叠加视频 / 图片
+          </button>
+          <label class="field">
+            <span>位置</span>
+            <select :value="pipPosition" @change="updateSelect($event, 'pipPosition')">
+              <option value="topLeft">左上</option>
+              <option value="topRight">右上</option>
+              <option value="bottomLeft">左下</option>
+              <option value="bottomRight">右下</option>
+              <option value="center">居中</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>大小比例</span>
+            <input
+              :value="pipSizeRatio"
+              type="number"
+              min="0.2"
+              max="0.5"
+              step="0.05"
+              @input="updateNumber($event, 'pipSizeRatio')"
+            />
+          </label>
+          <label class="field">
+            <span>透明度</span>
+            <input
+              :value="pipOpacity"
+              type="number"
+              min="0"
+              max="1"
+              step="0.05"
+              @input="updateNumber($event, 'pipOpacity')"
+            />
+          </label>
+          <label class="field">
+            <span>边距</span>
+            <input
+              :value="pipMargin"
+              type="number"
+              min="0"
+              max="240"
+              step="4"
+              @input="updateNumber($event, 'pipMargin')"
+            />
+          </label>
         </template>
 
         <template v-else-if="activeTool === 'mirror'">

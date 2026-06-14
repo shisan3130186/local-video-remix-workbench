@@ -23,6 +23,17 @@ export interface VideoEffectSettings {
   scale: number;
 }
 
+export type PipPosition = "topLeft" | "topRight" | "bottomLeft" | "bottomRight" | "center";
+
+export interface PictureInPictureSettings {
+  enabled: boolean;
+  overlayFilePath: string | null;
+  position: PipPosition;
+  sizeRatio: number;
+  opacity: number;
+  margin: number;
+}
+
 export type CanvasAspectRatio =
   | "original"
   | "portrait916"
@@ -59,6 +70,7 @@ export function concatSelectedSegments(
   canvasBackgroundMode: CanvasBackgroundMode,
   smoothRemixEnabled: boolean,
   videoEffectSettings: VideoEffectSettings,
+  pictureInPictureSettings: PictureInPictureSettings,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_selected_segments", {
     segmentPaths,
@@ -69,6 +81,7 @@ export function concatSelectedSegments(
     canvasBackgroundMode,
     smoothRemixEnabled,
     videoEffectSettings,
+    pictureInPictureSettings,
   });
 }
 

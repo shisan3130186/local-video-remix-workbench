@@ -4,7 +4,9 @@ use std::path::Path;
 use std::process::Command;
 use video_engine::canvas::{CanvasAspectRatio, CanvasBackgroundMode};
 use video_engine::import::list_supported_videos_in_folder;
-use video_engine::mix::{concat_video_segments, MixVideoResult, VideoEffectSettings};
+use video_engine::mix::{
+    concat_video_segments, MixVideoResult, PictureInPictureSettings, VideoEffectSettings,
+};
 use video_engine::probe::{
     check_environment, probe_video_metadata, FfmpegEnvironmentResult, VideoMetadata,
 };
@@ -94,6 +96,7 @@ fn concat_selected_segments(
     canvas_background_mode: CanvasBackgroundMode,
     smooth_remix_enabled: bool,
     video_effect_settings: VideoEffectSettings,
+    picture_in_picture_settings: PictureInPictureSettings,
 ) -> Result<MixVideoResult, String> {
     concat_video_segments(
         segment_paths,
@@ -104,6 +107,7 @@ fn concat_selected_segments(
         canvas_background_mode,
         smooth_remix_enabled,
         video_effect_settings,
+        picture_in_picture_settings,
     )
 }
 

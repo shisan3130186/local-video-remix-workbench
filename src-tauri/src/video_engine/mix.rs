@@ -41,6 +41,27 @@ pub enum RotationMode {
     Rotate180,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PictureInPictureSettings {
+    enabled: bool,
+    overlay_file_path: Option<String>,
+    position: PipPosition,
+    size_ratio: f64,
+    opacity: f64,
+    margin: u32,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PipPosition {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    Center,
+}
+
 pub fn concat_video_segments(
     segment_paths: Vec<String>,
     output_directory: String,
@@ -50,10 +71,12 @@ pub fn concat_video_segments(
     canvas_background_mode: CanvasBackgroundMode,
     smooth_remix_enabled: bool,
     video_effect_settings: VideoEffectSettings,
+    picture_in_picture_settings: PictureInPictureSettings,
 ) -> Result<MixVideoResult, String> {
     let output_dir = Path::new(&output_directory);
     let normalized_playback_speed = normalize_playback_speed(playback_speed)?;
     let normalized_effect_settings = normalize_video_effect_settings(video_effect_settings)?;
+    let normalized_pip_settings = normalize_picture_in_picture_settings(picture_in_picture_settings)?;
 
     if segment_paths.len() < 2 {
         return Err("至少需要 2 个片段才能拼接。".to_string());
@@ -114,6 +137,10 @@ pub fn concat_video_segments(
         list_path_text.to_string(),
     ];
 
+    if let Some(pip_settings) = &normalized_pip_settings {
+        append_pip_input_args(&mut ffmpeg_args, pip_settings)?;
+    }
+
     let mut video_filters = Vec::new();
 
     if apply_horizontal_mirror {
@@ -130,7 +157,14 @@ pub fn concat_video_segments(
         build_canvas_filter(canvas_aspect_ratio, canvas_background_mode, &video_filters)
             .or_else(|| build_plain_video_filter(&video_filters));
 
-    if let Some(video_filter) = video_filter {
+    if let Some(pip_settings) = &normalized_pip_settings {
+        ffmpeg_args.push("-filter_complex".to_string());
+        ffmpeg_args.push(build_pip_filter(video_filter, pip_settings));
+        ffmpeg_args.push("-map".to_string());
+        ffmpeg_args.push("[v]".to_string());
+        ffmpeg_args.push("-map".to_string());
+        ffmpeg_args.push("0:a?".to_string());
+    } else if let Some(video_filter) = video_filter {
         if video_filter.is_complex {
             ffmpeg_args.push("-filter_complex".to_string());
             ffmpeg_args.push(video_filter.filter);
@@ -147,6 +181,10 @@ pub fn concat_video_segments(
     if should_apply_speed_filter(normalized_playback_speed) {
         ffmpeg_args.push("-af".to_string());
         ffmpeg_args.push(format!("atempo={normalized_playback_speed:.3}"));
+    }
+
+    if normalized_pip_settings.is_some() {
+        ffmpeg_args.push("-shortest".to_string());
     }
 
     ffmpeg_args.extend([
@@ -199,6 +237,110 @@ pub fn concat_video_segments(
         smooth_remix_enabled,
         skipped_short_segment_count: prepared_segments.skipped_short_segment_count,
     })
+}
+
+fn normalize_picture_in_picture_settings(
+    settings: PictureInPictureSettings,
+) -> Result<Option<PictureInPictureSettings>, String> {
+    if !settings.enabled {
+        return Ok(None);
+    }
+
+    let overlay_file_path = settings
+        .overlay_file_path
+        .as_deref()
+        .ok_or_else(|| "请先选择画中画叠加视频或图片。".to_string())?;
+
+    if !Path::new(overlay_file_path).is_file() {
+        return Err(format!("画中画素材文件不存在：{overlay_file_path}"));
+    }
+
+    if !settings.size_ratio.is_finite()
+        || settings.size_ratio < 0.2
+        || settings.size_ratio > 0.5
+    {
+        return Err("画中画大小比例必须在 0.2 到 0.5 之间。".to_string());
+    }
+
+    if !settings.opacity.is_finite() || settings.opacity < 0.0 || settings.opacity > 1.0 {
+        return Err("画中画透明度必须在 0 到 1 之间。".to_string());
+    }
+
+    if settings.margin > 240 {
+        return Err("画中画边距不能超过 240。".to_string());
+    }
+
+    Ok(Some(settings))
+}
+
+fn append_pip_input_args(
+    ffmpeg_args: &mut Vec<String>,
+    settings: &PictureInPictureSettings,
+) -> Result<(), String> {
+    let overlay_file_path = settings
+        .overlay_file_path
+        .as_deref()
+        .ok_or_else(|| "请先选择画中画叠加视频或图片。".to_string())?;
+
+    if is_image_file(overlay_file_path) {
+        ffmpeg_args.push("-loop".to_string());
+        ffmpeg_args.push("1".to_string());
+    }
+
+    ffmpeg_args.push("-i".to_string());
+    ffmpeg_args.push(overlay_file_path.to_string());
+    Ok(())
+}
+
+fn build_pip_filter(
+    video_filter: Option<crate::video_engine::canvas::CanvasFilter>,
+    settings: &PictureInPictureSettings,
+) -> String {
+    let base_filter = if let Some(video_filter) = video_filter {
+        if video_filter.is_complex {
+            video_filter.filter.replace("[v]", "[base]")
+        } else {
+            format!("[0:v]{}[base]", video_filter.filter)
+        }
+    } else {
+        "[0:v]format=yuv420p[base]".to_string()
+    };
+
+    let (x, y) = pip_position_expression(settings.position, settings.margin);
+
+    format!(
+        "{base_filter};\
+         [1:v]format=rgba,colorchannelmixer=aa={opacity:.3}[pipraw];\
+         [pipraw][base]scale2ref=w=main_w*{size_ratio:.3}:h=-1[pip][basefit];\
+         [basefit][pip]overlay={x}:{y}:eof_action=pass:format=auto,format=yuv420p[v]",
+        opacity = settings.opacity,
+        size_ratio = settings.size_ratio,
+    )
+}
+
+fn pip_position_expression(position: PipPosition, margin: u32) -> (String, String) {
+    let margin_text = margin.to_string();
+
+    match position {
+        PipPosition::TopLeft => (margin_text.clone(), margin_text),
+        PipPosition::TopRight => (format!("W-w-{margin}"), margin_text),
+        PipPosition::BottomLeft => (margin_text, format!("H-h-{margin}")),
+        PipPosition::BottomRight => (format!("W-w-{margin}"), format!("H-h-{margin}")),
+        PipPosition::Center => ("(W-w)/2".to_string(), "(H-h)/2".to_string()),
+    }
+}
+
+fn is_image_file(file_path: &str) -> bool {
+    Path::new(file_path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "png" | "jpg" | "jpeg" | "webp" | "bmp"
+            )
+        })
+        .unwrap_or(false)
 }
 
 fn normalize_video_effect_settings(
