@@ -272,6 +272,7 @@ async function runEnvironmentCheck() {
 
 async function importVideos() {
   importError.value = null;
+  isImporting.value = true;
 
   try {
     const selected = await open({
@@ -289,7 +290,6 @@ async function importVideos() {
     }
 
     const filePaths = Array.isArray(selected) ? selected : [selected];
-    isImporting.value = true;
     await loadVideosFromPaths(filePaths);
   } catch (error) {
     importError.value =
@@ -301,6 +301,7 @@ async function importVideos() {
 
 async function importVideoFolder() {
   importError.value = null;
+  isImporting.value = true;
 
   try {
     const selected = await open({
@@ -312,7 +313,6 @@ async function importVideoFolder() {
       return;
     }
 
-    isImporting.value = true;
     const filePaths = await listVideoFilesInFolder(selected);
 
     if (filePaths.length === 0) {
