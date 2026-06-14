@@ -8,6 +8,8 @@ export interface MixVideoResult {
   outputResolution: string;
   backgroundMode: string;
   appliedToRemixExport: boolean;
+  smoothRemixEnabled: boolean;
+  skippedShortSegmentCount: number;
 }
 
 export type CanvasAspectRatio =
@@ -44,6 +46,7 @@ export function concatSelectedSegments(
   playbackSpeed: number,
   canvasAspectRatio: CanvasAspectRatio,
   canvasBackgroundMode: CanvasBackgroundMode,
+  smoothRemixEnabled: boolean,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_selected_segments", {
     segmentPaths,
@@ -52,6 +55,7 @@ export function concatSelectedSegments(
     playbackSpeed,
     canvasAspectRatio,
     canvasBackgroundMode,
+    smoothRemixEnabled,
   });
 }
 

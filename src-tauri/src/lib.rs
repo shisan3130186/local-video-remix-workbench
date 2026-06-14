@@ -92,6 +92,7 @@ fn concat_selected_segments(
     playback_speed: f64,
     canvas_aspect_ratio: CanvasAspectRatio,
     canvas_background_mode: CanvasBackgroundMode,
+    smooth_remix_enabled: bool,
 ) -> Result<MixVideoResult, String> {
     concat_video_segments(
         segment_paths,
@@ -100,6 +101,7 @@ fn concat_selected_segments(
         playback_speed,
         canvas_aspect_ratio,
         canvas_background_mode,
+        smooth_remix_enabled,
     )
 }
 

@@ -11,6 +11,7 @@ import {
 import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
+  MixVideoResult,
 } from "./services/videoMixService";
 import { openPathInFileManager } from "./services/fileManagerService";
 import {
@@ -67,6 +68,7 @@ const mixResultPath = ref<string | null>(null);
 const mixLogs = ref<TaskLogEntry[]>([]);
 const applyHorizontalMirror = ref(false);
 const playbackSpeed = ref(1.0);
+const smoothRemixEnabled = ref(false);
 const batchGenerateCount = ref(3);
 const isBatchMixing = ref(false);
 const batchMixError = ref<string | null>(null);
@@ -412,7 +414,12 @@ async function concatRandomSegments() {
   }
 
   appendMixLog("开始拼接。", "info");
-  appendMixLog(`拼接中，变速倍数 ${playbackSpeed.value.toFixed(2)}x。`, "info");
+  appendMixLog(
+    `拼接中，变速倍数 ${playbackSpeed.value.toFixed(2)}x，平滑混剪${
+      smoothRemixEnabled.value ? "已开启" : "未开启"
+    }。`,
+    "info",
+  );
   isMixing.value = true;
 
   try {
@@ -423,10 +430,12 @@ async function concatRandomSegments() {
       playbackSpeed.value,
       canvasAspectRatio.value,
       canvasBackgroundMode.value,
+      smoothRemixEnabled.value,
     );
     mixResultPath.value = result.outputPath;
     addExportResult("拼接导出", result.outputPath);
     appendMixLog(buildRemixCanvasLog(result), "info");
+    appendMixLog(buildSmoothRemixLog(result), "info");
     appendMixLog(
       `拼接成功：已使用 ${result.inputCount} 个片段生成 ${result.outputPath}${
         buildMixOptionSummary()
@@ -474,7 +483,9 @@ async function generateBatchMixes() {
   }
 
   appendBatchMixLog(
-    `开始批量生成：计划生成 ${batchGenerateCount.value} 条，变速倍数 ${playbackSpeed.value.toFixed(2)}x。`,
+    `开始批量生成：计划生成 ${batchGenerateCount.value} 条，变速倍数 ${playbackSpeed.value.toFixed(2)}x，平滑混剪${
+      smoothRemixEnabled.value ? "已开启" : "未开启"
+    }。`,
     "info",
   );
   isBatchMixing.value = true;
@@ -494,10 +505,12 @@ async function generateBatchMixes() {
         playbackSpeed.value,
         canvasAspectRatio.value,
         canvasBackgroundMode.value,
+        smoothRemixEnabled.value,
       );
       batchMixResults.value.push(result.outputPath);
       addExportResult("批量生成", result.outputPath);
       appendBatchMixLog(buildRemixCanvasLog(result), "info");
+      appendBatchMixLog(buildSmoothRemixLog(result), "info");
       appendBatchMixLog(
         `第 ${index + 1} 条生成成功：${result.outputPath}${
           buildMixOptionSummary()
@@ -581,11 +594,23 @@ function buildMixOptionSummary() {
     options.push("已应用水平镜像");
   }
 
+  if (smoothRemixEnabled.value) {
+    options.push("已应用平滑混剪");
+  }
+
   if (Math.abs(playbackSpeed.value - 1) > 0.001) {
     options.push(`已应用 ${playbackSpeed.value.toFixed(2)}x 变速`);
   }
 
   return options.length > 0 ? `，${options.join("，")}。` : "。";
+}
+
+function buildSmoothRemixLog(result: MixVideoResult) {
+  if (!result.smoothRemixEnabled) {
+    return "平滑混剪：未开启。";
+  }
+
+  return `平滑混剪：已开启，过滤过短片段 ${result.skippedShortSegmentCount} 个。`;
 }
 
 async function openOutputDirectory() {
@@ -1117,6 +1142,11 @@ onMounted(() => {
           <label class="option-toggle">
             <input v-model="applyHorizontalMirror" type="checkbox" />
             <span>水平镜像</span>
+          </label>
+
+          <label class="option-toggle">
+            <input v-model="smoothRemixEnabled" type="checkbox" />
+            <span>平滑混剪</span>
           </label>
 
           <label class="field">
