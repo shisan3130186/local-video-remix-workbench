@@ -61,6 +61,10 @@ const props = defineProps<{
   pipSizeRatio: number;
   pipOpacity: number;
   pipMargin: number;
+  selectedCoverUrl: string | null;
+  coverFrameSeconds: number;
+  isGeneratingCover: boolean;
+  coverError: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -74,6 +78,7 @@ const emit = defineEmits<{
   openOutputDirectory: [];
   exportSelectedVideo: [];
   selectPipOverlayFile: [];
+  generateCoverFrame: [];
   "update:segmentDurationSeconds": [value: number];
   "update:randomPickCount": [value: number];
   "update:batchGenerateCount": [value: number];
@@ -93,6 +98,7 @@ const emit = defineEmits<{
   "update:pipSizeRatio": [value: number];
   "update:pipOpacity": [value: number];
   "update:pipMargin": [value: number];
+  "update:coverFrameSeconds": [value: number];
 }>();
 
 const titles: Record<ToolKey, string> = {
@@ -132,7 +138,8 @@ function updateNumber(
     | "effectScale"
     | "pipSizeRatio"
     | "pipOpacity"
-    | "pipMargin",
+    | "pipMargin"
+    | "coverFrameSeconds",
 ) {
   const value = Number((event.target as HTMLInputElement).value);
   if (name === "segmentDurationSeconds") {
@@ -182,6 +189,11 @@ function updateNumber(
 
   if (name === "pipOpacity") {
     emit("update:pipOpacity", value);
+    return;
+  }
+
+  if (name === "coverFrameSeconds") {
+    emit("update:coverFrameSeconds", value);
     return;
   }
 
@@ -387,6 +399,34 @@ function formatFileName(filePath: string | null) {
               @input="updateNumber($event, 'pipMargin')"
             />
           </label>
+        </template>
+
+        <template v-else-if="activeTool === 'cover' || activeTool === 'frame'">
+          <div class="cover-preview-box">
+            <img v-if="selectedCoverUrl" :src="selectedCoverUrl" alt="" />
+            <span v-else>暂未生成封面帧</span>
+          </div>
+          <label class="field">
+            <span>抽帧时间（秒）</span>
+            <input
+              :value="coverFrameSeconds"
+              type="number"
+              min="0"
+              step="0.1"
+              :disabled="isGeneratingCover"
+              @input="updateNumber($event, 'coverFrameSeconds')"
+            />
+          </label>
+          <button
+            class="primary-button primary-button--full"
+            type="button"
+            :disabled="isGeneratingCover"
+            @click="$emit('generateCoverFrame')"
+          >
+            {{ isGeneratingCover ? "正在生成..." : "设为封面帧" }}
+          </button>
+          <p v-if="coverError" class="error-text">{{ coverError }}</p>
+          <p v-else class="empty-text">本阶段只生成封面帧和片段预览图，不做复杂关键帧动画。</p>
         </template>
 
         <template v-else-if="activeTool === 'mirror'">

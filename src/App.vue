@@ -33,6 +33,7 @@ import {
 } from "./services/videoProbeService";
 import { exportCurrentVideo } from "./services/videoRenderService";
 import { splitCurrentVideo } from "./services/videoSplitService";
+import { generateThumbnail } from "./services/videoThumbnailService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
 
 type TaskLogLevel = "info" | "success" | "error";
@@ -117,6 +118,12 @@ const pipPosition = ref<PipPosition>("topRight");
 const pipSizeRatio = ref(0.3);
 const pipOpacity = ref(1);
 const pipMargin = ref(24);
+const videoCoverPaths = ref<Record<string, string>>({});
+const segmentThumbnailPaths = ref<Record<string, string>>({});
+const selectedCoverPath = ref<string | null>(null);
+const coverFrameSeconds = ref(1);
+const isGeneratingCover = ref(false);
+const coverError = ref<string | null>(null);
 const batchGenerateCount = ref(3);
 const isBatchMixing = ref(false);
 const batchMixError = ref<string | null>(null);
@@ -207,6 +214,18 @@ const previewCanvasStyle = computed(
 const shouldShowBlurBackground = computed(
   () => canvasAspectRatio.value !== "original" && canvasBackgroundMode.value === "blur",
 );
+
+const videoCoverUrls = computed(() => mapFilePathsToUrls(videoCoverPaths.value));
+
+const segmentThumbnailUrls = computed(() => mapFilePathsToUrls(segmentThumbnailPaths.value));
+
+const selectedCoverUrl = computed(() => {
+  if (!selectedCoverPath.value) {
+    return null;
+  }
+
+  return convertFileSrc(selectedCoverPath.value);
+});
 
 const taskLogs = computed(() => [
   ...exportLogs.value.map((log) => ({ ...log, group: "基础导出" })),
@@ -324,14 +343,23 @@ async function loadVideosFromPaths(filePaths: string[]) {
     }),
   );
 
+  videoCoverPaths.value = {};
   importedVideos.value = videos;
   selectedVideo.value = videos[0] ?? null;
+  selectedCoverPath.value = null;
   resetSplitAndRandomState();
+
+  if (selectedVideo.value) {
+    void ensureVideoCover(selectedVideo.value);
+  }
 }
 
 function selectVideo(video: ImportedVideo) {
   selectedVideo.value = video;
+  selectedCoverPath.value = videoCoverPaths.value[video.id] ?? null;
+  coverError.value = null;
   resetSplitAndRandomState();
+  void ensureVideoCover(video);
 }
 
 async function selectOutputDirectory() {
@@ -436,6 +464,7 @@ async function splitSelectedVideo() {
     splitOutputDirectory.value = result.outputDirectory;
     splitSegmentCount.value = result.segmentCount;
     splitSegmentPaths.value = result.segmentPaths;
+    void generateSegmentThumbnails(result.segmentPaths);
     appendSplitLog(
       `切片成功：共生成 ${result.segmentCount} 个片段，保存到 ${result.outputDirectory}`,
       "success",
@@ -615,6 +644,7 @@ function resetSplitAndRandomState() {
   splitOutputDirectory.value = null;
   splitSegmentCount.value = null;
   splitSegmentPaths.value = [];
+  segmentThumbnailPaths.value = {};
   splitLogs.value = [];
   resetRandomPickState();
 }
@@ -772,6 +802,12 @@ function resetToolSettings(tool: ToolKey) {
     pipSizeRatio.value = 0.3;
     pipOpacity.value = 1;
     pipMargin.value = 24;
+    return;
+  }
+
+  if (tool === "cover" || tool === "frame") {
+    coverFrameSeconds.value = 1;
+    coverError.value = null;
   }
 }
 
@@ -796,6 +832,102 @@ async function selectPipOverlayFile() {
   } catch (error) {
     mixError.value =
       error instanceof Error ? error.message : String(error ?? "选择画中画素材失败。");
+  }
+}
+
+async function ensureVideoCover(video: ImportedVideo) {
+  if (videoCoverPaths.value[video.id]) {
+    selectedCoverPath.value = videoCoverPaths.value[video.id];
+    return;
+  }
+
+  try {
+    const result = await generateThumbnail(
+      video.filePath,
+      outputDirectory.value,
+      getDefaultCoverTime(video),
+      "cover",
+    );
+    videoCoverPaths.value = {
+      ...videoCoverPaths.value,
+      [video.id]: result.thumbnailPath,
+    };
+
+    if (selectedVideo.value?.id === video.id) {
+      selectedCoverPath.value = result.thumbnailPath;
+    }
+  } catch (error) {
+    if (selectedVideo.value?.id === video.id) {
+      coverError.value =
+        error instanceof Error ? error.message : String(error ?? "生成封面帧失败。");
+    }
+  }
+}
+
+async function generateCoverFrame() {
+  coverError.value = null;
+
+  if (!selectedVideo.value) {
+    coverError.value = "请先选择一个视频素材。";
+    return;
+  }
+
+  if (!Number.isFinite(coverFrameSeconds.value) || coverFrameSeconds.value < 0) {
+    coverError.value = "抽帧时间必须大于或等于 0。";
+    return;
+  }
+
+  isGeneratingCover.value = true;
+
+  try {
+    const result = await generateThumbnail(
+      selectedVideo.value.filePath,
+      outputDirectory.value,
+      coverFrameSeconds.value,
+      "selected_cover",
+    );
+    videoCoverPaths.value = {
+      ...videoCoverPaths.value,
+      [selectedVideo.value.id]: result.thumbnailPath,
+    };
+    selectedCoverPath.value = result.thumbnailPath;
+  } catch (error) {
+    coverError.value =
+      error instanceof Error ? error.message : String(error ?? "生成封面帧失败。");
+  } finally {
+    isGeneratingCover.value = false;
+  }
+}
+
+async function generateSegmentThumbnails(segmentPaths: string[]) {
+  const thumbnailEntries: Record<string, string> = {};
+
+  for (const [index, segmentPath] of segmentPaths.entries()) {
+    try {
+      const result = await generateThumbnail(
+        segmentPath,
+        outputDirectory.value,
+        0.1,
+        `segment_${index + 1}`,
+      );
+      thumbnailEntries[segmentPath] = result.thumbnailPath;
+    } catch (error) {
+      appendSplitLog(
+        `片段预览图生成失败：${formatFileName(segmentPath)}，${
+          error instanceof Error ? error.message : String(error ?? "未知错误")
+        }`,
+        "error",
+      );
+    }
+  }
+
+  segmentThumbnailPaths.value = {
+    ...segmentThumbnailPaths.value,
+    ...thumbnailEntries,
+  };
+
+  if (Object.keys(thumbnailEntries).length > 0) {
+    appendSplitLog(`片段预览图生成完成：${Object.keys(thumbnailEntries).length} 张。`, "success");
   }
 }
 
@@ -961,6 +1093,20 @@ function formatFileName(filePath: string) {
   return filePath.split(/[\\/]/).pop() ?? filePath;
 }
 
+function getDefaultCoverTime(video: ImportedVideo) {
+  if (video.durationSeconds === null) {
+    return 0.1;
+  }
+
+  return Math.min(1, Math.max(0.1, video.durationSeconds / 10));
+}
+
+function mapFilePathsToUrls(paths: Record<string, string>) {
+  return Object.fromEntries(
+    Object.entries(paths).map(([key, path]) => [key, convertFileSrc(path)]),
+  );
+}
+
 onMounted(() => {
   void runEnvironmentCheck();
 });
@@ -1009,6 +1155,8 @@ onMounted(() => {
         :output-directory-error="outputDirectoryError"
         :split-segment-paths="splitSegmentPaths"
         :random-selected-segments="randomSelectedSegments"
+        :video-cover-urls="videoCoverUrls"
+        :segment-thumbnail-urls="segmentThumbnailUrls"
         :format-duration="formatDuration"
         :format-resolution="formatResolution"
         :format-file-name="formatFileName"
@@ -1024,6 +1172,7 @@ onMounted(() => {
         v-model:preview-background-video-ref="previewBackgroundVideoRef"
         :selected-video="selectedVideo"
         :preview-url="previewUrl"
+        :selected-cover-url="selectedCoverUrl"
         :canvas-aspect-ratio="canvasAspectRatio"
         :should-show-blur-background="shouldShowBlurBackground"
         :preview-canvas-style="previewCanvasStyle"
@@ -1098,6 +1247,10 @@ onMounted(() => {
       :pip-size-ratio="pipSizeRatio"
       :pip-opacity="pipOpacity"
       :pip-margin="pipMargin"
+      :selected-cover-url="selectedCoverUrl"
+      :cover-frame-seconds="coverFrameSeconds"
+      :is-generating-cover="isGeneratingCover"
+      :cover-error="coverError"
       @close="activeTool = null"
       @reset="resetToolSettings"
       @split-selected-video="splitSelectedVideo"
@@ -1108,6 +1261,7 @@ onMounted(() => {
       @open-output-directory="openOutputDirectory"
       @export-selected-video="exportSelectedVideo"
       @select-pip-overlay-file="selectPipOverlayFile"
+      @generate-cover-frame="generateCoverFrame"
       @update:segment-duration-seconds="segmentDurationSeconds = $event"
       @update:random-pick-count="randomPickCount = $event"
       @update:batch-generate-count="batchGenerateCount = $event"
@@ -1127,6 +1281,7 @@ onMounted(() => {
       @update:pip-size-ratio="pipSizeRatio = $event"
       @update:pip-opacity="pipOpacity = $event"
       @update:pip-margin="pipMargin = $event"
+      @update:cover-frame-seconds="coverFrameSeconds = $event"
     />
 
     <TaskLogDrawer

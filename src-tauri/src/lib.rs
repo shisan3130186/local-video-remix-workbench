@@ -12,6 +12,7 @@ use video_engine::probe::{
 };
 use video_engine::render::{export_basic_video, RenderVideoResult};
 use video_engine::split::{split_video_by_duration, SplitVideoResult};
+use video_engine::thumbnail::{generate_video_thumbnail, VideoThumbnailResult};
 
 #[tauri::command]
 fn check_ffmpeg_environment() -> FfmpegEnvironmentResult {
@@ -87,6 +88,16 @@ fn split_current_video(
 }
 
 #[tauri::command]
+fn generate_thumbnail(
+    input_file_path: String,
+    output_directory: Option<String>,
+    time_seconds: f64,
+    label: String,
+) -> Result<VideoThumbnailResult, String> {
+    generate_video_thumbnail(input_file_path, output_directory, time_seconds, label)
+}
+
+#[tauri::command]
 fn concat_selected_segments(
     segment_paths: Vec<String>,
     output_directory: String,
@@ -118,6 +129,7 @@ pub fn run() {
             check_ffmpeg_environment,
             concat_selected_segments,
             export_current_video,
+            generate_thumbnail,
             list_video_files_in_folder,
             open_path_in_file_manager,
             read_video_metadata,

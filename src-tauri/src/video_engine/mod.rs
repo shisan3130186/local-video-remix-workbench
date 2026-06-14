@@ -4,3 +4,4 @@ pub mod mix;
 pub mod probe;
 pub mod render;
 pub mod split;
+pub mod thumbnail;

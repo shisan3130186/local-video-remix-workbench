@@ -10,6 +10,8 @@ defineProps<{
   outputDirectoryError: string | null;
   splitSegmentPaths: string[];
   randomSelectedSegments: string[];
+  videoCoverUrls: Record<string, string>;
+  segmentThumbnailUrls: Record<string, string>;
   formatDuration: (durationSeconds: number | null) => string;
   formatResolution: (video: ImportedVideo) => string;
   formatFileName: (path: string) => string;
@@ -59,6 +61,10 @@ defineEmits<{
           @keydown.enter="$emit('selectVideo', video)"
           @keydown.space.prevent="$emit('selectVideo', video)"
         >
+          <div class="asset-card__thumb">
+            <img v-if="videoCoverUrls[video.id]" :src="videoCoverUrls[video.id]" alt="" />
+            <span v-else>封面</span>
+          </div>
           <div class="asset-card__title">
             <h3>{{ video.fileName }}</h3>
             <span>{{ video.hasAudio ? "有音频" : "无音频" }}</span>
@@ -136,6 +142,7 @@ defineEmits<{
       <p v-if="splitSegmentPaths.length === 0" class="empty-text">完成固定切片后，这里会出现片段列表。</p>
       <ol v-else class="compact-list">
         <li v-for="segmentPath in splitSegmentPaths" :key="segmentPath">
+          <img v-if="segmentThumbnailUrls[segmentPath]" :src="segmentThumbnailUrls[segmentPath]" alt="" />
           <span>{{ formatFileName(segmentPath) }}</span>
         </li>
       </ol>
@@ -147,6 +154,7 @@ defineEmits<{
         </div>
         <ol class="compact-list compact-list--selected">
           <li v-for="segmentPath in randomSelectedSegments" :key="segmentPath">
+            <img v-if="segmentThumbnailUrls[segmentPath]" :src="segmentThumbnailUrls[segmentPath]" alt="" />
             <span>{{ formatFileName(segmentPath) }}</span>
           </li>
         </ol>

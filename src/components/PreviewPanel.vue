@@ -4,11 +4,12 @@ import type { CSSProperties } from "vue";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { CanvasAspectRatio } from "../services/videoMixService";
 
-type ToolKey = "canvas" | "subtitles";
+type ToolKey = "canvas" | "cover" | "subtitles";
 
 defineProps<{
   selectedVideo: ImportedVideo | null;
   previewUrl: string | null;
+  selectedCoverUrl: string | null;
   canvasAspectRatio: CanvasAspectRatio;
   shouldShowBlurBackground: boolean;
   previewCanvasStyle: CSSProperties;
@@ -52,6 +53,7 @@ const scriptTextLength = computed(() => scriptText.value.trim().length);
         </div>
         <div class="preview-actions">
           <button class="panel-toggle" type="button" @click="$emit('openTool', 'canvas')">视频裁剪</button>
+          <button class="panel-toggle" type="button" @click="$emit('openTool', 'cover')">视频封面</button>
           <button class="panel-toggle" type="button" @click="$emit('openTool', 'subtitles')">添加文本</button>
         </div>
       </div>
@@ -154,6 +156,11 @@ const scriptTextLength = computed(() => scriptText.value.trim().length);
       </div>
     </section>
     <section class="panel info-grid">
+      <div class="info-card info-card--cover">
+        <p>封面帧</p>
+        <img v-if="selectedCoverUrl" :src="selectedCoverUrl" alt="" />
+        <strong v-else>未生成</strong>
+      </div>
       <div class="info-card">
         <p>时长</p>
         <strong>{{ selectedVideo ? formatDuration(selectedVideo.durationSeconds) : "未知" }}</strong>
