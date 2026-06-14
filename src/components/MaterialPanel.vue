@@ -78,6 +78,29 @@ defineEmits<{
       </div>
     </section>
 
+    <section class="panel folder-tree-panel">
+      <div class="panel__header">
+        <div>
+          <p class="panel__label">文件夹</p>
+          <h2>文件夹树</h2>
+        </div>
+      </div>
+      <div class="folder-tree">
+        <div class="folder-tree__item folder-tree__item--active">
+          <span>素材库</span>
+          <strong>{{ importedVideos.length }}</strong>
+        </div>
+        <div class="folder-tree__item">
+          <span>已切片片段</span>
+          <strong>{{ splitSegmentPaths.length }}</strong>
+        </div>
+        <div class="folder-tree__item">
+          <span>已抽取片段</span>
+          <strong>{{ randomSelectedSegments.length }}</strong>
+        </div>
+      </div>
+    </section>
+
     <section class="panel output-mini-panel">
       <div class="panel__header">
         <div>

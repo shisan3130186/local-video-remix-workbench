@@ -42,10 +42,13 @@ const categories = ["创作中心", "效率工具", "自动化"];
         class="module-card"
         :class="{ 'module-card--disabled': !card.available }"
       >
+        <div class="module-card__icon" aria-hidden="true">
+          {{ card.title.slice(0, 2) }}
+        </div>
         <div class="module-card__header">
-          <h3>{{ card.title }}</h3>
           <span>{{ card.available ? "功能可用" : "敬请期待" }}</span>
         </div>
+        <h3>{{ card.title }}</h3>
         <p>{{ card.description }}</p>
         <div class="module-card__tags">
           <span v-for="tag in card.tags" :key="tag">{{ tag }}</span>

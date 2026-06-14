@@ -35,8 +35,6 @@ defineEmits<{
 }>();
 
 const toolEntries: Array<{ key: ToolKey; title: string; note: string; enabled: boolean }> = [
-  { key: "remix", title: "混剪设置", note: "切片、抽取、批量数量", enabled: true },
-  { key: "canvas", title: "画布设置", note: "比例、黑边、模糊背景", enabled: true },
   { key: "audio", title: "音频设置", note: "音量、原声、音轨", enabled: false },
   { key: "bgm", title: "背景音乐", note: "BGM 和混音", enabled: false },
   { key: "tts", title: "语音合成", note: "后续 TTS 入口", enabled: false },
@@ -54,8 +52,13 @@ const toolEntries: Array<{ key: ToolKey; title: string; note: string; enabled: b
   { key: "mirror", title: "镜像旋转", note: "水平镜像", enabled: true },
   { key: "speed", title: "视频变速", note: "0.5x 到 2.0x", enabled: true },
   { key: "zoom", title: "动态缩放", note: "轻微运镜效果", enabled: false },
-  { key: "subtitles", title: "字幕设置", note: "后续能力入口", enabled: false },
   { key: "export", title: "导出设置", note: "输出目录、基础导出", enabled: true },
+];
+
+const quickEntries: Array<{ key: ToolKey; title: string; note: string }> = [
+  { key: "remix", title: "混剪设置", note: "固定切片 / 随机抽取 / 批量生成" },
+  { key: "canvas", title: "画布比例", note: "原画 / 9:16 / 1:1 / 16:9 / 模糊背景" },
+  { key: "transition", title: "平滑混剪", note: "淡入淡出 / 过滤短片段" },
 ];
 </script>
 
@@ -81,6 +84,27 @@ const toolEntries: Array<{ key: ToolKey; title: string; note: string; enabled: b
       </div>
     </section>
 
+    <section class="panel tool-list-panel quick-tool-panel">
+      <div class="panel__header">
+        <div>
+          <p class="panel__label">当前模块</p>
+          <h2>已有功能入口</h2>
+        </div>
+      </div>
+      <div class="quick-tool-grid">
+        <button
+          v-for="tool in quickEntries"
+          :key="tool.key"
+          class="quick-tool-card"
+          type="button"
+          @click="$emit('openTool', tool.key)"
+        >
+          <strong>{{ tool.title }}</strong>
+          <small>{{ tool.note }}</small>
+        </button>
+      </div>
+    </section>
+
     <section class="panel tool-list-panel">
       <div class="panel__header">
         <div>
@@ -88,11 +112,11 @@ const toolEntries: Array<{ key: ToolKey; title: string; note: string; enabled: b
           <h2>功能入口</h2>
         </div>
       </div>
-      <div class="tool-list">
+      <div class="tool-card-grid">
         <button
           v-for="tool in toolEntries"
           :key="tool.key"
-          class="tool-entry"
+          class="tool-entry tool-entry--card"
           type="button"
           @click="$emit('openTool', tool.key)"
         >

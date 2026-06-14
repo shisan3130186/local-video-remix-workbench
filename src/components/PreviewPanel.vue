@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { computed, ref } from "vue";
 import type { CSSProperties } from "vue";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { CanvasAspectRatio } from "../services/videoMixService";
+
+type ToolKey = "canvas" | "subtitles";
 
 defineProps<{
   selectedVideo: ImportedVideo | null;
@@ -30,10 +33,13 @@ defineEmits<{
   exportSelectedVideo: [];
   syncPreviewBackground: [];
   openDrawer: [drawer: "logs" | "exports" | "batch"];
+  openTool: [tool: ToolKey];
 }>();
 
 const previewVideoRef = defineModel<HTMLVideoElement | null>("previewVideoRef");
 const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewBackgroundVideoRef");
+const scriptText = ref("");
+const scriptTextLength = computed(() => scriptText.value.trim().length);
 </script>
 
 <template>
@@ -43,6 +49,10 @@ const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewB
         <div>
           <p class="panel__label">预览</p>
           <h2>{{ selectedVideo?.fileName ?? "请选择一个素材" }}</h2>
+        </div>
+        <div class="preview-actions">
+          <button class="panel-toggle" type="button" @click="$emit('openTool', 'canvas')">视频裁剪</button>
+          <button class="panel-toggle" type="button" @click="$emit('openTool', 'subtitles')">添加文本</button>
         </div>
       </div>
 
@@ -84,6 +94,33 @@ const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewB
       <div v-else class="video-placeholder">导入素材后，点击左侧视频即可预览。</div>
     </section>
 
+    <section class="panel copy-panel">
+      <div class="copy-panel__header">
+        <div>
+          <p class="panel__label">文案</p>
+          <h2>视频文案</h2>
+        </div>
+        <div class="subtitle-mode">
+          <span>视频字幕</span>
+          <button class="subtitle-mode__active" type="button">自动识别</button>
+          <button type="button">不启用</button>
+        </div>
+      </div>
+      <div class="copy-tabs">
+        <button class="copy-tab copy-tab--active" type="button">文案 1</button>
+        <button class="copy-tab" type="button">＋</button>
+      </div>
+      <textarea
+        v-model="scriptText"
+        class="copy-textarea"
+        placeholder="在这里输入本条视频的口播文案、字幕草稿或混剪说明。"
+      ></textarea>
+      <div class="copy-footer">
+        <span>字数：{{ scriptTextLength }}</span>
+        <span>文案仅用于 UI 入口，本次不接入真实字幕生成。</span>
+      </div>
+    </section>
+
     <section class="panel core-actions-panel">
       <div class="panel__header">
         <div>
@@ -116,7 +153,6 @@ const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewB
         <button type="button" class="status-chip" @click="$emit('openDrawer', 'logs')">任务日志</button>
       </div>
     </section>
-
     <section class="panel info-grid">
       <div class="info-card">
         <p>时长</p>

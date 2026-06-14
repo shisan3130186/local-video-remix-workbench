@@ -863,8 +863,13 @@ onMounted(() => {
         <span class="health-pill" :class="{ 'health-pill--ok': environment?.available }">
           {{ environment?.available ? "FFmpeg 就绪" : "FFmpeg 未就绪" }}
         </span>
-        <span class="title-icon" aria-hidden="true">人</span>
-        <span class="title-icon" aria-hidden="true">≡</span>
+        <button class="title-icon" type="button" aria-label="用户中心">人</button>
+        <button class="title-icon" type="button" aria-label="菜单">≡</button>
+        <div class="window-controls" aria-label="窗口控制区">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
       </div>
     </header>
 
@@ -922,6 +927,7 @@ onMounted(() => {
         @export-selected-video="exportSelectedVideo"
         @sync-preview-background="syncPreviewBackground"
         @open-drawer="activeDrawer = $event"
+        @open-tool="activeTool = $event"
       />
 
       <RightToolPanel

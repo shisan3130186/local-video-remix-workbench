@@ -15,6 +15,9 @@ defineEmits<{
 
 <template>
   <footer class="task-control-bar" aria-label="任务处理区">
+    <div class="task-progress">
+      <span :style="{ width: `${totalVideos > 0 ? Math.min(100, Math.round((completedCount / totalVideos) * 100)) : 0}%` }"></span>
+    </div>
     <div class="task-control-grid">
       <label class="mini-field">
         <span>输出格式</span>
@@ -67,6 +70,7 @@ defineEmits<{
       <span class="task-output-path">输出目录：{{ outputDirectory ?? "未选择" }}</span>
       <button class="panel-toggle" type="button" @click="$emit('openDrawer', 'logs')">日志</button>
       <button class="panel-toggle" type="button" @click="$emit('openDrawer', 'exports')">导出结果</button>
+      <button class="panel-toggle" type="button" @click="$emit('openDrawer', 'batch')">批量结果</button>
     </div>
   </footer>
 </template>
