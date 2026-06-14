@@ -257,6 +257,11 @@ h3 {
   overflow: auto;
 }
 
+.right-rail {
+  gap: 10px;
+  padding-bottom: 6px;
+}
+
 .center-stage {
   grid-template-rows: minmax(0, 1fr) auto minmax(54px, 230px);
   overflow: hidden;
@@ -271,6 +276,11 @@ h3 {
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
 }
 
+.right-rail .panel {
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+
 .panel--stretch {
   min-height: 0;
   overflow: hidden;
@@ -282,6 +292,10 @@ h3 {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.right-rail .panel__header {
+  margin-bottom: 8px;
 }
 
 .panel-toggle {
@@ -343,6 +357,11 @@ h3 {
 .primary-button--full {
   width: 100%;
   margin-top: 10px;
+}
+
+.right-rail .ghost-button--full,
+.right-rail .primary-button--full {
+  margin-top: 8px;
 }
 
 .asset-list {
@@ -568,6 +587,11 @@ h3 {
   font-size: 12px;
 }
 
+.right-rail .field {
+  gap: 5px;
+  margin-top: 8px;
+}
+
 .field input,
 .field select {
   width: 100%;
@@ -577,6 +601,11 @@ h3 {
   border-radius: 7px;
   color: #eaf8f4;
   background: #171b1a;
+}
+
+.right-rail .field input,
+.right-rail .field select {
+  min-height: 34px;
 }
 
 .field select:disabled {
@@ -593,6 +622,10 @@ h3 {
   font-size: 13px;
 }
 
+.right-rail .option-toggle {
+  margin-top: 10px;
+}
+
 .option-toggle input {
   width: 16px;
   height: 16px;
@@ -606,15 +639,27 @@ h3 {
   background: #2c3431;
 }
 
+.right-rail .divider {
+  margin: 12px 0 2px;
+}
+
 .engine-message {
   margin-bottom: 10px;
   color: #b4c3bd;
   font-size: 13px;
 }
 
+.right-rail .engine-message {
+  margin-bottom: 8px;
+}
+
 .engine-list {
   display: grid;
   gap: 8px;
+}
+
+.right-rail .engine-list {
+  gap: 7px;
 }
 
 .engine-list div {
