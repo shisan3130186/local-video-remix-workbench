@@ -3,6 +3,14 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, ref, watch } from "vue";
 import type { CSSProperties } from "vue";
+import BatchResultDrawer from "./components/BatchResultDrawer.vue";
+import ExportResultDrawer from "./components/ExportResultDrawer.vue";
+import HomePage from "./components/HomePage.vue";
+import MaterialPanel from "./components/MaterialPanel.vue";
+import PreviewPanel from "./components/PreviewPanel.vue";
+import RightToolPanel from "./components/RightToolPanel.vue";
+import TaskLogDrawer from "./components/TaskLogDrawer.vue";
+import ToolSettingModal from "./components/ToolSettingModal.vue";
 import { listVideoFilesInFolder } from "./services/videoImportService";
 import {
   concatSelectedSegments,
@@ -23,6 +31,17 @@ import { splitCurrentVideo } from "./services/videoSplitService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
 
 type TaskLogLevel = "info" | "success" | "error";
+type ToolKey =
+  | "remix"
+  | "canvas"
+  | "effects"
+  | "transition"
+  | "pip"
+  | "mirror"
+  | "speed"
+  | "subtitles"
+  | "export";
+type DrawerKey = "logs" | "exports" | "batch";
 
 interface TaskLogEntry {
   id: number;
@@ -79,9 +98,9 @@ const canvasAspectRatio = ref<CanvasAspectRatio>("original");
 const canvasBackgroundMode = ref<CanvasBackgroundMode>("black");
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
-const isResultPanelExpanded = ref(false);
-const isTaskLogExpanded = ref(false);
 const isWorkspaceVisible = ref(false);
+const activeTool = ref<ToolKey | null>(null);
+const activeDrawer = ref<DrawerKey | null>(null);
 
 const moduleCards = [
   {
@@ -613,6 +632,35 @@ function buildSmoothRemixLog(result: MixVideoResult) {
   return `平滑混剪：已开启，过滤过短片段 ${result.skippedShortSegmentCount} 个。`;
 }
 
+function resetToolSettings(tool: ToolKey) {
+  if (tool === "remix") {
+    segmentDurationSeconds.value = 5;
+    randomPickCount.value = 1;
+    batchGenerateCount.value = 3;
+    return;
+  }
+
+  if (tool === "canvas") {
+    canvasAspectRatio.value = "original";
+    canvasBackgroundMode.value = "black";
+    return;
+  }
+
+  if (tool === "transition") {
+    smoothRemixEnabled.value = false;
+    return;
+  }
+
+  if (tool === "mirror") {
+    applyHorizontalMirror.value = false;
+    return;
+  }
+
+  if (tool === "speed") {
+    playbackSpeed.value = 1;
+  }
+}
+
 async function openOutputDirectory() {
   fileManagerError.value = null;
 
@@ -781,13 +829,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main
-    class="app-shell"
-    :class="{
-      'app-shell--home': !isWorkspaceVisible,
-      'app-shell--log-collapsed': isWorkspaceVisible && !isTaskLogExpanded,
-    }"
-  >
+  <main class="app-shell" :class="{ 'app-shell--home': !isWorkspaceVisible }">
     <header class="top-bar">
       <div class="product-mark">
         <button v-if="isWorkspaceVisible" class="back-button" type="button" @click="isWorkspaceVisible = false">
@@ -806,458 +848,125 @@ onMounted(() => {
       </div>
     </header>
 
-    <section v-if="!isWorkspaceVisible" class="home-screen">
-      <div class="home-hero">
-        <p class="eyebrow">本地桌面端视频处理</p>
-        <h2>本地短视频批量混剪工作台</h2>
-        <p>本地处理 / 批量混剪 / API Key 自带</p>
-      </div>
-
-      <div class="module-grid">
-        <article
-          v-for="card in moduleCards"
-          :key="card.title"
-          class="module-card"
-          :class="{ 'module-card--disabled': !card.available }"
-        >
-          <div class="module-card__header">
-            <h3>{{ card.title }}</h3>
-            <span>{{ card.available ? "功能可用" : "敬请期待" }}</span>
-          </div>
-          <p>{{ card.description }}</p>
-          <div class="module-card__tags">
-            <span v-for="tag in card.tags" :key="tag">{{ tag }}</span>
-          </div>
-          <button
-            class="primary-button primary-button--full"
-            type="button"
-            :disabled="!card.available"
-            @click="isWorkspaceVisible = true"
-          >
-            {{ card.available ? "进入工作台" : "暂未开放" }}
-          </button>
-        </article>
-      </div>
-    </section>
+    <HomePage
+      v-if="!isWorkspaceVisible"
+      :module-cards="moduleCards"
+      @open-workspace="isWorkspaceVisible = true"
+    />
 
     <section v-else class="workbench">
-      <aside class="left-rail" aria-label="素材和片段">
-        <section class="panel panel--stretch">
-          <div class="panel__header">
-            <div>
-              <p class="panel__label">素材</p>
-              <h2>视频素材列表</h2>
-            </div>
-            <span class="count-badge">{{ importedVideos.length }}</span>
-          </div>
+      <MaterialPanel
+        :imported-videos="importedVideos"
+        :selected-video="selectedVideo"
+        :is-importing="isImporting"
+        :import-error="importError"
+        :output-directory="outputDirectory"
+        :output-directory-error="outputDirectoryError"
+        :split-segment-paths="splitSegmentPaths"
+        :random-selected-segments="randomSelectedSegments"
+        :format-duration="formatDuration"
+        :format-resolution="formatResolution"
+        :format-file-name="formatFileName"
+        @import-videos="importVideos"
+        @import-video-folder="importVideoFolder"
+        @select-video="selectVideo"
+        @select-output-directory="selectOutputDirectory"
+        @open-output-directory="openOutputDirectory"
+      />
 
-          <div class="button-row">
-            <button class="ghost-button" type="button" :disabled="isImporting" @click="importVideos">
-              {{ isImporting ? "正在导入..." : "导入视频" }}
-            </button>
-            <button
-              class="ghost-button"
-              type="button"
-              :disabled="isImporting"
-              @click="importVideoFolder"
-            >
-              导入文件夹
-            </button>
-          </div>
+      <PreviewPanel
+        v-model:preview-video-ref="previewVideoRef"
+        v-model:preview-background-video-ref="previewBackgroundVideoRef"
+        :selected-video="selectedVideo"
+        :preview-url="previewUrl"
+        :canvas-aspect-ratio="canvasAspectRatio"
+        :should-show-blur-background="shouldShowBlurBackground"
+        :preview-canvas-style="previewCanvasStyle"
+        :is-splitting="isSplitting"
+        :is-mixing="isMixing"
+        :is-batch-mixing="isBatchMixing"
+        :is-exporting="isExporting"
+        :split-segment-count="splitSegmentCount"
+        :random-selected-count="randomSelectedSegments.length"
+        :batch-mix-result-count="batchMixResults.length"
+        :format-duration="formatDuration"
+        :format-resolution="formatResolution"
+        :format-frame-rate="formatFrameRate"
+        :format-file-size="formatFileSize"
+        @split-selected-video="splitSelectedVideo"
+        @pick-segments-randomly="pickSegmentsRandomly"
+        @concat-random-segments="concatRandomSegments"
+        @generate-batch-mixes="generateBatchMixes"
+        @export-selected-video="exportSelectedVideo"
+        @sync-preview-background="syncPreviewBackground"
+        @open-drawer="activeDrawer = $event"
+      />
 
-          <p v-if="importError" class="error-text">{{ importError }}</p>
-          <p v-else-if="importedVideos.length === 0" class="empty-text">
-            支持 mp4 / mov / avi / mkv。
-          </p>
-
-          <div v-else class="asset-list">
-            <article
-              v-for="video in importedVideos"
-              :key="video.id"
-              class="asset-card"
-              :class="{ 'asset-card--active': selectedVideo?.id === video.id }"
-              tabindex="0"
-              role="button"
-              @click="selectVideo(video)"
-              @keydown.enter="selectVideo(video)"
-              @keydown.space.prevent="selectVideo(video)"
-            >
-              <div class="asset-card__title">
-                <h3>{{ video.fileName }}</h3>
-                <span>{{ video.hasAudio ? "有音频" : "无音频" }}</span>
-              </div>
-              <p class="asset-card__path">{{ video.filePath }}</p>
-              <dl class="asset-card__meta">
-                <div>
-                  <dt>时长</dt>
-                  <dd>{{ formatDuration(video.durationSeconds) }}</dd>
-                </div>
-                <div>
-                  <dt>分辨率</dt>
-                  <dd>{{ formatResolution(video) }}</dd>
-                </div>
-              </dl>
-            </article>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel__header">
-            <div>
-              <p class="panel__label">片段</p>
-              <h2>切片和抽取结果</h2>
-            </div>
-            <span class="count-badge">{{ splitSegmentPaths.length }}</span>
-          </div>
-
-          <p v-if="splitSegmentPaths.length === 0" class="empty-text">
-            完成固定切片后，这里会出现片段列表。
-          </p>
-          <ol v-else class="compact-list">
-            <li v-for="segmentPath in splitSegmentPaths" :key="segmentPath">
-              <span>{{ formatFileName(segmentPath) }}</span>
-            </li>
-          </ol>
-
-          <div v-if="randomSelectedSegments.length > 0" class="sub-block">
-            <div class="section-title">
-              <span>已抽取</span>
-              <strong>{{ randomSelectedSegments.length }}</strong>
-            </div>
-            <ol class="compact-list compact-list--selected">
-              <li v-for="segmentPath in randomSelectedSegments" :key="segmentPath">
-                <span>{{ formatFileName(segmentPath) }}</span>
-              </li>
-            </ol>
-          </div>
-        </section>
-      </aside>
-
-      <section class="center-stage" aria-label="预览和结果">
-        <section class="panel preview-panel">
-          <div class="panel__header">
-            <div>
-              <p class="panel__label">预览</p>
-              <h2>{{ selectedVideo?.fileName ?? "请选择一个素材" }}</h2>
-            </div>
-          </div>
-
-          <div v-if="previewUrl" class="video-frame">
-            <div
-              class="video-frame__canvas"
-              :class="{
-                'video-frame__canvas--fit': canvasAspectRatio !== 'original',
-                'video-frame__canvas--blur': shouldShowBlurBackground,
-              }"
-              :style="previewCanvasStyle"
-            >
-              <video
-                v-if="shouldShowBlurBackground"
-                ref="previewBackgroundVideoRef"
-                class="video-frame__background"
-                :src="previewUrl"
-                muted
-                playsinline
-                preload="metadata"
-                tabindex="-1"
-                aria-hidden="true"
-              ></video>
-              <video
-                :key="selectedVideo?.id"
-                ref="previewVideoRef"
-                class="video-frame__foreground"
-                :src="previewUrl"
-                controls
-                preload="metadata"
-                @play="syncPreviewBackground"
-                @pause="syncPreviewBackground"
-                @seeked="syncPreviewBackground"
-                @timeupdate="syncPreviewBackground"
-                @ratechange="syncPreviewBackground"
-              ></video>
-            </div>
-          </div>
-          <div v-else class="video-placeholder">
-            导入素材后，点击左侧视频即可预览。
-          </div>
-        </section>
-
-        <section class="panel info-grid">
-          <div class="info-card">
-            <p>时长</p>
-            <strong>{{ selectedVideo ? formatDuration(selectedVideo.durationSeconds) : "未知" }}</strong>
-          </div>
-          <div class="info-card">
-            <p>分辨率</p>
-            <strong>{{ selectedVideo ? formatResolution(selectedVideo) : "未知" }}</strong>
-          </div>
-          <div class="info-card">
-            <p>帧率</p>
-            <strong>{{ selectedVideo ? formatFrameRate(selectedVideo.frameRate) : "未知" }}</strong>
-          </div>
-          <div class="info-card">
-            <p>大小</p>
-            <strong>{{ selectedVideo ? formatFileSize(selectedVideo.fileSizeBytes) : "未知" }}</strong>
-          </div>
-        </section>
-
-        <section class="panel result-panel" :class="{ 'result-panel--collapsed': !isResultPanelExpanded }">
-          <div class="panel__header">
-            <div>
-              <p class="panel__label">结果</p>
-              <h2>混剪输出</h2>
-            </div>
-            <button class="panel-toggle" type="button" @click="isResultPanelExpanded = !isResultPanelExpanded">
-              {{ isResultPanelExpanded ? "收起" : `展开 ${exportResultItems.length}` }}
-            </button>
-          </div>
-
-          <div v-if="isResultPanelExpanded" class="collapsible-content">
-            <div class="result-grid">
-              <p v-if="exportError" class="error-text">{{ exportError }}</p>
-              <p v-if="mixError" class="error-text">{{ mixError }}</p>
-              <p v-if="batchMixError" class="error-text">{{ batchMixError }}</p>
-            </div>
-
-            <div class="sub-block">
-              <div class="section-title">
-                <span>导出结果列表</span>
-                <strong>{{ exportResultItems.length }}</strong>
-              </div>
-              <ol v-if="exportResultItems.length > 0" class="compact-list result-list">
-                <li v-for="item in exportResultItems" :key="item.id">
-                  <span>{{ item.type }} · {{ formatFileName(item.path) }}</span>
-                  <button class="ghost-button result-action" type="button" @click="openResultLocation(item.path)">
-                    打开位置
-                  </button>
-                  <small>{{ item.time }} · {{ item.path }}</small>
-                </li>
-              </ol>
-              <p v-if="fileManagerError" class="error-text">{{ fileManagerError }}</p>
-              <p v-if="exportResultItems.length === 0" class="empty-text">暂无导出结果。</p>
-            </div>
-
-            <div v-if="batchMixResults.length > 0" class="sub-block">
-              <div class="section-title">
-                <span>批量生成结果</span>
-                <strong>{{ batchMixResults.length }}</strong>
-              </div>
-              <ol class="compact-list">
-                <li v-for="resultPath in batchMixResults" :key="resultPath">
-                  <span>{{ formatFileName(resultPath) }}</span>
-                  <small>{{ resultPath }}</small>
-                </li>
-              </ol>
-            </div>
-          </div>
-        </section>
-      </section>
-
-      <aside class="right-rail" aria-label="参数设置">
-        <section class="panel">
-          <div class="panel__header">
-            <div>
-              <p class="panel__label">环境</p>
-              <h2>本地引擎</h2>
-            </div>
-          </div>
-          <p class="engine-message">{{ statusText }}</p>
-          <div class="engine-list">
-            <div>
-              <span>ffmpeg</span>
-              <strong>{{ environment?.ffmpeg.available ? "已检测到" : "未检测到" }}</strong>
-            </div>
-            <div>
-              <span>ffprobe</span>
-              <strong>{{ environment?.ffprobe.available ? "已检测到" : "未检测到" }}</strong>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel__header">
-            <div>
-              <p class="panel__label">切片</p>
-              <h2>固定时长切片</h2>
-            </div>
-          </div>
-          <label class="field">
-            <span>切片秒数</span>
-            <input
-              v-model.number="segmentDurationSeconds"
-              type="number"
-              min="1"
-              step="1"
-              :disabled="isSplitting"
-            />
-          </label>
-          <button
-            class="primary-button primary-button--full"
-            type="button"
-            :disabled="isSplitting"
-            @click="splitSelectedVideo"
-          >
-            {{ isSplitting ? "正在切片..." : "切片当前视频" }}
-          </button>
-          <p v-if="splitError" class="error-text">{{ splitError }}</p>
-          <p v-else-if="splitOutputDirectory" class="success-text">
-            已生成 {{ splitSegmentCount }} 个片段。
-          </p>
-        </section>
-
-        <section class="panel">
-          <div class="panel__header">
-            <div>
-              <p class="panel__label">混剪</p>
-              <h2>随机和批量</h2>
-            </div>
-          </div>
-          <label class="field">
-            <span>抽取数量</span>
-            <input v-model.number="randomPickCount" type="number" min="1" step="1" />
-          </label>
-          <button class="ghost-button ghost-button--full" type="button" @click="pickSegmentsRandomly">
-            随机抽取
-          </button>
-          <p v-if="randomPickError" class="error-text">{{ randomPickError }}</p>
-
-          <label class="field">
-            <span>视频比例</span>
-            <select v-model="canvasAspectRatio">
-              <option value="original">原画</option>
-              <option value="portrait916">9:16 竖屏</option>
-              <option value="square11">1:1 方屏</option>
-              <option value="landscape169">16:9 横屏</option>
-            </select>
-          </label>
-
-          <label class="field">
-            <span>背景方式</span>
-            <select v-model="canvasBackgroundMode" :disabled="canvasAspectRatio === 'original'">
-              <option value="black">黑边</option>
-              <option value="blur">模糊背景</option>
-            </select>
-          </label>
-
-          <label class="option-toggle">
-            <input v-model="applyHorizontalMirror" type="checkbox" />
-            <span>水平镜像</span>
-          </label>
-
-          <label class="option-toggle">
-            <input v-model="smoothRemixEnabled" type="checkbox" />
-            <span>平滑混剪</span>
-          </label>
-
-          <label class="field">
-            <span>变速倍数</span>
-            <input
-              v-model.number="playbackSpeed"
-              type="number"
-              min="0.5"
-              max="2"
-              step="0.1"
-              :disabled="isMixing || isBatchMixing"
-            />
-          </label>
-
-          <button
-            class="primary-button primary-button--full"
-            type="button"
-            :disabled="isMixing"
-            @click="concatRandomSegments"
-          >
-            {{ isMixing ? "正在拼接..." : "拼接抽中片段" }}
-          </button>
-
-          <div class="divider"></div>
-
-          <label class="field">
-            <span>批量生成数量</span>
-            <input
-              v-model.number="batchGenerateCount"
-              type="number"
-              min="1"
-              step="1"
-              :disabled="isBatchMixing"
-            />
-          </label>
-          <button
-            class="primary-button primary-button--full"
-            type="button"
-            :disabled="isBatchMixing"
-            @click="generateBatchMixes"
-          >
-            {{ isBatchMixing ? "正在批量生成..." : "批量生成混剪" }}
-          </button>
-        </section>
-
-        <section class="panel">
-          <div class="panel__header">
-            <div>
-              <p class="panel__label">导出</p>
-              <h2>输出设置</h2>
-            </div>
-          </div>
-          <button class="ghost-button ghost-button--full" type="button" @click="selectOutputDirectory">
-            选择输出目录
-          </button>
-          <button
-            class="ghost-button ghost-button--full"
-            type="button"
-            :disabled="!outputDirectory"
-            @click="openOutputDirectory"
-          >
-            打开输出目录
-          </button>
-          <button
-            class="primary-button primary-button--full"
-            type="button"
-            :disabled="isExporting"
-            @click="exportSelectedVideo"
-          >
-            {{ isExporting ? "正在导出..." : "导出当前视频" }}
-          </button>
-          <p v-if="outputDirectoryError" class="error-text">{{ outputDirectoryError }}</p>
-        </section>
-      </aside>
+      <RightToolPanel
+        :environment="environment"
+        :status-text="statusText"
+        @open-tool="activeTool = $event"
+        @open-drawer="activeDrawer = $event"
+      />
     </section>
 
-    <footer v-if="isWorkspaceVisible" class="bottom-console" aria-label="任务日志和输出">
-      <section class="output-strip">
-        <p class="panel__label">输出目录</p>
-        <p v-if="outputDirectory" class="output-path">{{ outputDirectory }}</p>
-        <p v-else class="empty-text">请选择导出结果保存位置。</p>
-      </section>
+    <ToolSettingModal
+      :active-tool="activeTool"
+      :is-splitting="isSplitting"
+      :is-mixing="isMixing"
+      :is-batch-mixing="isBatchMixing"
+      :is-exporting="isExporting"
+      :split-error="splitError"
+      :split-output-directory="splitOutputDirectory"
+      :split-segment-count="splitSegmentCount"
+      :random-pick-error="randomPickError"
+      :output-directory="outputDirectory"
+      :output-directory-error="outputDirectoryError"
+      :segment-duration-seconds="segmentDurationSeconds"
+      :random-pick-count="randomPickCount"
+      :batch-generate-count="batchGenerateCount"
+      :canvas-aspect-ratio="canvasAspectRatio"
+      :canvas-background-mode="canvasBackgroundMode"
+      :apply-horizontal-mirror="applyHorizontalMirror"
+      :smooth-remix-enabled="smoothRemixEnabled"
+      :playback-speed="playbackSpeed"
+      @close="activeTool = null"
+      @reset="resetToolSettings"
+      @split-selected-video="splitSelectedVideo"
+      @pick-segments-randomly="pickSegmentsRandomly"
+      @concat-random-segments="concatRandomSegments"
+      @generate-batch-mixes="generateBatchMixes"
+      @select-output-directory="selectOutputDirectory"
+      @open-output-directory="openOutputDirectory"
+      @export-selected-video="exportSelectedVideo"
+      @update:segment-duration-seconds="segmentDurationSeconds = $event"
+      @update:random-pick-count="randomPickCount = $event"
+      @update:batch-generate-count="batchGenerateCount = $event"
+      @update:canvas-aspect-ratio="canvasAspectRatio = $event"
+      @update:canvas-background-mode="canvasBackgroundMode = $event"
+      @update:apply-horizontal-mirror="applyHorizontalMirror = $event"
+      @update:smooth-remix-enabled="smoothRemixEnabled = $event"
+      @update:playback-speed="playbackSpeed = $event"
+    />
 
-      <section class="task-console">
-          <div class="console-header">
-            <div>
-              <p class="panel__label">任务日志</p>
-              <h2>当前处理记录</h2>
-            </div>
-            <button class="panel-toggle" type="button" @click="isTaskLogExpanded = !isTaskLogExpanded">
-              {{ isTaskLogExpanded ? "收起" : `展开 ${taskLogs.length}` }}
-            </button>
-          </div>
-          <div v-if="isTaskLogExpanded" class="collapsible-content">
-            <p v-if="taskLogs.length === 0" class="empty-text">
-              开始导出、切片、拼接或批量生成后，这里会显示任务过程。
-            </p>
-            <ol v-else class="log-list">
-              <li
-                v-for="log in taskLogs"
-                :key="`${log.group}-${log.id}`"
-                class="log-item"
-                :class="`log-item--${log.level}`"
-              >
-                <span class="log-item__time">{{ log.time }}</span>
-                <span class="log-item__group">{{ log.group }}</span>
-                <span class="log-item__message">{{ log.message }}</span>
-              </li>
-            </ol>
-          </div>
-      </section>
-    </footer>
+    <TaskLogDrawer
+      :open="activeDrawer === 'logs'"
+      :task-logs="taskLogs"
+      @close="activeDrawer = null"
+    />
+    <ExportResultDrawer
+      :open="activeDrawer === 'exports'"
+      :export-result-items="exportResultItems"
+      :file-manager-error="fileManagerError"
+      :format-file-name="formatFileName"
+      @close="activeDrawer = null"
+      @open-result-location="openResultLocation"
+    />
+    <BatchResultDrawer
+      :open="activeDrawer === 'batch'"
+      :batch-mix-results="batchMixResults"
+      :format-file-name="formatFileName"
+      @close="activeDrawer = null"
+    />
   </main>
 </template>

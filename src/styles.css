@@ -56,7 +56,7 @@ h3 {
 
 .app-shell {
   display: grid;
-  grid-template-rows: 50px minmax(0, 1fr) minmax(180px, 23vh);
+  grid-template-rows: 50px minmax(0, 1fr);
   height: 100vh;
   min-height: 100vh;
   overflow: hidden;
@@ -65,10 +65,6 @@ h3 {
 
 .app-shell--home {
   grid-template-rows: 50px minmax(0, 1fr);
-}
-
-.app-shell--log-collapsed {
-  grid-template-rows: 50px minmax(0, 1fr) 180px;
 }
 
 .top-bar {
@@ -262,8 +258,12 @@ h3 {
   padding-bottom: 6px;
 }
 
+.tool-rail {
+  grid-auto-rows: max-content;
+}
+
 .center-stage {
-  grid-template-rows: minmax(0, 1fr) auto minmax(54px, 230px);
+  grid-template-rows: minmax(0, 1fr) auto auto;
   overflow: hidden;
 }
 
@@ -313,6 +313,37 @@ h3 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.core-actions-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.core-action-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.status-chip {
+  min-height: 32px;
+  border: 1px solid #2f3b37;
+  border-radius: 7px;
+  color: #b8c8c2;
+  background: #171b1a;
+  cursor: pointer;
+}
+
+.status-chip:hover {
+  border-color: #2cd8b5;
+  color: #39e4c0;
 }
 
 .ghost-button,
@@ -370,6 +401,10 @@ h3 {
   max-height: 34vh;
   margin-top: 12px;
   overflow: auto;
+}
+
+.output-mini-panel {
+  align-content: start;
 }
 
 .asset-card {
@@ -547,6 +582,52 @@ h3 {
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
+}
+
+.tool-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tool-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 54px;
+  padding: 10px 11px;
+  border: 1px solid #2d3834;
+  border-radius: 8px;
+  color: #e6f3ef;
+  background: #171b1a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-entry:hover {
+  border-color: #2cd8b5;
+  background: #15261f;
+}
+
+.tool-entry span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tool-entry small {
+  color: #83938d;
+}
+
+.tool-entry em {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #36e3be;
+  background: #102d27;
+  font-size: 11px;
+  font-style: normal;
 }
 
 .result-panel--collapsed .panel__header {
@@ -847,6 +928,88 @@ h3 {
   background: #14332c;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 7, 6, 0.62);
+}
+
+.tool-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(640px, calc(100vw - 48px));
+  min-width: min(480px, calc(100vw - 48px));
+  max-height: min(78vh, 720px);
+  border: 1px solid #2b3a35;
+  border-radius: 12px;
+  background: #202321;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+}
+
+.tool-modal__header,
+.tool-modal__footer,
+.drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #2b3431;
+}
+
+.tool-modal__body {
+  min-height: 0;
+  padding: 2px 16px 16px;
+  overflow: auto;
+}
+
+.tool-modal__body .field input,
+.tool-modal__body .field select {
+  min-height: 38px;
+}
+
+.tool-modal__footer {
+  align-items: center;
+  border-top: 1px solid #2b3431;
+  border-bottom: 0;
+}
+
+.tool-modal__footer .ghost-button,
+.tool-modal__footer .primary-button {
+  min-width: 92px;
+}
+
+.info-drawer {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 25;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(640px, calc(100vw - 24px));
+  max-height: min(48vh, 420px);
+  border: 1px solid #2b3a35;
+  border-radius: 12px;
+  background: #202321;
+  box-shadow: 0 22px 58px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.info-drawer--wide {
+  width: min(860px, calc(100vw - 24px));
+}
+
+.drawer-body {
+  min-height: 0;
+  padding: 14px;
+  overflow: auto;
+}
+
 @media (max-width: 1180px) {
   body {
     overflow: auto;
@@ -868,13 +1031,18 @@ h3 {
   }
 
   .module-grid,
-  .workbench,
-  .bottom-console {
+  .workbench {
     grid-template-columns: 1fr;
   }
 
   .info-grid,
-  .result-grid {
+  .result-grid,
+  .core-action-grid,
+  .status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .tool-modal {
+    min-width: 0;
   }
 }
