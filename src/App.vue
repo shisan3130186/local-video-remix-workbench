@@ -1155,6 +1155,7 @@ onMounted(() => {
         :output-directory-error="outputDirectoryError"
         :split-segment-paths="splitSegmentPaths"
         :random-selected-segments="randomSelectedSegments"
+        :video-cover-urls="videoCoverUrls"
         :segment-thumbnail-urls="segmentThumbnailUrls"
         :format-duration="formatDuration"
         :format-resolution="formatResolution"

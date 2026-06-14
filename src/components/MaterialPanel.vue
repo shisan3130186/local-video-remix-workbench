@@ -10,6 +10,7 @@ defineProps<{
   outputDirectoryError: string | null;
   splitSegmentPaths: string[];
   randomSelectedSegments: string[];
+  videoCoverUrls: Record<string, string>;
   segmentThumbnailUrls: Record<string, string>;
   formatDuration: (durationSeconds: number | null) => string;
   formatResolution: (video: ImportedVideo) => string;
@@ -60,11 +61,25 @@ defineEmits<{
           @keydown.enter="$emit('selectVideo', video)"
           @keydown.space.prevent="$emit('selectVideo', video)"
         >
-          <span class="asset-card__icon">▻</span>
+          <div class="asset-card__thumb">
+            <img v-if="videoCoverUrls[video.id]" :src="videoCoverUrls[video.id]" alt="" />
+            <span v-else>封面</span>
+          </div>
           <div class="asset-card__title">
             <h3>{{ video.fileName }}</h3>
             <span>{{ video.hasAudio ? "有音频" : "无音频" }}</span>
           </div>
+          <p class="asset-card__path">{{ video.filePath }}</p>
+          <dl class="asset-card__meta">
+            <div>
+              <dt>时长</dt>
+              <dd>{{ formatDuration(video.durationSeconds) }}</dd>
+            </div>
+            <div>
+              <dt>分辨率</dt>
+              <dd>{{ formatResolution(video) }}</dd>
+            </div>
+          </dl>
         </article>
       </div>
     </section>
