@@ -4,11 +4,23 @@ import type { CanvasAspectRatio, CanvasBackgroundMode } from "../services/videoM
 type ToolKey =
   | "remix"
   | "canvas"
+  | "audio"
+  | "bgm"
+  | "tts"
+  | "subtitleStyle"
+  | "watermark"
+  | "cover"
+  | "entrance"
+  | "frame"
   | "effects"
   | "transition"
   | "pip"
+  | "adjust"
+  | "fusion"
+  | "rotate"
   | "mirror"
   | "speed"
+  | "zoom"
   | "subtitles"
   | "export";
 
@@ -57,11 +69,23 @@ const emit = defineEmits<{
 const titles: Record<ToolKey, string> = {
   remix: "混剪设置",
   canvas: "画布设置",
+  audio: "音频设置",
+  bgm: "背景音乐",
+  tts: "语音合成",
+  subtitleStyle: "字幕样式",
+  watermark: "去除水印",
+  cover: "视频封面",
+  entrance: "入场效果",
+  frame: "视频帧操作",
   effects: "视频效果",
   transition: "平滑转场",
   pip: "画中画",
+  adjust: "画面调整",
+  fusion: "镜像融合",
+  rotate: "旋转镜像",
   mirror: "镜像旋转",
   speed: "视频变速",
+  zoom: "动态缩放",
   subtitles: "字幕设置",
   export: "导出设置",
 };

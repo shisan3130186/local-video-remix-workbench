@@ -9,6 +9,7 @@ import HomePage from "./components/HomePage.vue";
 import MaterialPanel from "./components/MaterialPanel.vue";
 import PreviewPanel from "./components/PreviewPanel.vue";
 import RightToolPanel from "./components/RightToolPanel.vue";
+import TaskControlBar from "./components/TaskControlBar.vue";
 import TaskLogDrawer from "./components/TaskLogDrawer.vue";
 import ToolSettingModal from "./components/ToolSettingModal.vue";
 import { listVideoFilesInFolder } from "./services/videoImportService";
@@ -34,11 +35,23 @@ type TaskLogLevel = "info" | "success" | "error";
 type ToolKey =
   | "remix"
   | "canvas"
+  | "audio"
+  | "bgm"
+  | "tts"
+  | "subtitleStyle"
+  | "watermark"
+  | "cover"
+  | "entrance"
+  | "frame"
   | "effects"
   | "transition"
   | "pip"
+  | "adjust"
+  | "fusion"
+  | "rotate"
   | "mirror"
   | "speed"
+  | "zoom"
   | "subtitles"
   | "export";
 type DrawerKey = "logs" | "exports" | "batch";
@@ -101,40 +114,47 @@ const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
 const isWorkspaceVisible = ref(false);
 const activeTool = ref<ToolKey | null>(null);
 const activeDrawer = ref<DrawerKey | null>(null);
+const isWelcomeVisible = ref(true);
 
 const moduleCards = [
   {
     title: "AI 智能混剪",
+    category: "创作中心",
     description: "导入素材后，按切片、抽取、拼接和批量生成形成本地混剪流程。",
     tags: ["视频混剪", "批量生成", "画布适配"],
     available: true,
   },
   {
     title: "视频效果处理",
+    category: "效率工具",
     description: "面向镜像、变速、画布比例和背景填充的本地视频处理入口。",
     tags: ["镜像", "变速", "模糊背景"],
     available: true,
   },
   {
     title: "视频混剪",
+    category: "创作中心",
     description: "固定切片、随机抽取、拼接抽中片段和批量导出。",
     tags: ["切片", "随机抽取", "拼接"],
     available: true,
   },
   {
     title: "分类混剪",
+    category: "创作中心",
     description: "按素材分类和规则生成不同混剪版本。",
     tags: ["分类素材", "规则混剪"],
     available: false,
   },
   {
     title: "文案改写",
+    category: "效率工具",
     description: "后续用于文案多版本整理和创意表达。",
     tags: ["文案", "多版本"],
     available: false,
   },
   {
     title: "视频内容提炼",
+    category: "自动化",
     description: "后续用于从素材中提取片段价值和内容标签。",
     tags: ["内容提炼", "素材标签"],
     available: false,
@@ -839,7 +859,7 @@ onMounted(() => {
         <h1>本地短视频批量混剪工作台</h1>
       </div>
       <div class="top-status">
-        <span class="mode-pill">本地处理 / 批量混剪 / API Key 自带</span>
+        <span class="mode-pill">本地处理 / 批量混剪 / 模块工作台</span>
         <span class="health-pill" :class="{ 'health-pill--ok': environment?.available }">
           {{ environment?.available ? "FFmpeg 就绪" : "FFmpeg 未就绪" }}
         </span>
@@ -851,7 +871,9 @@ onMounted(() => {
     <HomePage
       v-if="!isWorkspaceVisible"
       :module-cards="moduleCards"
+      :show-welcome="isWelcomeVisible"
       @open-workspace="isWorkspaceVisible = true"
+      @close-welcome="isWelcomeVisible = false"
     />
 
     <section v-else class="workbench">
@@ -906,6 +928,16 @@ onMounted(() => {
         :environment="environment"
         :status-text="statusText"
         @open-tool="activeTool = $event"
+        @open-drawer="activeDrawer = $event"
+      />
+
+      <TaskControlBar
+        :total-videos="importedVideos.length"
+        :completed-count="exportResultItems.length"
+        :failed-count="0"
+        :output-directory="outputDirectory"
+        :is-processing="isExporting || isMixing || isBatchMixing || isSplitting"
+        @start-processing="generateBatchMixes"
         @open-drawer="activeDrawer = $event"
       />
     </section>
