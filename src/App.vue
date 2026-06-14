@@ -332,31 +332,16 @@ async function importVideoFolder() {
 }
 
 async function loadVideosFromPaths(filePaths: string[]) {
-  const videos: ImportedVideo[] = [];
-  const failedFiles: string[] = [];
-
-  for (const filePath of filePaths) {
-    try {
+  const videos = await Promise.all(
+    filePaths.map(async (filePath) => {
       const metadata = await readVideoMetadata(filePath);
 
-      videos.push({
+      return {
         ...metadata,
         id: `${metadata.filePath}-${metadata.fileSizeBytes}`,
-      });
-    } catch (error) {
-      failedFiles.push(
-        `${formatFileName(filePath)}：${
-          error instanceof Error ? error.message : String(error ?? "读取失败")
-        }`,
-      );
-    }
-  }
-
-  if (videos.length === 0) {
-    throw new Error(
-      failedFiles.length > 0 ? `没有可导入的视频。${failedFiles[0]}` : "没有可导入的视频。",
-    );
-  }
+      };
+    }),
+  );
 
   videoCoverPaths.value = {};
   importedVideos.value = videos;
@@ -366,10 +351,6 @@ async function loadVideosFromPaths(filePaths: string[]) {
 
   if (selectedVideo.value) {
     void ensureVideoCover(selectedVideo.value);
-  }
-
-  if (failedFiles.length > 0) {
-    importError.value = `已导入 ${videos.length} 个视频，${failedFiles.length} 个视频读取失败。`;
   }
 }
 
