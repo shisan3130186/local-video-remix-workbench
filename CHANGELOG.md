@@ -2,6 +2,8 @@
 
 ## 2026-06-21
 
+- 新增 `启动验收.bat`，用于双击启动本地 Tauri 验收环境。
+- 在 `README.md` 中补充最简单启动方式，方便每次人工验收直接打开软件。
 - 统一 Tauri / Rust / 前端版本号，`package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json` 均对齐到 `0.3.4`。
 - 修正项目技术栈说明，将本地视频处理从 `Python + FFmpeg` 对齐为当前实际使用的 `Rust + FFmpeg`。
 - 补齐 `README.md` 的开发启动、构建检查、Rust 检查和本地打包命令。
