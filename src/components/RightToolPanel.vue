@@ -40,6 +40,7 @@ const mainTools: Array<{ key: ToolKey; title: string; note: string; active?: boo
   { key: "remix", title: "混剪设置", note: "切片、抽取、批量生成", active: true },
   { key: "canvas", title: "画布设置", note: "比例和模糊背景" },
   { key: "effects", title: "视频效果", note: "镜像、旋转、变速、画面调整" },
+  { key: "transition", title: "平滑混剪", note: "淡入淡出、过滤过短片段" },
   { key: "pip", title: "画中画", note: "叠加视频或图片" },
 ];
 
