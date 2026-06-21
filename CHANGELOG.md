@@ -2,6 +2,11 @@
 
 ## 2026-06-21
 
+- 统一 Tauri / Rust / 前端版本号，`package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json` 均对齐到 `0.3.4`。
+- 修正项目技术栈说明，将本地视频处理从 `Python + FFmpeg` 对齐为当前实际使用的 `Rust + FFmpeg`。
+- 补齐 `README.md` 的开发启动、构建检查、Rust 检查和本地打包命令。
+- 修正 `ROADMAP.md` 中 V0.3.3 / V0.3.4 / V0.3.5 的功能顺序，让路线图和当前状态一致。
+- 将 `.codegraph/` 纳入 `.gitignore`，避免代码索引缓存进入 Git。
 - 清理 `TODO_NEXT.md`，移除过期历史任务，只保留当前唯一下一步：V0.3.5 分类混剪第一版。
 - 将 `package.json` 版本号从 `0.1.0` 统一更新为 `0.3.4`，匹配当前已完成能力阶段。
 - 在 `PROJECT_STATUS.md` 顶部新增当前状态摘要，明确现有主链路已通过多轮人工验收，下一步进入分类混剪。

@@ -7,7 +7,10 @@
 
 ## 当前阶段
 
-V0.1：基础视频导入、预览、FFmpeg环境检测、基础导出。
+当前版本：V0.3.4-dev
+当前状态：本地混剪主链路已可用
+已完成：导入、预览、切片、随机抽取、拼接、批量生成、画布适配、基础效果、画中画、封面帧
+下一步：分类混剪
 
 ## 技术栈
 
@@ -15,17 +18,44 @@ V0.1：基础视频导入、预览、FFmpeg环境检测、基础导出。
 Tauri / Vue3 / TypeScript
 
 视频处理：
-FFmpeg / FFprobe
+Rust / FFmpeg / FFprobe
 
 数据库：
-SQLite
+SQLite（后续用于保存素材、任务、导出记录和配置）
 
 AI能力：
 后续接入 TTS / ASR / OCR / 文案匹配。
 
 ## 启动方式
 
-待补充。
+开发启动：
+
+```powershell
+cd E:\Workspace\Project_03_本地短视频批量混剪工作台
+corepack pnpm tauri dev
+```
+
+前端构建检查：
+
+```powershell
+cd E:\Workspace\Project_03_本地短视频批量混剪工作台
+corepack pnpm build
+```
+
+Rust / Tauri 后端检查：
+
+```powershell
+cd E:\Workspace\Project_03_本地短视频批量混剪工作台\src-tauri
+$env:CARGO_HTTP_CHECK_REVOKE='false'
+cargo check
+```
+
+本地打包：
+
+```powershell
+cd E:\Workspace\Project_03_本地短视频批量混剪工作台
+corepack pnpm tauri build
+```
 
 ## 当前开发规则
 

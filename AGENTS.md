@@ -9,10 +9,10 @@
 ## 技术栈固定
 
 桌面端：Tauri + Vue3 + TypeScript
-本地视频处理：Python + FFmpeg
+本地视频处理：Rust + FFmpeg
 数据库：SQLite
 AI能力：优先 API，后续接本地模型
-包管理：pnpm / uv / pip，按项目实际配置执行
+包管理：pnpm / cargo，按项目实际配置执行
 
 未经用户确认，不允许更换技术栈。
 
