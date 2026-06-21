@@ -30,6 +30,7 @@ defineEmits<{
   splitSelectedVideo: [];
   pickSegmentsRandomly: [];
   concatRandomSegments: [];
+  concatCategorizedSegments: [];
   generateBatchMixes: [];
   exportSelectedVideo: [];
   syncPreviewBackground: [];
@@ -137,6 +138,9 @@ const scriptTextLength = computed(() => scriptText.value.trim().length);
         <button class="ghost-button" type="button" @click="$emit('pickSegmentsRandomly')">随机抽取</button>
         <button class="primary-button" type="button" :disabled="isMixing" @click="$emit('concatRandomSegments')">
           {{ isMixing ? "正在拼接..." : "拼接抽中片段" }}
+        </button>
+        <button class="primary-button" type="button" :disabled="isMixing" @click="$emit('concatCategorizedSegments')">
+          {{ isMixing ? "正在分类混剪..." : "分类混剪" }}
         </button>
         <button class="primary-button" type="button" :disabled="isBatchMixing" @click="$emit('generateBatchMixes')">
           {{ isBatchMixing ? "正在批量生成..." : "批量生成混剪" }}

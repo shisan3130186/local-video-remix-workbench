@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { SegmentCategory, SegmentCategoryOption } from "../services/videoMixService";
 import type { ImportedVideo } from "../types/videoProbe";
 
 defineProps<{
@@ -10,6 +11,8 @@ defineProps<{
   outputDirectoryError: string | null;
   splitSegmentPaths: string[];
   randomSelectedSegments: string[];
+  segmentCategories: Record<string, SegmentCategory | "">;
+  segmentCategoryOptions: SegmentCategoryOption[];
   videoCoverUrls: Record<string, string>;
   segmentThumbnailUrls: Record<string, string>;
   formatDuration: (durationSeconds: number | null) => string;
@@ -17,13 +20,18 @@ defineProps<{
   formatFileName: (path: string) => string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   importVideos: [];
   importVideoFolder: [];
   selectVideo: [video: ImportedVideo];
   selectOutputDirectory: [];
   openOutputDirectory: [];
+  updateSegmentCategory: [segmentPath: string, category: SegmentCategory | ""];
 }>();
+
+function updateCategory(event: Event, segmentPath: string) {
+  emit("updateSegmentCategory", segmentPath, (event.target as HTMLSelectElement).value as SegmentCategory | "");
+}
 </script>
 
 <template>
@@ -140,10 +148,25 @@ defineEmits<{
       </div>
 
       <p v-if="splitSegmentPaths.length === 0" class="empty-text">完成固定切片后，这里会出现片段列表。</p>
-      <ol v-else class="compact-list">
+      <ol v-else class="compact-list compact-list--with-select">
         <li v-for="segmentPath in splitSegmentPaths" :key="segmentPath">
           <img v-if="segmentThumbnailUrls[segmentPath]" :src="segmentThumbnailUrls[segmentPath]" alt="" />
           <span>{{ formatFileName(segmentPath) }}</span>
+          <select
+            class="segment-category-select"
+            :value="segmentCategories[segmentPath] ?? ''"
+            aria-label="片段分类"
+            @change="updateCategory($event, segmentPath)"
+          >
+            <option value="">未分类</option>
+            <option
+              v-for="categoryOption in segmentCategoryOptions"
+              :key="categoryOption.key"
+              :value="categoryOption.key"
+            >
+              {{ categoryOption.label }}
+            </option>
+          </select>
         </li>
       </ol>
 

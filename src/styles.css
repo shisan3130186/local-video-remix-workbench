@@ -387,7 +387,7 @@ h3 {
 
 .core-action-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1153,6 +1153,21 @@ h3 {
 .compact-list--selected li {
   border-color: #23745f;
   background: #112e27;
+}
+
+.compact-list--with-select li {
+  grid-template-columns: auto minmax(0, 1fr) 106px;
+}
+
+.segment-category-select {
+  width: 100%;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid #313b37;
+  border-radius: 7px;
+  color: #eaf8f4;
+  background: #151918;
+  font-size: 12px;
 }
 
 .sub-block {

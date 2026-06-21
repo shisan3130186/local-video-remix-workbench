@@ -15,6 +15,7 @@ import ToolSettingModal from "./components/ToolSettingModal.vue";
 import { listVideoFilesInFolder } from "./services/videoImportService";
 import {
   concatSelectedSegments,
+  pickCategorizedSegments,
   pickRandomSegments,
 } from "./services/videoMixService";
 import type {
@@ -24,6 +25,8 @@ import type {
   PictureInPictureSettings,
   PipPosition,
   RotationMode,
+  SegmentCategory,
+  SegmentCategoryOption,
   VideoEffectSettings,
 } from "./services/videoMixService";
 import { openPathInFileManager } from "./services/fileManagerService";
@@ -70,7 +73,7 @@ interface TaskLogEntry {
 
 interface ExportResultItem {
   id: number;
-  type: "基础导出" | "拼接导出" | "批量生成";
+  type: "基础导出" | "拼接导出" | "分类混剪" | "批量生成";
   path: string;
   time: string;
 }
@@ -95,6 +98,7 @@ const splitError = ref<string | null>(null);
 const splitOutputDirectory = ref<string | null>(null);
 const splitSegmentCount = ref<number | null>(null);
 const splitSegmentPaths = ref<string[]>([]);
+const segmentCategories = ref<Record<string, SegmentCategory | "">>({});
 const splitLogs = ref<TaskLogEntry[]>([]);
 const randomPickCount = ref(1);
 const randomPickError = ref<string | null>(null);
@@ -166,7 +170,7 @@ const moduleCards = [
     category: "创作中心",
     description: "按素材分类和规则生成不同混剪版本。",
     tags: ["分类素材", "规则混剪"],
-    available: false,
+    available: true,
   },
   {
     title: "文案改写",
@@ -182,6 +186,15 @@ const moduleCards = [
     tags: ["内容提炼", "素材标签"],
     available: false,
   },
+];
+
+const segmentCategoryOptions: SegmentCategoryOption[] = [
+  { key: "hook", label: "开头钩子" },
+  { key: "product", label: "产品展示" },
+  { key: "usage", label: "使用过程" },
+  { key: "detail", label: "细节特写" },
+  { key: "result", label: "效果展示" },
+  { key: "ending", label: "结尾引导" },
 ];
 
 const statusText = computed(() => {
@@ -464,6 +477,7 @@ async function splitSelectedVideo() {
     splitOutputDirectory.value = result.outputDirectory;
     splitSegmentCount.value = result.segmentCount;
     splitSegmentPaths.value = result.segmentPaths;
+    segmentCategories.value = buildEmptySegmentCategoryMap(result.segmentPaths);
     void generateSegmentThumbnails(result.segmentPaths);
     appendSplitLog(
       `切片成功：共生成 ${result.segmentCount} 个片段，保存到 ${result.outputDirectory}`,
@@ -475,6 +489,100 @@ async function splitSelectedVideo() {
     appendSplitLog(`切片失败：${splitError.value}`, "error");
   } finally {
     isSplitting.value = false;
+  }
+}
+
+async function concatCategorizedSegments() {
+  mixError.value = null;
+  mixResultPath.value = null;
+  mixLogs.value = [];
+
+  if (!outputDirectory.value) {
+    mixError.value = "请先选择输出目录。";
+    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
+    return;
+  }
+
+  const speedValidationError = validatePlaybackSpeed();
+
+  if (speedValidationError) {
+    mixError.value = speedValidationError;
+    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
+    return;
+  }
+
+  let categorizedPick;
+
+  try {
+    categorizedPick = pickCategorizedSegments(
+      splitSegmentPaths.value,
+      segmentCategories.value,
+      segmentCategoryOptions,
+    );
+  } catch (error) {
+    mixError.value =
+      error instanceof Error ? error.message : String(error ?? "分类混剪失败。");
+    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
+    return;
+  }
+
+  randomSelectedSegments.value = categorizedPick.pickedSegments.map(
+    (pickedSegment) => pickedSegment.path,
+  );
+
+  appendMixLog("开始分类混剪。", "info");
+  appendMixLog("分类顺序：开头钩子 -> 产品展示 -> 使用过程 -> 细节特写 -> 效果展示 -> 结尾引导。", "info");
+
+  for (const pickedSegment of categorizedPick.pickedSegments) {
+    appendMixLog(
+      `${pickedSegment.label}：抽中 ${formatFileName(pickedSegment.path)}。`,
+      "info",
+    );
+  }
+
+  if (categorizedPick.skippedCategories.length > 0) {
+    appendMixLog(
+      `已自动跳过空分类：${categorizedPick.skippedCategories.join("、")}。`,
+      "info",
+    );
+  }
+
+  appendMixLog(
+    `分类混剪中，变速倍数 ${playbackSpeed.value.toFixed(2)}x，平滑混剪${
+      smoothRemixEnabled.value ? "已开启" : "未开启"
+    }。`,
+    "info",
+  );
+  isMixing.value = true;
+
+  try {
+    const result = await concatSelectedSegments(
+      randomSelectedSegments.value,
+      outputDirectory.value,
+      applyHorizontalMirror.value,
+      playbackSpeed.value,
+      canvasAspectRatio.value,
+      canvasBackgroundMode.value,
+      smoothRemixEnabled.value,
+      videoEffectSettings.value,
+      pictureInPictureSettings.value,
+    );
+    mixResultPath.value = result.outputPath;
+    addExportResult("分类混剪", result.outputPath);
+    appendMixLog(buildRemixCanvasLog(result), "info");
+    appendMixLog(buildSmoothRemixLog(result), "info");
+    appendMixLog(
+      `分类混剪成功：已使用 ${result.inputCount} 个片段生成 ${result.outputPath}${
+        buildMixOptionSummary()
+      }`,
+      "success",
+    );
+  } catch (error) {
+    mixError.value =
+      error instanceof Error ? error.message : String(error ?? "分类混剪失败。");
+    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
+  } finally {
+    isMixing.value = false;
   }
 }
 
@@ -644,6 +752,7 @@ function resetSplitAndRandomState() {
   splitOutputDirectory.value = null;
   splitSegmentCount.value = null;
   splitSegmentPaths.value = [];
+  segmentCategories.value = {};
   segmentThumbnailPaths.value = {};
   splitLogs.value = [];
   resetRandomPickState();
@@ -684,6 +793,13 @@ function appendBatchMixLog(message: string, level: TaskLogLevel) {
 
 function appendExportLog(message: string, level: TaskLogLevel) {
   appendTaskLog(exportLogs.value, message, level);
+}
+
+function updateSegmentCategory(segmentPath: string, category: SegmentCategory | "") {
+  segmentCategories.value = {
+    ...segmentCategories.value,
+    [segmentPath]: category,
+  };
 }
 
 function validatePlaybackSpeed() {
@@ -1053,6 +1169,13 @@ function addExportResult(type: ExportResultItem["type"], path: string) {
   });
 }
 
+function buildEmptySegmentCategoryMap(segmentPaths: string[]) {
+  return Object.fromEntries(segmentPaths.map((segmentPath) => [segmentPath, ""])) as Record<
+    string,
+    SegmentCategory | ""
+  >;
+}
+
 function formatDuration(durationSeconds: number | null) {
   if (durationSeconds === null) {
     return "未知";
@@ -1155,6 +1278,8 @@ onMounted(() => {
         :output-directory-error="outputDirectoryError"
         :split-segment-paths="splitSegmentPaths"
         :random-selected-segments="randomSelectedSegments"
+        :segment-categories="segmentCategories"
+        :segment-category-options="segmentCategoryOptions"
         :video-cover-urls="videoCoverUrls"
         :segment-thumbnail-urls="segmentThumbnailUrls"
         :format-duration="formatDuration"
@@ -1165,6 +1290,7 @@ onMounted(() => {
         @select-video="selectVideo"
         @select-output-directory="selectOutputDirectory"
         @open-output-directory="openOutputDirectory"
+        @update-segment-category="updateSegmentCategory"
       />
 
       <PreviewPanel
@@ -1190,6 +1316,7 @@ onMounted(() => {
         @split-selected-video="splitSelectedVideo"
         @pick-segments-randomly="pickSegmentsRandomly"
         @concat-random-segments="concatRandomSegments"
+        @concat-categorized-segments="concatCategorizedSegments"
         @generate-batch-mixes="generateBatchMixes"
         @export-selected-video="exportSelectedVideo"
         @sync-preview-background="syncPreviewBackground"

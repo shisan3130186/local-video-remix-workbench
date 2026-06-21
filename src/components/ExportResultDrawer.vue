@@ -1,7 +1,7 @@
 <script setup lang="ts">
 interface ExportResultItem {
   id: number;
-  type: "基础导出" | "拼接导出" | "批量生成";
+  type: "基础导出" | "拼接导出" | "分类混剪" | "批量生成";
   path: string;
   time: string;
 }
