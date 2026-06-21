@@ -8,6 +8,7 @@ type ToolKey = "remix" | "canvas" | "cover" | "subtitles";
 defineProps<{
   isAdvancedMode: boolean;
   selectedVideo: ImportedVideo | null;
+  previewTitle: string;
   previewUrl: string | null;
   selectedCoverUrl: string | null;
   canvasAspectRatio: CanvasAspectRatio;
@@ -48,7 +49,7 @@ const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewB
       <div class="panel__header">
         <div>
           <p class="panel__label">视频预览</p>
-          <h2>{{ selectedVideo?.fileName ?? "等待导入素材" }}</h2>
+          <h2>{{ previewTitle }}</h2>
         </div>
         <div v-if="isAdvancedMode" class="preview-actions">
           <span class="preview-mode-label">视频比例</span>
@@ -79,7 +80,7 @@ const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewB
             aria-hidden="true"
           ></video>
           <video
-            :key="selectedVideo?.id"
+            :key="previewUrl"
             ref="previewVideoRef"
             class="video-frame__foreground"
             :src="previewUrl"

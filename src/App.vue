@@ -124,6 +124,7 @@ const pipOpacity = ref(1);
 const pipMargin = ref(24);
 const videoCoverPaths = ref<Record<string, string>>({});
 const segmentThumbnailPaths = ref<Record<string, string>>({});
+const selectedSegmentPath = ref<string | null>(null);
 const selectedCoverPath = ref<string | null>(null);
 const coverFrameSeconds = ref(1);
 const isGeneratingCover = ref(false);
@@ -211,11 +212,23 @@ const statusText = computed(() => {
 });
 
 const previewUrl = computed(() => {
+  if (selectedSegmentPath.value) {
+    return convertFileSrc(selectedSegmentPath.value);
+  }
+
   if (!selectedVideo.value) {
     return null;
   }
 
   return convertFileSrc(selectedVideo.value.filePath);
+});
+
+const previewTitle = computed(() => {
+  if (selectedSegmentPath.value) {
+    return `片段预览：${formatFileName(selectedSegmentPath.value)}`;
+  }
+
+  return selectedVideo.value?.fileName ?? "等待导入素材";
 });
 
 const previewCanvasStyle = computed(
@@ -370,10 +383,15 @@ async function loadVideosFromPaths(filePaths: string[]) {
 
 function selectVideo(video: ImportedVideo) {
   selectedVideo.value = video;
+  selectedSegmentPath.value = null;
   selectedCoverPath.value = videoCoverPaths.value[video.id] ?? null;
   coverError.value = null;
   resetSplitAndRandomState();
   void ensureVideoCover(video);
+}
+
+function selectSegment(segmentPath: string) {
+  selectedSegmentPath.value = segmentPath;
 }
 
 async function selectOutputDirectory() {
@@ -755,6 +773,7 @@ function resetSplitAndRandomState() {
   splitSegmentPaths.value = [];
   segmentCategories.value = {};
   segmentThumbnailPaths.value = {};
+  selectedSegmentPath.value = null;
   splitLogs.value = [];
   resetRandomPickState();
 }
@@ -1279,6 +1298,7 @@ onMounted(() => {
         :output-directory="outputDirectory"
         :output-directory-error="outputDirectoryError"
         :split-segment-paths="splitSegmentPaths"
+        :selected-segment-path="selectedSegmentPath"
         :random-selected-segments="randomSelectedSegments"
         :segment-categories="segmentCategories"
         :segment-category-options="segmentCategoryOptions"
@@ -1290,6 +1310,7 @@ onMounted(() => {
         @import-videos="importVideos"
         @import-video-folder="importVideoFolder"
         @select-video="selectVideo"
+        @select-segment="selectSegment"
         @select-output-directory="selectOutputDirectory"
         @open-output-directory="openOutputDirectory"
         @update-segment-category="updateSegmentCategory"
@@ -1300,6 +1321,7 @@ onMounted(() => {
         v-model:preview-background-video-ref="previewBackgroundVideoRef"
         :is-advanced-mode="isAdvancedMode"
         :selected-video="selectedVideo"
+        :preview-title="previewTitle"
         :preview-url="previewUrl"
         :selected-cover-url="selectedCoverUrl"
         :canvas-aspect-ratio="canvasAspectRatio"

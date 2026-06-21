@@ -11,6 +11,7 @@ defineProps<{
   outputDirectory: string | null;
   outputDirectoryError: string | null;
   splitSegmentPaths: string[];
+  selectedSegmentPath: string | null;
   randomSelectedSegments: string[];
   segmentCategories: Record<string, SegmentCategory | "">;
   segmentCategoryOptions: SegmentCategoryOption[];
@@ -25,6 +26,7 @@ const emit = defineEmits<{
   importVideos: [];
   importVideoFolder: [];
   selectVideo: [video: ImportedVideo];
+  selectSegment: [segmentPath: string];
   selectOutputDirectory: [];
   openOutputDirectory: [];
   updateSegmentCategory: [segmentPath: string, category: SegmentCategory | ""];
@@ -104,13 +106,24 @@ function updateCategory(event: Event, segmentPath: string) {
 
       <p v-if="splitSegmentPaths.length === 0" class="empty-text">完成固定切片后，这里会出现片段列表。</p>
       <ol v-else class="compact-list compact-list--with-select">
-        <li v-for="segmentPath in splitSegmentPaths" :key="segmentPath">
+        <li
+          v-for="segmentPath in splitSegmentPaths"
+          :key="segmentPath"
+          class="segment-row"
+          :class="{ 'segment-row--active': selectedSegmentPath === segmentPath }"
+          role="button"
+          tabindex="0"
+          @click="$emit('selectSegment', segmentPath)"
+          @keydown.enter="$emit('selectSegment', segmentPath)"
+          @keydown.space.prevent="$emit('selectSegment', segmentPath)"
+        >
           <img v-if="segmentThumbnailUrls[segmentPath]" :src="segmentThumbnailUrls[segmentPath]" alt="" />
           <span>{{ formatFileName(segmentPath) }}</span>
           <select
             class="segment-category-select"
             :value="segmentCategories[segmentPath] ?? ''"
             aria-label="片段分类"
+            @click.stop
             @change="updateCategory($event, segmentPath)"
           >
             <option value="">未分类</option>

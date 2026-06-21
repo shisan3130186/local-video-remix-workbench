@@ -1502,6 +1502,29 @@ h3 {
   grid-template-columns: auto minmax(0, 1fr) 106px;
 }
 
+.segment-row {
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+.segment-row:hover,
+.segment-row:focus-visible {
+  border-color: #1fbf9e;
+  background: #13251f;
+  outline: none;
+}
+
+.segment-row--active {
+  border-color: #2ee6c1;
+  background: #12372f;
+}
+
+.segment-row--active span {
+  color: #f1fffb;
+}
+
 .segment-category-select {
   width: 100%;
   min-height: 30px;
