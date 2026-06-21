@@ -25,6 +25,7 @@ type ToolKey =
   | "export";
 
 defineProps<{
+  isAdvancedMode: boolean;
   environment: FfmpegEnvironmentResult | null;
   statusText: string;
 }>();
@@ -32,108 +33,128 @@ defineProps<{
 defineEmits<{
   openTool: [tool: ToolKey];
   openDrawer: [drawer: "logs" | "exports" | "batch"];
+  toggleAdvancedMode: [enabled: boolean];
 }>();
 
-const toolEntries: Array<{ key: ToolKey; title: string; note: string; enabled: boolean }> = [
-  { key: "audio", title: "音频设置", note: "音量、原声、音轨", enabled: false },
-  { key: "bgm", title: "背景音乐", note: "BGM 和混音", enabled: false },
-  { key: "tts", title: "语音合成", note: "后续 TTS 入口", enabled: false },
-  { key: "subtitleStyle", title: "字幕样式", note: "字体、颜色、描边", enabled: false },
-  { key: "watermark", title: "去除水印", note: "后续能力入口", enabled: false },
-  { key: "cover", title: "视频封面", note: "封面帧选择", enabled: false },
-  { key: "entrance", title: "入场效果", note: "片段入场方式", enabled: false },
-  { key: "frame", title: "视频帧操作", note: "关键帧、预览图", enabled: false },
-  { key: "effects", title: "视频效果", note: "亮度、对比度、饱和度", enabled: true },
-  { key: "transition", title: "平滑转场", note: "平滑混剪开关", enabled: true },
-  { key: "pip", title: "画中画", note: "后续能力入口", enabled: false },
-  { key: "adjust", title: "画面调整", note: "亮度、对比度、饱和度", enabled: true },
-  { key: "fusion", title: "镜像融合", note: "空间镜像融合", enabled: false },
-  { key: "rotate", title: "旋转镜像", note: "90° / 180° 旋转", enabled: true },
-  { key: "mirror", title: "镜像旋转", note: "水平镜像", enabled: true },
-  { key: "speed", title: "视频变速", note: "0.5x 到 2.0x", enabled: true },
-  { key: "zoom", title: "动态缩放", note: "轻微缩放", enabled: true },
-  { key: "export", title: "导出设置", note: "输出目录、基础导出", enabled: true },
+const mainTools: Array<{ key: ToolKey; title: string; note: string; active?: boolean }> = [
+  { key: "remix", title: "混剪设置", note: "切片、抽取、批量生成", active: true },
+  { key: "canvas", title: "画布设置", note: "比例和模糊背景" },
+  { key: "effects", title: "视频效果", note: "镜像、旋转、变速、画面调整" },
+  { key: "pip", title: "画中画", note: "叠加视频或图片" },
 ];
 
-const quickEntries: Array<{ key: ToolKey; title: string; note: string }> = [
-  { key: "remix", title: "混剪设置", note: "固定切片 / 随机抽取 / 批量生成" },
-  { key: "canvas", title: "画布比例", note: "原画 / 9:16 / 1:1 / 16:9 / 模糊背景" },
-  { key: "transition", title: "平滑混剪", note: "淡入淡出 / 过滤短片段" },
+const reservedTools: Array<{ key: ToolKey; title: string }> = [
+  { key: "cover", title: "视频封面" },
+  { key: "frame", title: "视频帧操作" },
+  { key: "subtitles", title: "字幕入口" },
+  { key: "audio", title: "音频设置" },
+  { key: "bgm", title: "背景音乐" },
+  { key: "tts", title: "语音合成" },
+  { key: "watermark", title: "去除水印" },
 ];
 </script>
 
 <template>
   <aside class="right-rail tool-rail" aria-label="功能入口">
-    <section class="panel engine-panel">
-      <div class="panel__header">
-        <div>
-          <p class="panel__label">环境</p>
-          <h2>本地引擎</h2>
-        </div>
+    <section class="panel engine-panel engine-panel--compact">
+      <div>
+        <p class="panel__label">本地引擎</p>
+        <h2>{{ environment?.available ? "FFmpeg 就绪" : "等待检测" }}</h2>
       </div>
+      <span class="engine-status-dot" :class="{ 'engine-status-dot--ok': environment?.available }"></span>
       <p class="engine-message">{{ statusText }}</p>
-      <div class="engine-list">
-        <div>
-          <span>ffmpeg</span>
-          <strong>{{ environment?.ffmpeg.available ? "已检测到" : "未检测到" }}</strong>
-        </div>
-        <div>
-          <span>ffprobe</span>
-          <strong>{{ environment?.ffprobe.available ? "已检测到" : "未检测到" }}</strong>
-        </div>
-      </div>
     </section>
 
-    <section class="panel tool-list-panel quick-tool-panel">
+    <section class="panel mode-panel">
+      <div class="mode-panel__header">
+        <div>
+          <p class="panel__label">当前模式</p>
+          <h2>{{ isAdvancedMode ? "高级模式" : "新手模式" }}</h2>
+        </div>
+        <button
+          class="mode-switch"
+          type="button"
+          @click="$emit('toggleAdvancedMode', !isAdvancedMode)"
+        >
+          {{ isAdvancedMode ? "切回新手" : "进入高级" }}
+        </button>
+      </div>
+      <p>{{ isAdvancedMode ? "显示完整功能入口，适合精细调参。" : "只显示最重要的导入、预览、处理和结果。" }}</p>
+    </section>
+
+    <section v-if="!isAdvancedMode" class="panel simple-action-panel">
       <div class="panel__header">
         <div>
-          <p class="panel__label">当前模块</p>
-          <h2>已有功能入口</h2>
+          <p class="panel__label">新手流程</p>
+          <h2>四步完成</h2>
         </div>
       </div>
-      <div class="quick-tool-grid">
-        <button
-          v-for="tool in quickEntries"
-          :key="tool.key"
-          class="quick-tool-card"
-          type="button"
-          @click="$emit('openTool', tool.key)"
-        >
-          <strong>{{ tool.title }}</strong>
-          <small>{{ tool.note }}</small>
+      <div class="simple-steps">
+        <span>1 导入素材</span>
+        <span>2 预览视频</span>
+        <span>3 开始处理</span>
+        <span>4 查看结果</span>
+      </div>
+      <div class="simple-entry-list">
+        <button class="tool-entry" type="button" @click="$emit('openTool', 'remix')">
+          <span><strong>高级设置</strong><small>切片、抽取、批量数量</small></span>
+          <em>打开</em>
+        </button>
+        <button class="tool-entry" type="button" @click="$emit('openDrawer', 'exports')">
+          <span><strong>查看结果</strong><small>打开导出文件位置</small></span>
+          <em>展开</em>
         </button>
       </div>
     </section>
 
-    <section class="panel tool-list-panel">
-      <div class="panel__header">
-        <div>
-          <p class="panel__label">工具</p>
-          <h2>功能入口</h2>
-        </div>
+    <section v-if="isAdvancedMode" class="panel tool-list-panel parameter-panel">
+      <div class="parameter-panel__tabs">
+        <button class="parameter-tab parameter-tab--active" type="button">设置入口</button>
       </div>
-      <div class="tool-card-grid">
+      <div class="tool-list">
         <button
-          v-for="tool in toolEntries"
+          v-for="tool in mainTools"
           :key="tool.key"
-          class="tool-entry tool-entry--card"
+          class="tool-entry parameter-entry"
+          :class="{ 'parameter-entry--active': tool.active }"
           type="button"
           @click="$emit('openTool', tool.key)"
         >
+          <span class="parameter-entry__icon" aria-hidden="true">◎</span>
           <span>
             <strong>{{ tool.title }}</strong>
             <small>{{ tool.note }}</small>
           </span>
-          <em>{{ tool.enabled ? "设置" : "预留" }}</em>
+          <em>›</em>
         </button>
       </div>
     </section>
 
-    <section class="panel tool-list-panel">
+    <section v-if="isAdvancedMode" class="panel reserved-panel">
       <div class="panel__header">
         <div>
-          <p class="panel__label">面板</p>
-          <h2>底部信息</h2>
+          <p class="panel__label">预留入口</p>
+          <h2>后续能力</h2>
+        </div>
+      </div>
+      <div class="reserved-chip-grid">
+        <button
+          v-for="tool in reservedTools"
+          :key="tool.key"
+          class="reserved-chip"
+          type="button"
+          @click="$emit('openTool', tool.key)"
+        >
+          {{ tool.title }}
+        </button>
+      </div>
+    </section>
+
+    <section class="panel tool-list-panel drawer-entry-panel">
+      <div class="panel__header">
+        <div>
+          <p class="panel__label">信息面板</p>
+          <h2>日志和结果</h2>
         </div>
       </div>
       <div class="tool-list">

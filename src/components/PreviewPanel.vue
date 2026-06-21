@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
 import type { CSSProperties } from "vue";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { CanvasAspectRatio } from "../services/videoMixService";
 
-type ToolKey = "canvas" | "cover" | "subtitles";
+type ToolKey = "remix" | "canvas" | "cover" | "subtitles";
 
 defineProps<{
+  isAdvancedMode: boolean;
   selectedVideo: ImportedVideo | null;
   previewUrl: string | null;
   selectedCoverUrl: string | null;
@@ -40,8 +40,6 @@ defineEmits<{
 
 const previewVideoRef = defineModel<HTMLVideoElement | null>("previewVideoRef");
 const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewBackgroundVideoRef");
-const scriptText = ref("");
-const scriptTextLength = computed(() => scriptText.value.trim().length);
 </script>
 
 <template>
@@ -49,11 +47,12 @@ const scriptTextLength = computed(() => scriptText.value.trim().length);
     <section class="panel preview-panel">
       <div class="panel__header">
         <div>
-          <p class="panel__label">预览</p>
-          <h2>{{ selectedVideo?.fileName ?? "请选择一个素材" }}</h2>
+          <p class="panel__label">视频预览</p>
+          <h2>{{ selectedVideo?.fileName ?? "等待导入素材" }}</h2>
         </div>
-        <div class="preview-actions">
-          <button class="panel-toggle" type="button" @click="$emit('openTool', 'canvas')">视频裁剪</button>
+        <div v-if="isAdvancedMode" class="preview-actions">
+          <span class="preview-mode-label">视频比例</span>
+          <button class="panel-toggle" type="button" @click="$emit('openTool', 'canvas')">画布比例</button>
           <button class="panel-toggle" type="button" @click="$emit('openTool', 'cover')">视频封面</button>
           <button class="panel-toggle" type="button" @click="$emit('openTool', 'subtitles')">添加文本</button>
         </div>
@@ -97,41 +96,42 @@ const scriptTextLength = computed(() => scriptText.value.trim().length);
       <div v-else class="video-placeholder">导入素材后，点击左侧视频即可预览。</div>
     </section>
 
-    <section class="panel copy-panel">
-      <div class="copy-panel__header">
+    <section class="panel remix-workflow-panel" :class="{ 'remix-workflow-panel--simple': !isAdvancedMode }">
+      <div class="remix-workflow-panel__header">
         <div>
-          <p class="panel__label">文案</p>
-          <h2>视频文案</h2>
+          <p class="panel__label">{{ isAdvancedMode ? "混剪流程" : "新手流程" }}</p>
+          <h2>{{ isAdvancedMode ? "切片、分类和生成" : "导入素材 -> 预览视频 -> 开始处理 -> 查看结果" }}</h2>
         </div>
-        <div class="subtitle-mode">
-          <span>视频字幕</span>
-          <button class="subtitle-mode__active" type="button">自动识别</button>
-          <button type="button">不启用</button>
+        <div class="workflow-stats">
+          <button type="button" class="status-chip" @click="$emit('openDrawer', 'batch')">
+            切片 {{ splitSegmentCount ?? 0 }}
+          </button>
+          <button type="button" class="status-chip" @click="$emit('openDrawer', 'batch')">
+            已抽取 {{ randomSelectedCount }}
+          </button>
+          <button type="button" class="status-chip" @click="$emit('openDrawer', 'exports')">
+            结果 {{ batchMixResultCount }}
+          </button>
         </div>
       </div>
-      <div class="copy-tabs">
-        <button class="copy-tab copy-tab--active" type="button">文案 1</button>
-        <button class="copy-tab" type="button">＋</button>
-      </div>
-      <textarea
-        v-model="scriptText"
-        class="copy-textarea"
-        placeholder="在这里输入本条视频的口播文案、字幕草稿或混剪说明。"
-      ></textarea>
-      <div class="copy-footer">
-        <span>字数：{{ scriptTextLength }}</span>
-        <span>文案仅用于 UI 入口，本次不接入真实字幕生成。</span>
-      </div>
-    </section>
 
-    <section class="panel core-actions-panel">
-      <div class="panel__header">
-        <div>
-          <p class="panel__label">核心操作</p>
-          <h2>切片、抽取、混剪、导出</h2>
+      <div v-if="!isAdvancedMode" class="simple-workflow">
+        <div class="simple-workflow__steps" aria-label="新手四步流程">
+          <span>1 导入素材</span>
+          <span>2 预览视频</span>
+          <span>3 开始处理</span>
+          <span>4 查看结果</span>
+        </div>
+        <div class="simple-workflow__actions">
+          <button class="primary-button" type="button" :disabled="isBatchMixing" @click="$emit('generateBatchMixes')">
+            {{ isBatchMixing ? "正在处理..." : "一键混剪" }}
+          </button>
+          <button class="ghost-button" type="button" @click="$emit('openTool', 'remix')">高级设置</button>
+          <button class="ghost-button" type="button" @click="$emit('openDrawer', 'exports')">查看结果</button>
         </div>
       </div>
-      <div class="core-action-grid">
+
+      <div v-else class="workflow-actions">
         <button class="primary-button" type="button" :disabled="isSplitting" @click="$emit('splitSelectedVideo')">
           {{ isSplitting ? "正在切片..." : "切片当前视频" }}
         </button>
@@ -143,43 +143,22 @@ const scriptTextLength = computed(() => scriptText.value.trim().length);
           {{ isMixing ? "正在分类混剪..." : "分类混剪" }}
         </button>
         <button class="primary-button" type="button" :disabled="isBatchMixing" @click="$emit('generateBatchMixes')">
-          {{ isBatchMixing ? "正在批量生成..." : "批量生成混剪" }}
+          {{ isBatchMixing ? "正在批量生成..." : "批量生成" }}
         </button>
         <button class="ghost-button" type="button" :disabled="isExporting" @click="$emit('exportSelectedVideo')">
           {{ isExporting ? "正在导出..." : "导出当前视频" }}
         </button>
       </div>
-      <div class="status-grid">
-        <button type="button" class="status-chip" @click="$emit('openDrawer', 'batch')">
-          切片 {{ splitSegmentCount ?? 0 }} / 已抽取 {{ randomSelectedCount }}
+
+      <div v-if="isAdvancedMode" class="workflow-meta">
+        <span>时长：{{ selectedVideo ? formatDuration(selectedVideo.durationSeconds) : "未知" }}</span>
+        <span>分辨率：{{ selectedVideo ? formatResolution(selectedVideo) : "未知" }}</span>
+        <span>帧率：{{ selectedVideo ? formatFrameRate(selectedVideo.frameRate) : "未知" }}</span>
+        <span>大小：{{ selectedVideo ? formatFileSize(selectedVideo.fileSizeBytes) : "未知" }}</span>
+        <button type="button" class="panel-toggle" @click="$emit('openTool', 'subtitles')">文案 / 字幕入口</button>
+        <button type="button" class="panel-toggle" @click="$emit('openTool', 'cover')">
+          {{ selectedCoverUrl ? "查看封面" : "设置封面" }}
         </button>
-        <button type="button" class="status-chip" @click="$emit('openDrawer', 'exports')">
-          批量结果 {{ batchMixResultCount }}
-        </button>
-        <button type="button" class="status-chip" @click="$emit('openDrawer', 'logs')">任务日志</button>
-      </div>
-    </section>
-    <section class="panel info-grid">
-      <div class="info-card info-card--cover">
-        <p>封面帧</p>
-        <img v-if="selectedCoverUrl" :src="selectedCoverUrl" alt="" />
-        <strong v-else>未生成</strong>
-      </div>
-      <div class="info-card">
-        <p>时长</p>
-        <strong>{{ selectedVideo ? formatDuration(selectedVideo.durationSeconds) : "未知" }}</strong>
-      </div>
-      <div class="info-card">
-        <p>分辨率</p>
-        <strong>{{ selectedVideo ? formatResolution(selectedVideo) : "未知" }}</strong>
-      </div>
-      <div class="info-card">
-        <p>帧率</p>
-        <strong>{{ selectedVideo ? formatFrameRate(selectedVideo.frameRate) : "未知" }}</strong>
-      </div>
-      <div class="info-card">
-        <p>大小</p>
-        <strong>{{ selectedVideo ? formatFileSize(selectedVideo.fileSizeBytes) : "未知" }}</strong>
       </div>
     </section>
   </section>

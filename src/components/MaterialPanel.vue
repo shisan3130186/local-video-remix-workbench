@@ -3,6 +3,7 @@ import type { SegmentCategory, SegmentCategoryOption } from "../services/videoMi
 import type { ImportedVideo } from "../types/videoProbe";
 
 defineProps<{
+  isAdvancedMode: boolean;
   importedVideos: ImportedVideo[];
   selectedVideo: ImportedVideo | null;
   isImporting: boolean;
@@ -35,12 +36,12 @@ function updateCategory(event: Event, segmentPath: string) {
 </script>
 
 <template>
-  <aside class="left-rail" aria-label="素材和片段">
-    <section class="panel panel--stretch">
-      <div class="panel__header">
+  <aside class="left-rail" :class="{ 'left-rail--simple': !isAdvancedMode }" aria-label="素材和片段">
+    <section class="panel material-browser-panel">
+      <div class="panel__header material-browser-panel__header">
         <div>
           <p class="panel__label">素材</p>
-          <h2>视频素材列表</h2>
+          <h2>素材树</h2>
         </div>
         <span class="count-badge">{{ importedVideos.length }}</span>
       </div>
@@ -55,94 +56,48 @@ function updateCategory(event: Event, segmentPath: string) {
       </div>
 
       <p v-if="importError" class="error-text">{{ importError }}</p>
-      <p v-else-if="importedVideos.length === 0" class="empty-text">支持 mp4 / mov / avi / mkv。</p>
-
-      <div v-else class="asset-list">
-        <article
-          v-for="video in importedVideos"
-          :key="video.id"
-          class="asset-card"
-          :class="{ 'asset-card--active': selectedVideo?.id === video.id }"
-          tabindex="0"
-          role="button"
-          @click="$emit('selectVideo', video)"
-          @keydown.enter="$emit('selectVideo', video)"
-          @keydown.space.prevent="$emit('selectVideo', video)"
-        >
-          <div class="asset-card__thumb">
-            <img v-if="videoCoverUrls[video.id]" :src="videoCoverUrls[video.id]" alt="" />
-            <span v-else>封面</span>
-          </div>
-          <div class="asset-card__title">
-            <h3>{{ video.fileName }}</h3>
-            <span>{{ video.hasAudio ? "有音频" : "无音频" }}</span>
-          </div>
-          <p class="asset-card__path">{{ video.filePath }}</p>
-          <dl class="asset-card__meta">
-            <div>
-              <dt>时长</dt>
-              <dd>{{ formatDuration(video.durationSeconds) }}</dd>
-            </div>
-            <div>
-              <dt>分辨率</dt>
-              <dd>{{ formatResolution(video) }}</dd>
-            </div>
-          </dl>
-        </article>
+      <div v-else-if="importedVideos.length === 0" class="empty-state material-empty-state">
+        <span class="empty-state__icon">□</span>
+        <strong>暂无视频</strong>
+        <p>点击导入视频或导入文件夹添加素材。</p>
       </div>
-    </section>
 
-    <section class="panel folder-tree-panel">
-      <div class="panel__header">
-        <div>
-          <p class="panel__label">文件夹</p>
-          <h2>文件夹树</h2>
-        </div>
-      </div>
-      <div class="folder-tree">
-        <div class="folder-tree__item folder-tree__item--active">
+      <div v-else class="asset-tree">
+        <div class="asset-tree__folder">
           <span>素材库</span>
           <strong>{{ importedVideos.length }}</strong>
         </div>
-        <div class="folder-tree__item">
-          <span>已切片片段</span>
+        <button
+          v-for="video in importedVideos"
+          :key="video.id"
+          class="asset-row"
+          :class="{ 'asset-row--active': selectedVideo?.id === video.id }"
+          type="button"
+          @click="$emit('selectVideo', video)"
+        >
+          <span class="asset-row__icon">▣</span>
+          <span class="asset-row__name">{{ video.fileName }}</span>
+          <small>{{ formatDuration(video.durationSeconds) }}</small>
+        </button>
+      </div>
+
+      <div v-if="isAdvancedMode" class="material-summary">
+        <div>
+          <span>已切片</span>
           <strong>{{ splitSegmentPaths.length }}</strong>
         </div>
-        <div class="folder-tree__item">
-          <span>已抽取片段</span>
+        <div>
+          <span>已抽取</span>
           <strong>{{ randomSelectedSegments.length }}</strong>
         </div>
       </div>
     </section>
 
-    <section class="panel output-mini-panel">
+    <section v-if="isAdvancedMode" class="panel segment-browser-panel">
       <div class="panel__header">
         <div>
-          <p class="panel__label">输出</p>
-          <h2>输出目录</h2>
-        </div>
-      </div>
-      <p v-if="outputDirectory" class="output-path">{{ outputDirectory }}</p>
-      <p v-else class="empty-text">请选择导出结果保存位置。</p>
-      <button class="ghost-button ghost-button--full" type="button" @click="$emit('selectOutputDirectory')">
-        选择输出目录
-      </button>
-      <button
-        class="ghost-button ghost-button--full"
-        type="button"
-        :disabled="!outputDirectory"
-        @click="$emit('openOutputDirectory')"
-      >
-        打开输出目录
-      </button>
-      <p v-if="outputDirectoryError" class="error-text">{{ outputDirectoryError }}</p>
-    </section>
-
-    <section class="panel">
-      <div class="panel__header">
-        <div>
-          <p class="panel__label">片段</p>
-          <h2>切片和抽取结果</h2>
+          <p class="panel__label">切片列表</p>
+          <h2>片段分类</h2>
         </div>
         <span class="count-badge">{{ splitSegmentPaths.length }}</span>
       </div>
@@ -182,6 +137,25 @@ function updateCategory(event: Event, segmentPath: string) {
           </li>
         </ol>
       </div>
+    </section>
+
+    <section class="panel output-mini-panel">
+      <div class="output-dock">
+        <span>输出路径：</span>
+        <p v-if="outputDirectory" class="output-path">{{ outputDirectory }}</p>
+        <p v-else class="output-path">请选择输出目录</p>
+        <button class="icon-button" type="button" aria-label="选择输出目录" @click="$emit('selectOutputDirectory')">□</button>
+        <button
+          class="icon-button"
+          type="button"
+          aria-label="打开输出目录"
+          :disabled="!outputDirectory"
+          @click="$emit('openOutputDirectory')"
+        >
+          ↗
+        </button>
+      </div>
+      <p v-if="outputDirectoryError" class="error-text">{{ outputDirectoryError }}</p>
     </section>
   </aside>
 </template>

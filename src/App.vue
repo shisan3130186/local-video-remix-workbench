@@ -138,10 +138,11 @@ const canvasAspectRatio = ref<CanvasAspectRatio>("original");
 const canvasBackgroundMode = ref<CanvasBackgroundMode>("black");
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
-const isWorkspaceVisible = ref(false);
+const isWorkspaceVisible = ref(true);
 const activeTool = ref<ToolKey | null>(null);
 const activeDrawer = ref<DrawerKey | null>(null);
 const isWelcomeVisible = ref(true);
+const isAdvancedMode = ref(false);
 
 const moduleCards = [
   {
@@ -1242,7 +1243,7 @@ onMounted(() => {
         <button v-if="isWorkspaceVisible" class="back-button" type="button" @click="isWorkspaceVisible = false">
           返回首页
         </button>
-        <p v-else class="eyebrow">V0.2 基础混剪版</p>
+        <p v-else class="eyebrow">V0.3.5 分类混剪版</p>
         <h1>本地短视频批量混剪工作台</h1>
       </div>
       <div class="top-status">
@@ -1268,8 +1269,9 @@ onMounted(() => {
       @close-welcome="isWelcomeVisible = false"
     />
 
-    <section v-else class="workbench">
+    <section v-else class="workbench" :class="{ 'workbench--advanced': isAdvancedMode }">
       <MaterialPanel
+        :is-advanced-mode="isAdvancedMode"
         :imported-videos="importedVideos"
         :selected-video="selectedVideo"
         :is-importing="isImporting"
@@ -1296,6 +1298,7 @@ onMounted(() => {
       <PreviewPanel
         v-model:preview-video-ref="previewVideoRef"
         v-model:preview-background-video-ref="previewBackgroundVideoRef"
+        :is-advanced-mode="isAdvancedMode"
         :selected-video="selectedVideo"
         :preview-url="previewUrl"
         :selected-cover-url="selectedCoverUrl"
@@ -1325,13 +1328,16 @@ onMounted(() => {
       />
 
       <RightToolPanel
+        :is-advanced-mode="isAdvancedMode"
         :environment="environment"
         :status-text="statusText"
         @open-tool="activeTool = $event"
         @open-drawer="activeDrawer = $event"
+        @toggle-advanced-mode="isAdvancedMode = $event"
       />
 
       <TaskControlBar
+        :is-advanced-mode="isAdvancedMode"
         :total-videos="importedVideos.length"
         :completed-count="exportResultItems.length"
         :failed-count="0"

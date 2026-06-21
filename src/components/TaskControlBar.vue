@@ -1,5 +1,6 @@
 <script setup lang="ts">
 defineProps<{
+  isAdvancedMode: boolean;
   totalVideos: number;
   completedCount: number;
   failedCount: number;
@@ -18,7 +19,7 @@ defineEmits<{
     <div class="task-progress">
       <span :style="{ width: `${totalVideos > 0 ? Math.min(100, Math.round((completedCount / totalVideos) * 100)) : 0}%` }"></span>
     </div>
-    <div class="task-control-grid">
+    <div v-if="isAdvancedMode" class="task-control-grid">
       <label class="mini-field">
         <span>输出格式</span>
         <select><option>MP4</option></select>
@@ -53,6 +54,25 @@ defineEmits<{
           <option>2 线程</option>
         </select>
       </label>
+      <button
+        class="primary-button task-start-button"
+        type="button"
+        :disabled="isProcessing"
+        @click="$emit('startProcessing')"
+      >
+        {{ isProcessing ? "处理中..." : "开始处理" }}
+      </button>
+    </div>
+
+    <div v-else class="task-control-grid task-control-grid--simple">
+      <div class="simple-output-field">
+        <span>输出目录</span>
+        <strong>{{ outputDirectory ?? "未选择" }}</strong>
+      </div>
+      <div class="simple-output-field">
+        <span>处理状态</span>
+        <strong>{{ isProcessing ? "正在处理" : "准备就绪" }}</strong>
+      </div>
       <button
         class="primary-button task-start-button"
         type="button"
