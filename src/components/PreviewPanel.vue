@@ -21,6 +21,8 @@ defineProps<{
   splitSegmentCount: number | null;
   randomSelectedCount: number;
   batchMixResultCount: number;
+  mixError: string | null;
+  batchMixError: string | null;
   formatDuration: (durationSeconds: number | null) => string;
   formatResolution: (video: ImportedVideo) => string;
   formatFrameRate: (frameRate: number | null) => string;
@@ -149,6 +151,9 @@ const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewB
         <button class="ghost-button" type="button" :disabled="isExporting" @click="$emit('exportSelectedVideo')">
           {{ isExporting ? "正在导出..." : "导出当前视频" }}
         </button>
+      </div>
+      <div v-if="isAdvancedMode && (mixError || batchMixError)" class="workflow-error">
+        {{ mixError || batchMixError }}
       </div>
 
       <div v-if="isAdvancedMode" class="workflow-meta">

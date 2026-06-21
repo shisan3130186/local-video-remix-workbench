@@ -789,6 +789,17 @@ h3 {
   gap: 8px;
 }
 
+.workflow-error {
+  min-height: 28px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 106, 106, 0.36);
+  border-radius: 7px;
+  color: #ffb8b8;
+  background: rgba(86, 24, 24, 0.32);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .simple-workflow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

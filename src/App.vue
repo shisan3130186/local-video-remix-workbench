@@ -516,6 +516,14 @@ async function concatCategorizedSegments() {
   mixResultPath.value = null;
   mixLogs.value = [];
 
+  const pipValidationError = validatePictureInPictureSettings();
+
+  if (pipValidationError) {
+    mixError.value = pipValidationError;
+    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
+    return;
+  }
+
   if (!outputDirectory.value) {
     mixError.value = "请先选择输出目录。";
     appendMixLog(`分类混剪失败：${mixError.value}`, "error");
@@ -626,6 +634,14 @@ async function concatRandomSegments() {
   mixResultPath.value = null;
   mixLogs.value = [];
 
+  const pipValidationError = validatePictureInPictureSettings();
+
+  if (pipValidationError) {
+    mixError.value = pipValidationError;
+    appendMixLog(`拼接失败：${mixError.value}`, "error");
+    return;
+  }
+
   if (!outputDirectory.value) {
     mixError.value = "请先选择输出目录。";
     appendMixLog(`拼接失败：${mixError.value}`, "error");
@@ -690,6 +706,14 @@ async function generateBatchMixes() {
   batchMixError.value = null;
   batchMixResults.value = [];
   batchMixLogs.value = [];
+
+  const pipValidationError = validatePictureInPictureSettings();
+
+  if (pipValidationError) {
+    batchMixError.value = pipValidationError;
+    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
+    return;
+  }
 
   if (!outputDirectory.value) {
     batchMixError.value = "请先选择输出目录。";
@@ -829,6 +853,30 @@ function validatePlaybackSpeed() {
 
   if (playbackSpeed.value < 0.5 || playbackSpeed.value > 2) {
     return "变速倍数暂时只支持 0.5 到 2.0。";
+  }
+
+  return null;
+}
+
+function validatePictureInPictureSettings() {
+  if (!pipEnabled.value) {
+    return null;
+  }
+
+  if (!pipOverlayFilePath.value) {
+    return "请先选择画中画素材，或关闭画中画。";
+  }
+
+  if (!Number.isFinite(pipSizeRatio.value) || pipSizeRatio.value < 0.2 || pipSizeRatio.value > 0.5) {
+    return "画中画大小比例必须在 0.2 到 0.5 之间。";
+  }
+
+  if (!Number.isFinite(pipOpacity.value) || pipOpacity.value < 0 || pipOpacity.value > 1) {
+    return "画中画透明度必须在 0 到 1 之间。";
+  }
+
+  if (!Number.isFinite(pipMargin.value) || pipMargin.value < 0 || pipMargin.value > 240) {
+    return "画中画边距必须在 0 到 240 之间。";
   }
 
   return null;
@@ -1334,6 +1382,8 @@ onMounted(() => {
         :split-segment-count="splitSegmentCount"
         :random-selected-count="randomSelectedSegments.length"
         :batch-mix-result-count="batchMixResults.length"
+        :mix-error="mixError"
+        :batch-mix-error="batchMixError"
         :format-duration="formatDuration"
         :format-resolution="formatResolution"
         :format-frame-rate="formatFrameRate"

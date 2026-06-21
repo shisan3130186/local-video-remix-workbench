@@ -183,12 +183,12 @@ function updateNumber(
   }
 
   if (name === "pipSizeRatio") {
-    emit("update:pipSizeRatio", value);
+    emit("update:pipSizeRatio", clampNumber(value, 0.2, 0.5));
     return;
   }
 
   if (name === "pipOpacity") {
-    emit("update:pipOpacity", value);
+    emit("update:pipOpacity", clampNumber(value, 0, 1));
     return;
   }
 
@@ -197,7 +197,15 @@ function updateNumber(
     return;
   }
 
-  emit("update:pipMargin", value);
+  emit("update:pipMargin", clampNumber(value, 0, 240));
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+
+  return Math.min(max, Math.max(min, value));
 }
 
 function updateCheckbox(
