@@ -39,6 +39,8 @@ export interface BgmSettings {
   audioFilePath: string | null;
   originalVolume: number;
   bgmVolume: number;
+  fadeInSeconds: number;
+  fadeOutSeconds: number;
 }
 
 export type CanvasAspectRatio =

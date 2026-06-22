@@ -59,6 +59,8 @@ pub struct BgmSettings {
     audio_file_path: Option<String>,
     original_volume: f64,
     bgm_volume: f64,
+    fade_in_seconds: f64,
+    fade_out_seconds: f64,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -125,6 +127,10 @@ pub fn concat_video_segments(
     let prepared_segments_have_audio = probe_segment_info(&prepared_segments.segment_paths[0])
         .map(|info| info.has_audio)
         .unwrap_or(false);
+    let output_duration_seconds = calculate_output_duration_seconds(
+        &prepared_segments.segment_paths,
+        normalized_playback_speed,
+    )?;
 
     let concat_list_content = build_concat_list_content(&prepared_segments.segment_paths);
     let output_dimensions = canvas_aspect_ratio.dimensions();
@@ -189,6 +195,7 @@ pub fn concat_video_segments(
             bgm_input_index,
             prepared_segments_have_audio,
             normalized_playback_speed,
+            output_duration_seconds,
         );
 
         if let Some(pip_settings) = &normalized_pip_settings {
@@ -366,6 +373,20 @@ fn normalize_bgm_settings(settings: BgmSettings) -> Result<Option<BgmSettings>, 
         return Err("BGM 音量必须在 0 到 2 之间。".to_string());
     }
 
+    if !settings.fade_in_seconds.is_finite()
+        || settings.fade_in_seconds < 0.0
+        || settings.fade_in_seconds > 10.0
+    {
+        return Err("BGM 淡入秒数必须在 0 到 10 之间。".to_string());
+    }
+
+    if !settings.fade_out_seconds.is_finite()
+        || settings.fade_out_seconds < 0.0
+        || settings.fade_out_seconds > 10.0
+    {
+        return Err("BGM 淡出秒数必须在 0 到 10 之间。".to_string());
+    }
+
     Ok(Some(settings))
 }
 
@@ -409,11 +430,9 @@ fn build_bgm_audio_filter(
     bgm_input_index: usize,
     has_original_audio: bool,
     playback_speed: f64,
+    output_duration_seconds: f64,
 ) -> String {
-    let bgm_filter = format!(
-        "[{bgm_input_index}:a]volume={:.3}[bgm]",
-        settings.bgm_volume
-    );
+    let bgm_filter = build_bgm_source_filter(settings, bgm_input_index, output_duration_seconds);
 
     if !has_original_audio {
         return format!("{bgm_filter};[bgm]anull[a]");
@@ -431,6 +450,29 @@ fn build_bgm_audio_filter(
     format!(
         "{original_filter};{bgm_filter};[original][bgm]amix=inputs=2:duration=first:dropout_transition=0[a]"
     )
+}
+
+fn build_bgm_source_filter(
+    settings: &BgmSettings,
+    bgm_input_index: usize,
+    output_duration_seconds: f64,
+) -> String {
+    let mut filters = vec![format!("volume={:.3}", settings.bgm_volume)];
+
+    if settings.fade_in_seconds > 0.001 {
+        let fade_in_duration = settings.fade_in_seconds.min(output_duration_seconds);
+        filters.push(format!("afade=t=in:st=0:d={fade_in_duration:.3}"));
+    }
+
+    if settings.fade_out_seconds > 0.001 {
+        let fade_out_duration = settings.fade_out_seconds.min(output_duration_seconds);
+        let fade_out_start = (output_duration_seconds - fade_out_duration).max(0.0);
+        filters.push(format!(
+            "afade=t=out:st={fade_out_start:.3}:d={fade_out_duration:.3}"
+        ));
+    }
+
+    format!("[{bgm_input_index}:a]{}[bgm]", filters.join(","))
 }
 
 fn build_pip_filter(
@@ -545,6 +587,19 @@ fn should_apply_eq_filter(settings: VideoEffectSettings) -> bool {
 
 fn should_apply_scale_filter(scale: f64) -> bool {
     (scale - 1.0).abs() > 0.001
+}
+
+fn calculate_output_duration_seconds(
+    segment_paths: &[String],
+    playback_speed: f64,
+) -> Result<f64, String> {
+    let mut total_duration_seconds = 0.0;
+
+    for segment_path in segment_paths {
+        total_duration_seconds += probe_segment_info(segment_path)?.duration_seconds;
+    }
+
+    Ok((total_duration_seconds / playback_speed).max(0.0))
 }
 
 struct PreparedSegments {

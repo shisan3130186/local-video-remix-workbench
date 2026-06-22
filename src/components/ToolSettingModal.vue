@@ -65,6 +65,8 @@ const props = defineProps<{
   bgmAudioFilePath: string | null;
   originalVolume: number;
   bgmVolume: number;
+  bgmFadeInSeconds: number;
+  bgmFadeOutSeconds: number;
   selectedCoverUrl: string | null;
   coverFrameSeconds: number;
   isGeneratingCover: boolean;
@@ -106,6 +108,8 @@ const emit = defineEmits<{
   "update:bgmEnabled": [value: boolean];
   "update:originalVolume": [value: number];
   "update:bgmVolume": [value: number];
+  "update:bgmFadeInSeconds": [value: number];
+  "update:bgmFadeOutSeconds": [value: number];
   "update:coverFrameSeconds": [value: number];
 }>();
 
@@ -149,6 +153,8 @@ function updateNumber(
     | "pipMargin"
     | "originalVolume"
     | "bgmVolume"
+    | "bgmFadeInSeconds"
+    | "bgmFadeOutSeconds"
     | "coverFrameSeconds",
 ) {
   const value = Number((event.target as HTMLInputElement).value);
@@ -209,6 +215,16 @@ function updateNumber(
 
   if (name === "bgmVolume") {
     emit("update:bgmVolume", clampNumber(value, 0, 2));
+    return;
+  }
+
+  if (name === "bgmFadeInSeconds") {
+    emit("update:bgmFadeInSeconds", clampNumber(value, 0, 10));
+    return;
+  }
+
+  if (name === "bgmFadeOutSeconds") {
+    emit("update:bgmFadeOutSeconds", clampNumber(value, 0, 10));
     return;
   }
 
@@ -476,7 +492,31 @@ function formatFileName(filePath: string | null) {
               @input="updateNumber($event, 'bgmVolume')"
             />
           </label>
-          <p class="empty-text">BGM 会自动适配导出视频长度：短了会循环，长了会截断。</p>
+          <label class="field">
+            <span>BGM 淡入秒数</span>
+            <input
+              :value="bgmFadeInSeconds"
+              type="number"
+              min="0"
+              max="10"
+              step="0.1"
+              :disabled="isMixing || isBatchMixing"
+              @input="updateNumber($event, 'bgmFadeInSeconds')"
+            />
+          </label>
+          <label class="field">
+            <span>BGM 淡出秒数</span>
+            <input
+              :value="bgmFadeOutSeconds"
+              type="number"
+              min="0"
+              max="10"
+              step="0.1"
+              :disabled="isMixing || isBatchMixing"
+              @input="updateNumber($event, 'bgmFadeOutSeconds')"
+            />
+          </label>
+          <p class="empty-text">BGM 会自动适配导出视频长度：短了会循环，长了会截断；淡入淡出只影响背景音乐。</p>
         </template>
 
         <template v-else-if="activeTool === 'cover' || activeTool === 'frame'">

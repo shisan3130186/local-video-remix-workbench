@@ -127,6 +127,8 @@ const bgmEnabled = ref(false);
 const bgmAudioFilePath = ref<string | null>(null);
 const originalVolume = ref(1);
 const bgmVolume = ref(0.35);
+const bgmFadeInSeconds = ref(0.5);
+const bgmFadeOutSeconds = ref(0.5);
 const videoCoverPaths = ref<Record<string, string>>({});
 const segmentThumbnailPaths = ref<Record<string, string>>({});
 const selectedSegmentPath = ref<string | null>(null);
@@ -294,6 +296,8 @@ const bgmSettings = computed(
     audioFilePath: bgmAudioFilePath.value,
     originalVolume: originalVolume.value,
     bgmVolume: bgmVolume.value,
+    fadeInSeconds: bgmFadeInSeconds.value,
+    fadeOutSeconds: bgmFadeOutSeconds.value,
   }),
 );
 
@@ -940,6 +944,14 @@ function validateBgmSettings() {
     return "BGM 音量必须在 0 到 2 之间。";
   }
 
+  if (!Number.isFinite(bgmFadeInSeconds.value) || bgmFadeInSeconds.value < 0 || bgmFadeInSeconds.value > 10) {
+    return "BGM 淡入秒数必须在 0 到 10 之间。";
+  }
+
+  if (!Number.isFinite(bgmFadeOutSeconds.value) || bgmFadeOutSeconds.value < 0 || bgmFadeOutSeconds.value > 10) {
+    return "BGM 淡出秒数必须在 0 到 10 之间。";
+  }
+
   return null;
 }
 
@@ -979,7 +991,11 @@ function buildMixOptionSummary() {
   }
 
   if (bgmEnabled.value) {
-    options.push("已添加 BGM");
+    const fadeSummary =
+      bgmFadeInSeconds.value > 0 || bgmFadeOutSeconds.value > 0
+        ? `，淡入 ${bgmFadeInSeconds.value.toFixed(1)} 秒，淡出 ${bgmFadeOutSeconds.value.toFixed(1)} 秒`
+        : "";
+    options.push(`已添加 BGM${fadeSummary}`);
   }
 
   if (Math.abs(playbackSpeed.value - 1) > 0.001) {
@@ -1059,6 +1075,8 @@ function resetToolSettings(tool: ToolKey) {
     bgmAudioFilePath.value = null;
     originalVolume.value = 1;
     bgmVolume.value = 0.35;
+    bgmFadeInSeconds.value = 0.5;
+    bgmFadeOutSeconds.value = 0.5;
     return;
   }
 
@@ -1553,6 +1571,8 @@ onMounted(() => {
       :bgm-audio-file-path="bgmAudioFilePath"
       :original-volume="originalVolume"
       :bgm-volume="bgmVolume"
+      :bgm-fade-in-seconds="bgmFadeInSeconds"
+      :bgm-fade-out-seconds="bgmFadeOutSeconds"
       :selected-cover-url="selectedCoverUrl"
       :cover-frame-seconds="coverFrameSeconds"
       :is-generating-cover="isGeneratingCover"
@@ -1591,6 +1611,8 @@ onMounted(() => {
       @update:bgm-enabled="bgmEnabled = $event"
       @update:original-volume="originalVolume = $event"
       @update:bgm-volume="bgmVolume = $event"
+      @update:bgm-fade-in-seconds="bgmFadeInSeconds = $event"
+      @update:bgm-fade-out-seconds="bgmFadeOutSeconds = $event"
       @update:cover-frame-seconds="coverFrameSeconds = $event"
     />
 
