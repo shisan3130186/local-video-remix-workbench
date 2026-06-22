@@ -2,6 +2,10 @@
 
 ## 2026-06-22
 
+- V0.3.6 已完成人工验收并提交 Git，项目进入 V0.4 音频与 BGM 第一版规划。
+- 更新 `TODO_NEXT.md`，把当前唯一下一步切换为 V0.4.1 本地 BGM 第一版。
+- 更新 `PROJECT_STATUS.md`、`ROADMAP.md`、`DECISIONS.md`、`README.md`、`docs/10_开发者验收清单.md` 和 `docs/05_视频处理引擎设计.md`，统一说明 V0.4 先做本地 BGM，不做 AI 自动配乐、在线音乐库、字幕识别、TTS、API Key、会员卡密或复杂多轨时间线。
+- 本次只更新文档，不修改 Vue、Rust、FFmpeg 或 VideoEngine 代码。
 - V0.3.6 修复项已完成人工验收：画中画参数提示、分类混剪、批量生成和平滑混剪入口均已由用户确认可用。
 - 本次补充记录只更新文档，不修改前端、Rust、FFmpeg 或 VideoEngine。
 - 补回高级模式右侧“平滑混剪”入口，点击后打开原有平滑转场二级设置。
