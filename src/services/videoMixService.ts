@@ -34,6 +34,13 @@ export interface PictureInPictureSettings {
   margin: number;
 }
 
+export interface BgmSettings {
+  enabled: boolean;
+  audioFilePath: string | null;
+  originalVolume: number;
+  bgmVolume: number;
+}
+
 export type CanvasAspectRatio =
   | "original"
   | "portrait916"
@@ -135,6 +142,7 @@ export function concatSelectedSegments(
   smoothRemixEnabled: boolean,
   videoEffectSettings: VideoEffectSettings,
   pictureInPictureSettings: PictureInPictureSettings,
+  bgmSettings: BgmSettings,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_selected_segments", {
     segmentPaths,
@@ -146,6 +154,7 @@ export function concatSelectedSegments(
     smoothRemixEnabled,
     videoEffectSettings,
     pictureInPictureSettings,
+    bgmSettings,
   });
 }
 

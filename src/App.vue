@@ -19,6 +19,7 @@ import {
   pickRandomSegments,
 } from "./services/videoMixService";
 import type {
+  BgmSettings,
   CanvasAspectRatio,
   CanvasBackgroundMode,
   MixVideoResult,
@@ -122,6 +123,10 @@ const pipPosition = ref<PipPosition>("topRight");
 const pipSizeRatio = ref(0.3);
 const pipOpacity = ref(1);
 const pipMargin = ref(24);
+const bgmEnabled = ref(false);
+const bgmAudioFilePath = ref<string | null>(null);
+const originalVolume = ref(1);
+const bgmVolume = ref(0.35);
 const videoCoverPaths = ref<Record<string, string>>({});
 const segmentThumbnailPaths = ref<Record<string, string>>({});
 const selectedSegmentPath = ref<string | null>(null);
@@ -280,6 +285,15 @@ const pictureInPictureSettings = computed(
     sizeRatio: pipSizeRatio.value,
     opacity: pipOpacity.value,
     margin: pipMargin.value,
+  }),
+);
+
+const bgmSettings = computed(
+  (): BgmSettings => ({
+    enabled: bgmEnabled.value,
+    audioFilePath: bgmAudioFilePath.value,
+    originalVolume: originalVolume.value,
+    bgmVolume: bgmVolume.value,
   }),
 );
 
@@ -524,6 +538,14 @@ async function concatCategorizedSegments() {
     return;
   }
 
+  const bgmValidationError = validateBgmSettings();
+
+  if (bgmValidationError) {
+    mixError.value = bgmValidationError;
+    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
+    return;
+  }
+
   if (!outputDirectory.value) {
     mixError.value = "请先选择输出目录。";
     appendMixLog(`分类混剪失败：${mixError.value}`, "error");
@@ -577,7 +599,7 @@ async function concatCategorizedSegments() {
   appendMixLog(
     `分类混剪中，变速倍数 ${playbackSpeed.value.toFixed(2)}x，平滑混剪${
       smoothRemixEnabled.value ? "已开启" : "未开启"
-    }。`,
+    }，BGM${bgmEnabled.value ? "已开启" : "未开启"}。`,
     "info",
   );
   isMixing.value = true;
@@ -593,6 +615,7 @@ async function concatCategorizedSegments() {
       smoothRemixEnabled.value,
       videoEffectSettings.value,
       pictureInPictureSettings.value,
+      bgmSettings.value,
     );
     mixResultPath.value = result.outputPath;
     addExportResult("分类混剪", result.outputPath);
@@ -642,6 +665,14 @@ async function concatRandomSegments() {
     return;
   }
 
+  const bgmValidationError = validateBgmSettings();
+
+  if (bgmValidationError) {
+    mixError.value = bgmValidationError;
+    appendMixLog(`拼接失败：${mixError.value}`, "error");
+    return;
+  }
+
   if (!outputDirectory.value) {
     mixError.value = "请先选择输出目录。";
     appendMixLog(`拼接失败：${mixError.value}`, "error");
@@ -666,7 +697,7 @@ async function concatRandomSegments() {
   appendMixLog(
     `拼接中，变速倍数 ${playbackSpeed.value.toFixed(2)}x，平滑混剪${
       smoothRemixEnabled.value ? "已开启" : "未开启"
-    }。`,
+    }，BGM${bgmEnabled.value ? "已开启" : "未开启"}。`,
     "info",
   );
   isMixing.value = true;
@@ -682,6 +713,7 @@ async function concatRandomSegments() {
       smoothRemixEnabled.value,
       videoEffectSettings.value,
       pictureInPictureSettings.value,
+      bgmSettings.value,
     );
     mixResultPath.value = result.outputPath;
     addExportResult("拼接导出", result.outputPath);
@@ -715,6 +747,14 @@ async function generateBatchMixes() {
     return;
   }
 
+  const bgmValidationError = validateBgmSettings();
+
+  if (bgmValidationError) {
+    batchMixError.value = bgmValidationError;
+    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
+    return;
+  }
+
   if (!outputDirectory.value) {
     batchMixError.value = "请先选择输出目录。";
     appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
@@ -744,7 +784,7 @@ async function generateBatchMixes() {
   appendBatchMixLog(
     `开始批量生成：计划生成 ${batchGenerateCount.value} 条，变速倍数 ${playbackSpeed.value.toFixed(2)}x，平滑混剪${
       smoothRemixEnabled.value ? "已开启" : "未开启"
-    }。`,
+    }，BGM${bgmEnabled.value ? "已开启" : "未开启"}。`,
     "info",
   );
   isBatchMixing.value = true;
@@ -767,6 +807,7 @@ async function generateBatchMixes() {
         smoothRemixEnabled.value,
         videoEffectSettings.value,
         pictureInPictureSettings.value,
+        bgmSettings.value,
       );
       batchMixResults.value.push(result.outputPath);
       addExportResult("批量生成", result.outputPath);
@@ -882,6 +923,26 @@ function validatePictureInPictureSettings() {
   return null;
 }
 
+function validateBgmSettings() {
+  if (!bgmEnabled.value) {
+    return null;
+  }
+
+  if (!bgmAudioFilePath.value) {
+    return "请先选择 BGM 音频文件，或关闭 BGM。";
+  }
+
+  if (!Number.isFinite(originalVolume.value) || originalVolume.value < 0 || originalVolume.value > 2) {
+    return "原视频音量必须在 0 到 2 之间。";
+  }
+
+  if (!Number.isFinite(bgmVolume.value) || bgmVolume.value < 0 || bgmVolume.value > 2) {
+    return "BGM 音量必须在 0 到 2 之间。";
+  }
+
+  return null;
+}
+
 function buildMixOptionSummary() {
   const options = [];
 
@@ -915,6 +976,10 @@ function buildMixOptionSummary() {
 
   if (pipEnabled.value) {
     options.push("已应用画中画");
+  }
+
+  if (bgmEnabled.value) {
+    options.push("已添加 BGM");
   }
 
   if (Math.abs(playbackSpeed.value - 1) > 0.001) {
@@ -986,6 +1051,14 @@ function resetToolSettings(tool: ToolKey) {
     pipSizeRatio.value = 0.3;
     pipOpacity.value = 1;
     pipMargin.value = 24;
+    return;
+  }
+
+  if (tool === "bgm" || tool === "audio") {
+    bgmEnabled.value = false;
+    bgmAudioFilePath.value = null;
+    originalVolume.value = 1;
+    bgmVolume.value = 0.35;
     return;
   }
 
@@ -1237,6 +1310,30 @@ function addExportResult(type: ExportResultItem["type"], path: string) {
   });
 }
 
+async function selectBgmAudioFile() {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [
+        {
+          name: "音频文件",
+          extensions: ["mp3", "wav", "m4a", "aac", "flac", "ogg"],
+        },
+      ],
+    });
+
+    if (!selected || Array.isArray(selected)) {
+      return;
+    }
+
+    bgmAudioFilePath.value = selected;
+    bgmEnabled.value = true;
+  } catch (error) {
+    mixError.value =
+      error instanceof Error ? error.message : String(error ?? "选择 BGM 音频失败。");
+  }
+}
+
 function buildEmptySegmentCategoryMap(segmentPaths: string[]) {
   return Object.fromEntries(segmentPaths.map((segmentPath) => [segmentPath, ""])) as Record<
     string,
@@ -1452,6 +1549,10 @@ onMounted(() => {
       :pip-size-ratio="pipSizeRatio"
       :pip-opacity="pipOpacity"
       :pip-margin="pipMargin"
+      :bgm-enabled="bgmEnabled"
+      :bgm-audio-file-path="bgmAudioFilePath"
+      :original-volume="originalVolume"
+      :bgm-volume="bgmVolume"
       :selected-cover-url="selectedCoverUrl"
       :cover-frame-seconds="coverFrameSeconds"
       :is-generating-cover="isGeneratingCover"
@@ -1466,6 +1567,7 @@ onMounted(() => {
       @open-output-directory="openOutputDirectory"
       @export-selected-video="exportSelectedVideo"
       @select-pip-overlay-file="selectPipOverlayFile"
+      @select-bgm-audio-file="selectBgmAudioFile"
       @generate-cover-frame="generateCoverFrame"
       @update:segment-duration-seconds="segmentDurationSeconds = $event"
       @update:random-pick-count="randomPickCount = $event"
@@ -1486,6 +1588,9 @@ onMounted(() => {
       @update:pip-size-ratio="pipSizeRatio = $event"
       @update:pip-opacity="pipOpacity = $event"
       @update:pip-margin="pipMargin = $event"
+      @update:bgm-enabled="bgmEnabled = $event"
+      @update:original-volume="originalVolume = $event"
+      @update:bgm-volume="bgmVolume = $event"
       @update:cover-frame-seconds="coverFrameSeconds = $event"
     />
 

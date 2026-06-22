@@ -42,6 +42,7 @@ const mainTools: Array<{ key: ToolKey; title: string; note: string; active?: boo
   { key: "effects", title: "视频效果", note: "镜像、旋转、变速、画面调整" },
   { key: "transition", title: "平滑混剪", note: "淡入淡出、过滤过短片段" },
   { key: "pip", title: "画中画", note: "叠加视频或图片" },
+  { key: "bgm", title: "背景音乐", note: "本地音乐和音量" },
 ];
 
 const reservedTools: Array<{ key: ToolKey; title: string }> = [
@@ -49,7 +50,6 @@ const reservedTools: Array<{ key: ToolKey; title: string }> = [
   { key: "frame", title: "视频帧操作" },
   { key: "subtitles", title: "字幕入口" },
   { key: "audio", title: "音频设置" },
-  { key: "bgm", title: "背景音乐" },
   { key: "tts", title: "语音合成" },
   { key: "watermark", title: "去除水印" },
 ];

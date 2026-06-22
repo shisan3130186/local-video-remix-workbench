@@ -102,9 +102,7 @@ fn build_padded_foreground_filters(video_filters: &[String], width: u32, height:
     filters.push(format!(
         "scale={width}:{height}:force_original_aspect_ratio=decrease"
     ));
-    filters.push(format!(
-        "pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
-    ));
+    filters.push(format!("pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"));
     filters.push("format=yuv420p".to_string());
 
     filters.join(",")

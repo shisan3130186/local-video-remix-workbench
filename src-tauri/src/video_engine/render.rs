@@ -1,6 +1,4 @@
-use crate::video_engine::canvas::{
-    build_canvas_filter, CanvasAspectRatio, CanvasBackgroundMode,
-};
+use crate::video_engine::canvas::{build_canvas_filter, CanvasAspectRatio, CanvasBackgroundMode};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};

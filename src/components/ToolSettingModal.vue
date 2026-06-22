@@ -61,6 +61,10 @@ const props = defineProps<{
   pipSizeRatio: number;
   pipOpacity: number;
   pipMargin: number;
+  bgmEnabled: boolean;
+  bgmAudioFilePath: string | null;
+  originalVolume: number;
+  bgmVolume: number;
   selectedCoverUrl: string | null;
   coverFrameSeconds: number;
   isGeneratingCover: boolean;
@@ -78,6 +82,7 @@ const emit = defineEmits<{
   openOutputDirectory: [];
   exportSelectedVideo: [];
   selectPipOverlayFile: [];
+  selectBgmAudioFile: [];
   generateCoverFrame: [];
   "update:segmentDurationSeconds": [value: number];
   "update:randomPickCount": [value: number];
@@ -98,6 +103,9 @@ const emit = defineEmits<{
   "update:pipSizeRatio": [value: number];
   "update:pipOpacity": [value: number];
   "update:pipMargin": [value: number];
+  "update:bgmEnabled": [value: boolean];
+  "update:originalVolume": [value: number];
+  "update:bgmVolume": [value: number];
   "update:coverFrameSeconds": [value: number];
 }>();
 
@@ -139,6 +147,8 @@ function updateNumber(
     | "pipSizeRatio"
     | "pipOpacity"
     | "pipMargin"
+    | "originalVolume"
+    | "bgmVolume"
     | "coverFrameSeconds",
 ) {
   const value = Number((event.target as HTMLInputElement).value);
@@ -192,6 +202,16 @@ function updateNumber(
     return;
   }
 
+  if (name === "originalVolume") {
+    emit("update:originalVolume", clampNumber(value, 0, 2));
+    return;
+  }
+
+  if (name === "bgmVolume") {
+    emit("update:bgmVolume", clampNumber(value, 0, 2));
+    return;
+  }
+
   if (name === "coverFrameSeconds") {
     emit("update:coverFrameSeconds", value);
     return;
@@ -210,7 +230,12 @@ function clampNumber(value: number, min: number, max: number) {
 
 function updateCheckbox(
   event: Event,
-  name: "applyHorizontalMirror" | "applyVerticalMirror" | "smoothRemixEnabled" | "pipEnabled",
+  name:
+    | "applyHorizontalMirror"
+    | "applyVerticalMirror"
+    | "smoothRemixEnabled"
+    | "pipEnabled"
+    | "bgmEnabled",
 ) {
   const value = (event.target as HTMLInputElement).checked;
 
@@ -229,7 +254,12 @@ function updateCheckbox(
     return;
   }
 
-  emit("update:pipEnabled", value);
+  if (name === "pipEnabled") {
+    emit("update:pipEnabled", value);
+    return;
+  }
+
+  emit("update:bgmEnabled", value);
 }
 
 function updateSelect(
@@ -257,7 +287,7 @@ function updateSelect(
 }
 
 function formatFileName(filePath: string | null) {
-  return filePath?.split(/[\\/]/).pop() ?? "未选择画中画素材";
+  return filePath?.split(/[\\/]/).pop() ?? "未选择文件";
 }
 </script>
 
@@ -407,6 +437,46 @@ function formatFileName(filePath: string | null) {
               @input="updateNumber($event, 'pipMargin')"
             />
           </label>
+        </template>
+
+        <template v-else-if="activeTool === 'bgm' || activeTool === 'audio'">
+          <label class="option-toggle">
+            <input
+              :checked="bgmEnabled"
+              type="checkbox"
+              @change="updateCheckbox($event, 'bgmEnabled')"
+            />
+            <span>启用 BGM</span>
+          </label>
+          <p class="output-path">{{ formatFileName(bgmAudioFilePath) }}</p>
+          <button class="ghost-button ghost-button--full" type="button" @click="$emit('selectBgmAudioFile')">
+            选择本地音乐
+          </button>
+          <label class="field">
+            <span>原视频音量</span>
+            <input
+              :value="originalVolume"
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              :disabled="isMixing || isBatchMixing"
+              @input="updateNumber($event, 'originalVolume')"
+            />
+          </label>
+          <label class="field">
+            <span>BGM 音量</span>
+            <input
+              :value="bgmVolume"
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              :disabled="isMixing || isBatchMixing"
+              @input="updateNumber($event, 'bgmVolume')"
+            />
+          </label>
+          <p class="empty-text">BGM 会自动适配导出视频长度：短了会循环，长了会截断。</p>
         </template>
 
         <template v-else-if="activeTool === 'cover' || activeTool === 'frame'">

@@ -52,6 +52,15 @@ pub struct PictureInPictureSettings {
     margin: u32,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BgmSettings {
+    enabled: bool,
+    audio_file_path: Option<String>,
+    original_volume: f64,
+    bgm_volume: f64,
+}
+
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PipPosition {
@@ -72,11 +81,14 @@ pub fn concat_video_segments(
     smooth_remix_enabled: bool,
     video_effect_settings: VideoEffectSettings,
     picture_in_picture_settings: PictureInPictureSettings,
+    bgm_settings: BgmSettings,
 ) -> Result<MixVideoResult, String> {
     let output_dir = Path::new(&output_directory);
     let normalized_playback_speed = normalize_playback_speed(playback_speed)?;
     let normalized_effect_settings = normalize_video_effect_settings(video_effect_settings)?;
-    let normalized_pip_settings = normalize_picture_in_picture_settings(picture_in_picture_settings)?;
+    let normalized_pip_settings =
+        normalize_picture_in_picture_settings(picture_in_picture_settings)?;
+    let normalized_bgm_settings = normalize_bgm_settings(bgm_settings)?;
 
     if segment_paths.len() < 2 {
         return Err("至少需要 2 个片段才能拼接。".to_string());
@@ -110,6 +122,10 @@ pub fn concat_video_segments(
         return Err("过滤过短片段后，至少需要 2 个片段才能拼接。".to_string());
     }
 
+    let prepared_segments_have_audio = probe_segment_info(&prepared_segments.segment_paths[0])
+        .map(|info| info.has_audio)
+        .unwrap_or(false);
+
     let concat_list_content = build_concat_list_content(&prepared_segments.segment_paths);
     let output_dimensions = canvas_aspect_ratio.dimensions();
 
@@ -141,6 +157,10 @@ pub fn concat_video_segments(
         append_pip_input_args(&mut ffmpeg_args, pip_settings)?;
     }
 
+    if let Some(bgm_settings) = &normalized_bgm_settings {
+        append_bgm_input_args(&mut ffmpeg_args, bgm_settings)?;
+    }
+
     let mut video_filters = Vec::new();
 
     if apply_horizontal_mirror {
@@ -157,7 +177,58 @@ pub fn concat_video_segments(
         build_canvas_filter(canvas_aspect_ratio, canvas_background_mode, &video_filters)
             .or_else(|| build_plain_video_filter(&video_filters));
 
-    if let Some(pip_settings) = &normalized_pip_settings {
+    let bgm_input_index = if normalized_pip_settings.is_some() {
+        2
+    } else {
+        1
+    };
+
+    if let Some(bgm_settings) = &normalized_bgm_settings {
+        let audio_filter = build_bgm_audio_filter(
+            bgm_settings,
+            bgm_input_index,
+            prepared_segments_have_audio,
+            normalized_playback_speed,
+        );
+
+        if let Some(pip_settings) = &normalized_pip_settings {
+            ffmpeg_args.push("-filter_complex".to_string());
+            ffmpeg_args.push(format!(
+                "{};{}",
+                build_pip_filter(video_filter, pip_settings),
+                audio_filter
+            ));
+            ffmpeg_args.push("-map".to_string());
+            ffmpeg_args.push("[v]".to_string());
+            ffmpeg_args.push("-map".to_string());
+            ffmpeg_args.push("[a]".to_string());
+        } else if let Some(video_filter) = video_filter {
+            if video_filter.is_complex {
+                ffmpeg_args.push("-filter_complex".to_string());
+                ffmpeg_args.push(format!("{};{}", video_filter.filter, audio_filter));
+                ffmpeg_args.push("-map".to_string());
+                ffmpeg_args.push("[v]".to_string());
+                ffmpeg_args.push("-map".to_string());
+                ffmpeg_args.push("[a]".to_string());
+            } else {
+                ffmpeg_args.push("-vf".to_string());
+                ffmpeg_args.push(video_filter.filter);
+                ffmpeg_args.push("-filter_complex".to_string());
+                ffmpeg_args.push(audio_filter);
+                ffmpeg_args.push("-map".to_string());
+                ffmpeg_args.push("0:v".to_string());
+                ffmpeg_args.push("-map".to_string());
+                ffmpeg_args.push("[a]".to_string());
+            }
+        } else {
+            ffmpeg_args.push("-filter_complex".to_string());
+            ffmpeg_args.push(audio_filter);
+            ffmpeg_args.push("-map".to_string());
+            ffmpeg_args.push("0:v".to_string());
+            ffmpeg_args.push("-map".to_string());
+            ffmpeg_args.push("[a]".to_string());
+        }
+    } else if let Some(pip_settings) = &normalized_pip_settings {
         ffmpeg_args.push("-filter_complex".to_string());
         ffmpeg_args.push(build_pip_filter(video_filter, pip_settings));
         ffmpeg_args.push("-map".to_string());
@@ -178,12 +249,12 @@ pub fn concat_video_segments(
         }
     }
 
-    if should_apply_speed_filter(normalized_playback_speed) {
+    if normalized_bgm_settings.is_none() && should_apply_speed_filter(normalized_playback_speed) {
         ffmpeg_args.push("-af".to_string());
         ffmpeg_args.push(format!("atempo={normalized_playback_speed:.3}"));
     }
 
-    if normalized_pip_settings.is_some() {
+    if normalized_pip_settings.is_some() || normalized_bgm_settings.is_some() {
         ffmpeg_args.push("-shortest".to_string());
     }
 
@@ -255,10 +326,7 @@ fn normalize_picture_in_picture_settings(
         return Err(format!("画中画素材文件不存在：{overlay_file_path}"));
     }
 
-    if !settings.size_ratio.is_finite()
-        || settings.size_ratio < 0.2
-        || settings.size_ratio > 0.5
-    {
+    if !settings.size_ratio.is_finite() || settings.size_ratio < 0.2 || settings.size_ratio > 0.5 {
         return Err("画中画大小比例必须在 0.2 到 0.5 之间。".to_string());
     }
 
@@ -268,6 +336,34 @@ fn normalize_picture_in_picture_settings(
 
     if settings.margin > 240 {
         return Err("画中画边距不能超过 240。".to_string());
+    }
+
+    Ok(Some(settings))
+}
+
+fn normalize_bgm_settings(settings: BgmSettings) -> Result<Option<BgmSettings>, String> {
+    if !settings.enabled {
+        return Ok(None);
+    }
+
+    let audio_file_path = settings
+        .audio_file_path
+        .as_deref()
+        .ok_or_else(|| "请先选择 BGM 音频文件。".to_string())?;
+
+    if !Path::new(audio_file_path).is_file() {
+        return Err(format!("BGM 音频文件不存在：{audio_file_path}"));
+    }
+
+    if !settings.original_volume.is_finite()
+        || settings.original_volume < 0.0
+        || settings.original_volume > 2.0
+    {
+        return Err("原视频音量必须在 0 到 2 之间。".to_string());
+    }
+
+    if !settings.bgm_volume.is_finite() || settings.bgm_volume < 0.0 || settings.bgm_volume > 2.0 {
+        return Err("BGM 音量必须在 0 到 2 之间。".to_string());
     }
 
     Ok(Some(settings))
@@ -290,6 +386,51 @@ fn append_pip_input_args(
     ffmpeg_args.push("-i".to_string());
     ffmpeg_args.push(overlay_file_path.to_string());
     Ok(())
+}
+
+fn append_bgm_input_args(
+    ffmpeg_args: &mut Vec<String>,
+    settings: &BgmSettings,
+) -> Result<(), String> {
+    let audio_file_path = settings
+        .audio_file_path
+        .as_deref()
+        .ok_or_else(|| "请先选择 BGM 音频文件。".to_string())?;
+
+    ffmpeg_args.push("-stream_loop".to_string());
+    ffmpeg_args.push("-1".to_string());
+    ffmpeg_args.push("-i".to_string());
+    ffmpeg_args.push(audio_file_path.to_string());
+    Ok(())
+}
+
+fn build_bgm_audio_filter(
+    settings: &BgmSettings,
+    bgm_input_index: usize,
+    has_original_audio: bool,
+    playback_speed: f64,
+) -> String {
+    let bgm_filter = format!(
+        "[{bgm_input_index}:a]volume={:.3}[bgm]",
+        settings.bgm_volume
+    );
+
+    if !has_original_audio {
+        return format!("{bgm_filter};[bgm]anull[a]");
+    }
+
+    let original_filter = if should_apply_speed_filter(playback_speed) {
+        format!(
+            "[0:a]volume={:.3},atempo={playback_speed:.3}[original]",
+            settings.original_volume
+        )
+    } else {
+        format!("[0:a]volume={:.3}[original]", settings.original_volume)
+    };
+
+    format!(
+        "{original_filter};{bgm_filter};[original][bgm]amix=inputs=2:duration=first:dropout_transition=0[a]"
+    )
 }
 
 fn build_pip_filter(
@@ -346,8 +487,7 @@ fn is_image_file(file_path: &str) -> bool {
 fn normalize_video_effect_settings(
     settings: VideoEffectSettings,
 ) -> Result<VideoEffectSettings, String> {
-    if !settings.brightness.is_finite() || settings.brightness < -1.0 || settings.brightness > 1.0
-    {
+    if !settings.brightness.is_finite() || settings.brightness < -1.0 || settings.brightness > 1.0 {
         return Err("亮度调整范围必须在 -1.0 到 1.0 之间。".to_string());
     }
 
