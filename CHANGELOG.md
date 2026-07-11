@@ -2,6 +2,10 @@
 
 ## 2026-07-11
 
+- 修复 Windows `CRYPT_E_NO_REVOCATION_CHECK` 导致方舟 AI 请求在 HTTPS 握手阶段失败的问题。
+- Rust AI 客户端改用 Mozilla 内置可信根证书，保留证书签名和域名验证，不关闭 HTTPS 安全校验。
+- 新增内置根证书客户端构建测试。
+- AI 模块 8 项单元测试、`cargo check` 和 `corepack pnpm build` 已通过。
 - 新增 AI 文案智能混剪 MVP：切片后准备片段编号、真实时长和预览图。
 - 新增 Rust 方舟多模态 AI 调用，配置只从 `AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 环境变量读取。
 - AI 请求只发送文案、片段编号、时长和预览图，不发送完整视频或本地文件路径。

@@ -1,5 +1,17 @@
 # PROJECT_STATUS.md
 
+## 2026-07-11：修复 Windows 证书吊销检查导致 AI 无法连接
+
+状态：已修复，等待用户重新启动软件验证真实方舟请求。
+
+问题：软件请求方舟 `/chat/completions` 时在收到 HTTP 响应前失败，页面显示“无法连接 AI 服务”。
+
+原因：当前 Windows 无法联网检查 HTTPS 证书吊销状态，系统 TLS 返回 `CRYPT_E_NO_REVOCATION_CHECK`。方舟域名、DNS 和接口本身均正常，使用跳过系统吊销查询的诊断请求可收到预期 `401` 响应。
+
+修复：Rust AI 客户端改用 Mozilla 内置可信根证书，继续验证证书签名和域名，但不依赖 Windows 在线吊销检查；没有关闭 HTTPS 证书校验。
+
+自动验证：AI 模块 8 项单元测试全部通过；`cargo fmt`、`cargo check` 和 `corepack pnpm build` 已通过。
+
 ## 2026-07-11：AI 文案智能混剪 MVP 第一版
 
 状态：已完成开发和自动检查，等待真实火山引擎环境人工验收。

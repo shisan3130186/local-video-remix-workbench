@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use reqwest::tls::Certificate;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -50,10 +51,7 @@ pub async fn plan_ai_remix(
     let endpoint = build_chat_completions_url(&base_url)?;
     let content = build_multimodal_content(normalized_script, &segments)?;
 
-    let response = Client::builder()
-        .timeout(Duration::from_secs(120))
-        .build()
-        .map_err(|error| format!("无法创建 AI 请求客户端：{error}"))?
+    let response = build_ai_client()?
         .post(endpoint)
         .bearer_auth(api_key)
         .json(&json!({
@@ -99,6 +97,20 @@ pub async fn plan_ai_remix(
     Ok(AiRemixPlanResult {
         ordered_segment_ids: parse_and_validate_ordered_ids(content, &expected_ids)?,
     })
+}
+
+fn build_ai_client() -> Result<Client, String> {
+    let root_certificates = webpki_root_certs::TLS_SERVER_ROOT_CERTS
+        .iter()
+        .map(|certificate| Certificate::from_der(certificate.as_ref()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("无法加载内置 HTTPS 根证书：{error}"))?;
+
+    Client::builder()
+        .timeout(Duration::from_secs(120))
+        .tls_certs_only(root_certificates)
+        .build()
+        .map_err(|error| format!("无法创建 AI 请求客户端：{error}"))
 }
 
 fn required_environment_variable(name: &str) -> Result<String, String> {
@@ -235,7 +247,7 @@ fn parse_and_validate_ordered_ids(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_chat_completions_url, parse_and_validate_ordered_ids};
+    use super::{build_ai_client, build_chat_completions_url, parse_and_validate_ordered_ids};
 
     fn expected_ids() -> Vec<String> {
         vec!["segment-001".to_string(), "segment-002".to_string()]
@@ -256,6 +268,11 @@ mod tests {
                 .unwrap(),
             "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
         );
+    }
+
+    #[test]
+    fn builds_client_with_embedded_root_certificates() {
+        build_ai_client().unwrap();
     }
 
     #[test]
