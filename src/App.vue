@@ -12,6 +12,8 @@ import RightToolPanel from "./components/RightToolPanel.vue";
 import TaskControlBar from "./components/TaskControlBar.vue";
 import TaskLogDrawer from "./components/TaskLogDrawer.vue";
 import ToolSettingModal from "./components/ToolSettingModal.vue";
+import { planAiRemix } from "./services/aiRemixService";
+import type { AiRemixSegment } from "./services/aiRemixService";
 import { listVideoFilesInFolder } from "./services/videoImportService";
 import {
   concatSelectedSegments,
@@ -28,6 +30,7 @@ import type {
   RotationMode,
   SegmentCategory,
   SegmentCategoryOption,
+  SubtitleSettings,
   VideoEffectSettings,
 } from "./services/videoMixService";
 import { openPathInFileManager } from "./services/fileManagerService";
@@ -74,7 +77,7 @@ interface TaskLogEntry {
 
 interface ExportResultItem {
   id: number;
-  type: "基础导出" | "拼接导出" | "分类混剪" | "批量生成";
+  type: "基础导出" | "拼接导出" | "分类混剪" | "批量生成" | "AI 智能混剪";
   path: string;
   time: string;
 }
@@ -131,6 +134,16 @@ const bgmFadeInSeconds = ref(0.5);
 const bgmFadeOutSeconds = ref(0.5);
 const videoCoverPaths = ref<Record<string, string>>({});
 const segmentThumbnailPaths = ref<Record<string, string>>({});
+const aiScript = ref("");
+const aiPreparedSegments = ref<AiRemixSegment[]>([]);
+const aiOrderedSegments = ref<AiRemixSegment[]>([]);
+const isPreparingAiSegments = ref(false);
+const aiPreparationError = ref<string | null>(null);
+const isPlanningAiRemix = ref(false);
+const isGeneratingAiRemix = ref(false);
+const aiPlanError = ref<string | null>(null);
+const aiGenerateError = ref<string | null>(null);
+const aiRemixLogs = ref<TaskLogEntry[]>([]);
 const selectedSegmentPath = ref<string | null>(null);
 const selectedCoverPath = ref<string | null>(null);
 const coverFrameSeconds = ref(1);
@@ -266,6 +279,7 @@ const taskLogs = computed(() => [
   ...splitLogs.value.map((log) => ({ ...log, group: "视频切片" })),
   ...mixLogs.value.map((log) => ({ ...log, group: "片段拼接" })),
   ...batchMixLogs.value.map((log) => ({ ...log, group: "批量生成" })),
+  ...aiRemixLogs.value.map((log) => ({ ...log, group: "AI 智能混剪" })),
 ]);
 
 const videoEffectSettings = computed(
@@ -298,6 +312,17 @@ const bgmSettings = computed(
     bgmVolume: bgmVolume.value,
     fadeInSeconds: bgmFadeInSeconds.value,
     fadeOutSeconds: bgmFadeOutSeconds.value,
+  }),
+);
+
+const disabledSubtitleSettings = computed(
+  (): SubtitleSettings => ({
+    enabled: false,
+    text: "",
+    position: "bottom",
+    fontSize: 36,
+    textColor: "#ffffff",
+    backgroundEnabled: false,
   }),
 );
 
@@ -482,6 +507,7 @@ async function splitSelectedVideo() {
   splitSegmentPaths.value = [];
   splitLogs.value = [];
   resetRandomPickState();
+  resetAiRemixState(false);
 
   if (!selectedVideo.value) {
     splitError.value = "请先选择一个要切片的视频。";
@@ -515,7 +541,7 @@ async function splitSelectedVideo() {
     splitSegmentCount.value = result.segmentCount;
     splitSegmentPaths.value = result.segmentPaths;
     segmentCategories.value = buildEmptySegmentCategoryMap(result.segmentPaths);
-    void generateSegmentThumbnails(result.segmentPaths);
+    void prepareSegmentAssets(result.segmentPaths);
     appendSplitLog(
       `切片成功：共生成 ${result.segmentCount} 个片段，保存到 ${result.outputDirectory}`,
       "success",
@@ -620,6 +646,7 @@ async function concatCategorizedSegments() {
       videoEffectSettings.value,
       pictureInPictureSettings.value,
       bgmSettings.value,
+      disabledSubtitleSettings.value,
     );
     mixResultPath.value = result.outputPath;
     addExportResult("分类混剪", result.outputPath);
@@ -718,6 +745,7 @@ async function concatRandomSegments() {
       videoEffectSettings.value,
       pictureInPictureSettings.value,
       bgmSettings.value,
+      disabledSubtitleSettings.value,
     );
     mixResultPath.value = result.outputPath;
     addExportResult("拼接导出", result.outputPath);
@@ -812,6 +840,7 @@ async function generateBatchMixes() {
         videoEffectSettings.value,
         pictureInPictureSettings.value,
         bgmSettings.value,
+        disabledSubtitleSettings.value,
       );
       batchMixResults.value.push(result.outputPath);
       addExportResult("批量生成", result.outputPath);
@@ -844,7 +873,24 @@ function resetSplitAndRandomState() {
   segmentThumbnailPaths.value = {};
   selectedSegmentPath.value = null;
   splitLogs.value = [];
+  resetAiRemixState(true);
   resetRandomPickState();
+}
+
+function resetAiRemixState(clearScript: boolean) {
+  if (clearScript) {
+    aiScript.value = "";
+  }
+
+  aiPreparedSegments.value = [];
+  aiOrderedSegments.value = [];
+  isPreparingAiSegments.value = false;
+  aiPreparationError.value = null;
+  isPlanningAiRemix.value = false;
+  isGeneratingAiRemix.value = false;
+  aiPlanError.value = null;
+  aiGenerateError.value = null;
+  aiRemixLogs.value = [];
 }
 
 function resetRandomPickState() {
@@ -878,6 +924,10 @@ function appendMixLog(message: string, level: TaskLogLevel) {
 
 function appendBatchMixLog(message: string, level: TaskLogLevel) {
   appendTaskLog(batchMixLogs.value, message, level);
+}
+
+function appendAiRemixLog(message: string, level: TaskLogLevel) {
+  appendTaskLog(aiRemixLogs.value, message, level);
 }
 
 function appendExportLog(message: string, level: TaskLogLevel) {
@@ -1174,23 +1224,45 @@ async function generateCoverFrame() {
   }
 }
 
-async function generateSegmentThumbnails(segmentPaths: string[]) {
+async function prepareSegmentAssets(segmentPaths: string[]) {
+  isPreparingAiSegments.value = true;
+  aiPreparationError.value = null;
+  aiPreparedSegments.value = [];
+  aiOrderedSegments.value = [];
   const thumbnailEntries: Record<string, string> = {};
+  const preparedSegments: AiRemixSegment[] = [];
+  const preparationErrors: string[] = [];
 
   for (const [index, segmentPath] of segmentPaths.entries()) {
     try {
-      const result = await generateThumbnail(
-        segmentPath,
-        outputDirectory.value,
-        0.1,
-        `segment_${index + 1}`,
-      );
-      thumbnailEntries[segmentPath] = result.thumbnailPath;
+      const [thumbnailResult, metadata] = await Promise.all([
+        generateThumbnail(
+          segmentPath,
+          outputDirectory.value,
+          0.1,
+          `segment_${index + 1}`,
+        ),
+        readVideoMetadata(segmentPath),
+      ]);
+      const durationSeconds = metadata.durationSeconds;
+
+      if (durationSeconds === null || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+        throw new Error("无法读取有效片段时长。");
+      }
+
+      thumbnailEntries[segmentPath] = thumbnailResult.thumbnailPath;
+      preparedSegments.push({
+        segmentId: `segment-${String(index + 1).padStart(3, "0")}`,
+        path: segmentPath,
+        durationSeconds,
+        thumbnailPath: thumbnailResult.thumbnailPath,
+        thumbnailUrl: convertFileSrc(thumbnailResult.thumbnailPath),
+      });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error ?? "未知错误");
+      preparationErrors.push(`${formatFileName(segmentPath)}：${errorMessage}`);
       appendSplitLog(
-        `片段预览图生成失败：${formatFileName(segmentPath)}，${
-          error instanceof Error ? error.message : String(error ?? "未知错误")
-        }`,
+        `片段 AI 信息准备失败：${formatFileName(segmentPath)}，${errorMessage}`,
         "error",
       );
     }
@@ -1203,6 +1275,144 @@ async function generateSegmentThumbnails(segmentPaths: string[]) {
 
   if (Object.keys(thumbnailEntries).length > 0) {
     appendSplitLog(`片段预览图生成完成：${Object.keys(thumbnailEntries).length} 张。`, "success");
+  }
+
+  if (preparationErrors.length === 0 && preparedSegments.length === segmentPaths.length) {
+    aiPreparedSegments.value = preparedSegments;
+    appendSplitLog(`AI 片段信息准备完成：${preparedSegments.length} 个片段。`, "success");
+  } else {
+    aiPreparationError.value = `有 ${preparationErrors.length} 个片段缺少预览图或时长，请重新切片后再试。`;
+  }
+
+  isPreparingAiSegments.value = false;
+}
+
+async function requestAiRemixPlan() {
+  aiPlanError.value = null;
+
+  if (aiPreparedSegments.value.length !== splitSegmentPaths.value.length) {
+    aiPlanError.value = "片段预览图或时长尚未准备完整，请重新切片后再试。";
+    return;
+  }
+
+  if (aiScript.value.trim().length === 0) {
+    aiPlanError.value = "请先输入用于规划混剪的文案。";
+    return;
+  }
+
+  isPlanningAiRemix.value = true;
+  appendAiRemixLog(`开始请求 AI 排序，共 ${aiPreparedSegments.value.length} 个片段。`, "info");
+
+  try {
+    const result = await planAiRemix(
+      aiScript.value,
+      aiPreparedSegments.value.map((segment) => ({
+        segmentId: segment.segmentId,
+        durationSeconds: segment.durationSeconds,
+        thumbnailPath: segment.thumbnailPath,
+      })),
+    );
+    const segmentMap = new Map(
+      aiPreparedSegments.value.map((segment) => [segment.segmentId, segment]),
+    );
+    const orderedSegments = result.orderedSegmentIds.map((segmentId) => segmentMap.get(segmentId));
+
+    if (orderedSegments.some((segment) => !segment)) {
+      throw new Error("AI 排序结果包含无法识别的片段编号。");
+    }
+
+    aiOrderedSegments.value = orderedSegments as AiRemixSegment[];
+    appendAiRemixLog(
+      `AI 排序完成：${result.orderedSegmentIds.join(" -> ")}。`,
+      "success",
+    );
+  } catch (error) {
+    aiPlanError.value =
+      error instanceof Error ? error.message : String(error ?? "AI 排序失败。");
+    appendAiRemixLog(`AI 排序失败：${aiPlanError.value}`, "error");
+  } finally {
+    isPlanningAiRemix.value = false;
+  }
+}
+
+function moveAiRemixSegment(index: number, direction: -1 | 1) {
+  const targetIndex = index + direction;
+
+  if (index < 0 || targetIndex < 0 || targetIndex >= aiOrderedSegments.value.length) {
+    return;
+  }
+
+  const reordered = [...aiOrderedSegments.value];
+  [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+  aiOrderedSegments.value = reordered;
+}
+
+function removeAiRemixSegment(index: number) {
+  if (index < 0 || index >= aiOrderedSegments.value.length) {
+    return;
+  }
+
+  aiOrderedSegments.value = aiOrderedSegments.value.filter(
+    (_segment, segmentIndex) => segmentIndex !== index,
+  );
+}
+
+async function generateAiRemixVideo() {
+  aiGenerateError.value = null;
+
+  if (aiOrderedSegments.value.length < 2) {
+    aiGenerateError.value = "至少保留 2 个片段才能生成 AI 混剪视频。";
+    return;
+  }
+
+  if (!outputDirectory.value) {
+    aiGenerateError.value = "请先选择输出目录。";
+    return;
+  }
+
+  const pipValidationError = validatePictureInPictureSettings();
+  const bgmValidationError = validateBgmSettings();
+  const speedValidationError = validatePlaybackSpeed();
+  const validationError = pipValidationError ?? bgmValidationError ?? speedValidationError;
+
+  if (validationError) {
+    aiGenerateError.value = validationError;
+    return;
+  }
+
+  isGeneratingAiRemix.value = true;
+  isMixing.value = true;
+  appendAiRemixLog(
+    `开始生成 AI 混剪视频，使用 ${aiOrderedSegments.value.length} 个片段。`,
+    "info",
+  );
+
+  try {
+    const result = await concatSelectedSegments(
+      aiOrderedSegments.value.map((segment) => segment.path),
+      outputDirectory.value,
+      applyHorizontalMirror.value,
+      playbackSpeed.value,
+      canvasAspectRatio.value,
+      canvasBackgroundMode.value,
+      smoothRemixEnabled.value,
+      videoEffectSettings.value,
+      pictureInPictureSettings.value,
+      bgmSettings.value,
+      disabledSubtitleSettings.value,
+    );
+    mixResultPath.value = result.outputPath;
+    addExportResult("AI 智能混剪", result.outputPath);
+    appendAiRemixLog(buildRemixCanvasLog(result), "info");
+    appendAiRemixLog(buildSmoothRemixLog(result), "info");
+    appendAiRemixLog(`AI 智能混剪生成成功：${result.outputPath}`, "success");
+  } catch (error) {
+    aiGenerateError.value =
+      error instanceof Error ? error.message : String(error ?? "AI 混剪视频生成失败。");
+    appendAiRemixLog(`AI 混剪生成失败：${aiGenerateError.value}`, "error");
+  } finally {
+    isGeneratingAiRemix.value = false;
+    isMixing.value = false;
   }
 }
 
@@ -1482,6 +1692,7 @@ onMounted(() => {
       <PreviewPanel
         v-model:preview-video-ref="previewVideoRef"
         v-model:preview-background-video-ref="previewBackgroundVideoRef"
+        v-model:ai-script="aiScript"
         :is-advanced-mode="isAdvancedMode"
         :selected-video="selectedVideo"
         :preview-title="previewTitle"
@@ -1499,6 +1710,14 @@ onMounted(() => {
         :batch-mix-result-count="batchMixResults.length"
         :mix-error="mixError"
         :batch-mix-error="batchMixError"
+        :ai-prepared-segments="aiPreparedSegments"
+        :ai-ordered-segments="aiOrderedSegments"
+        :is-preparing-ai-segments="isPreparingAiSegments"
+        :ai-preparation-error="aiPreparationError"
+        :is-planning-ai-remix="isPlanningAiRemix"
+        :is-generating-ai-remix="isGeneratingAiRemix"
+        :ai-plan-error="aiPlanError"
+        :ai-generate-error="aiGenerateError"
         :format-duration="formatDuration"
         :format-resolution="formatResolution"
         :format-frame-rate="formatFrameRate"
@@ -1512,6 +1731,10 @@ onMounted(() => {
         @sync-preview-background="syncPreviewBackground"
         @open-drawer="activeDrawer = $event"
         @open-tool="activeTool = $event"
+        @plan-ai-remix="requestAiRemixPlan"
+        @move-ai-segment="moveAiRemixSegment"
+        @remove-ai-segment="removeAiRemixSegment"
+        @generate-ai-remix="generateAiRemixVideo"
       />
 
       <RightToolPanel
@@ -1529,7 +1752,7 @@ onMounted(() => {
         :completed-count="exportResultItems.length"
         :failed-count="0"
         :output-directory="outputDirectory"
-        :is-processing="isExporting || isMixing || isBatchMixing || isSplitting"
+        :is-processing="isExporting || isMixing || isBatchMixing || isSplitting || isPlanningAiRemix || isGeneratingAiRemix"
         @start-processing="generateBatchMixes"
         @open-drawer="activeDrawer = $event"
       />

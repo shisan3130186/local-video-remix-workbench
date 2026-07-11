@@ -1,5 +1,7 @@
+mod ai_remix;
 mod video_engine;
 
+use ai_remix::{plan_ai_remix as create_ai_remix_plan, AiRemixPlanResult, AiRemixSegmentInput};
 use std::path::Path;
 use std::process::Command;
 use video_engine::canvas::{CanvasAspectRatio, CanvasBackgroundMode};
@@ -99,6 +101,14 @@ fn generate_thumbnail(
 }
 
 #[tauri::command]
+async fn plan_ai_remix(
+    script: String,
+    segments: Vec<AiRemixSegmentInput>,
+) -> Result<AiRemixPlanResult, String> {
+    create_ai_remix_plan(script, segments).await
+}
+
+#[tauri::command]
 fn concat_selected_segments(
     segment_paths: Vec<String>,
     output_directory: String,
@@ -135,6 +145,7 @@ pub fn run() {
             generate_thumbnail,
             list_video_files_in_folder,
             open_path_in_file_manager,
+            plan_ai_remix,
             read_video_metadata,
             split_current_video
         ])

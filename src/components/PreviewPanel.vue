@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { CSSProperties } from "vue";
+import AiRemixPlanner from "./AiRemixPlanner.vue";
+import type { AiRemixSegment } from "../services/aiRemixService";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { CanvasAspectRatio } from "../services/videoMixService";
 
@@ -23,6 +25,14 @@ defineProps<{
   batchMixResultCount: number;
   mixError: string | null;
   batchMixError: string | null;
+  aiPreparedSegments: AiRemixSegment[];
+  aiOrderedSegments: AiRemixSegment[];
+  isPreparingAiSegments: boolean;
+  aiPreparationError: string | null;
+  isPlanningAiRemix: boolean;
+  isGeneratingAiRemix: boolean;
+  aiPlanError: string | null;
+  aiGenerateError: string | null;
   formatDuration: (durationSeconds: number | null) => string;
   formatResolution: (video: ImportedVideo) => string;
   formatFrameRate: (frameRate: number | null) => string;
@@ -39,10 +49,15 @@ defineEmits<{
   syncPreviewBackground: [];
   openDrawer: [drawer: "logs" | "exports" | "batch"];
   openTool: [tool: ToolKey];
+  planAiRemix: [];
+  moveAiSegment: [index: number, direction: -1 | 1];
+  removeAiSegment: [index: number];
+  generateAiRemix: [];
 }>();
 
 const previewVideoRef = defineModel<HTMLVideoElement | null>("previewVideoRef");
 const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewBackgroundVideoRef");
+const aiScript = defineModel<string>("aiScript", { required: true });
 </script>
 
 <template>
@@ -155,6 +170,22 @@ const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewB
       <div v-if="isAdvancedMode && (mixError || batchMixError)" class="workflow-error">
         {{ mixError || batchMixError }}
       </div>
+
+      <AiRemixPlanner
+        v-model:script="aiScript"
+        :prepared-segments="aiPreparedSegments"
+        :ordered-segments="aiOrderedSegments"
+        :is-preparing="isPreparingAiSegments"
+        :preparation-error="aiPreparationError"
+        :is-planning="isPlanningAiRemix"
+        :is-generating="isGeneratingAiRemix"
+        :plan-error="aiPlanError"
+        :generate-error="aiGenerateError"
+        @plan="$emit('planAiRemix')"
+        @move="(index, direction) => $emit('moveAiSegment', index, direction)"
+        @remove="(index) => $emit('removeAiSegment', index)"
+        @generate="$emit('generateAiRemix')"
+      />
 
       <div v-if="isAdvancedMode" class="workflow-meta">
         <span>时长：{{ selectedVideo ? formatDuration(selectedVideo.durationSeconds) : "未知" }}</span>

@@ -19,7 +19,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -759,14 +760,14 @@ h3 {
 
 .remix-workflow-panel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto;
   gap: 8px;
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .remix-workflow-panel--simple {
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
   align-content: center;
 }
 
@@ -798,6 +799,158 @@ h3 {
   background: rgba(86, 24, 24, 0.32);
   font-size: 12px;
   line-height: 1.35;
+}
+
+.ai-remix-planner {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #2e3935;
+  border-radius: 8px;
+  background: #171b1a;
+}
+
+.ai-remix-planner__header,
+.ai-remix-plan-result__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-remix-planner__count {
+  padding: 4px 8px;
+  border: 1px solid #345148;
+  border-radius: 999px;
+  color: #9fd6c5;
+  font-size: 11px;
+}
+
+.ai-remix-state {
+  display: grid;
+  gap: 2px;
+  padding: 12px;
+  border: 1px dashed #39423f;
+  border-radius: 7px;
+  color: #83918c;
+  font-size: 12px;
+}
+
+.ai-remix-state strong {
+  color: #cbd8d3;
+}
+
+.ai-remix-script-field {
+  display: grid;
+  gap: 6px;
+  color: #cbd8d3;
+  font-size: 12px;
+}
+
+.ai-remix-script-field textarea {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  padding: 9px 10px;
+  border: 1px solid #35413d;
+  border-radius: 7px;
+  outline: none;
+  color: #e7f2ee;
+  background: #111413;
+}
+
+.ai-remix-script-field textarea:focus {
+  border-color: #2a8c73;
+  box-shadow: 0 0 0 2px rgba(42, 140, 115, 0.2);
+}
+
+.ai-remix-script-field small {
+  justify-self: end;
+  color: #788681;
+}
+
+.ai-remix-planner__plan-button,
+.ai-remix-planner__generate-button {
+  justify-self: start;
+}
+
+.ai-remix-plan-result {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-remix-plan-result__heading span {
+  color: #7f8e89;
+  font-size: 11px;
+  text-align: right;
+}
+
+.ai-remix-segment-list {
+  display: grid;
+  gap: 6px;
+  max-height: 250px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.ai-remix-segment {
+  display: grid;
+  grid-template-columns: 28px 72px minmax(100px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid #2b3532;
+  border-radius: 7px;
+  background: #1c211f;
+}
+
+.ai-remix-segment__order {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #d7f3e9;
+  background: #285447;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ai-remix-segment img {
+  width: 72px;
+  height: 44px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: #0f1110;
+}
+
+.ai-remix-segment__meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ai-remix-segment__meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #dce9e4;
+  font-size: 12px;
+}
+
+.ai-remix-segment__meta small {
+  color: #7f8e89;
+}
+
+.ai-remix-segment__actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.panel-toggle--danger {
+  color: #ffb8b8;
 }
 
 .simple-workflow {

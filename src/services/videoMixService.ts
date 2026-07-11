@@ -43,6 +43,17 @@ export interface BgmSettings {
   fadeOutSeconds: number;
 }
 
+export type SubtitlePosition = "top" | "middle" | "bottom";
+
+export interface SubtitleSettings {
+  enabled: boolean;
+  text: string;
+  position: SubtitlePosition;
+  fontSize: number;
+  textColor: string;
+  backgroundEnabled: boolean;
+}
+
 export type CanvasAspectRatio =
   | "original"
   | "portrait916"
@@ -145,6 +156,7 @@ export function concatSelectedSegments(
   videoEffectSettings: VideoEffectSettings,
   pictureInPictureSettings: PictureInPictureSettings,
   bgmSettings: BgmSettings,
+  subtitleSettings: SubtitleSettings,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_selected_segments", {
     segmentPaths,
@@ -157,6 +169,7 @@ export function concatSelectedSegments(
     videoEffectSettings,
     pictureInPictureSettings,
     bgmSettings,
+    subtitleSettings,
   });
 }
 
