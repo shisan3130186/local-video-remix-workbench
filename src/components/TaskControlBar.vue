@@ -6,6 +6,8 @@ defineProps<{
   failedCount: number;
   outputDirectory: string | null;
   isProcessing: boolean;
+  primaryActionLabel: string;
+  primaryActionDisabled: boolean;
 }>();
 
 defineEmits<{
@@ -16,81 +18,39 @@ defineEmits<{
 
 <template>
   <footer class="task-control-bar" aria-label="任务处理区">
-    <div class="task-progress">
+    <div class="task-progress" aria-hidden="true">
       <span :style="{ width: `${totalVideos > 0 ? Math.min(100, Math.round((completedCount / totalVideos) * 100)) : 0}%` }"></span>
     </div>
-    <div v-if="isAdvancedMode" class="task-control-grid">
-      <label class="mini-field">
-        <span>输出格式</span>
-        <select><option>MP4</option></select>
-      </label>
-      <label class="mini-field">
-        <span>分辨率</span>
-        <select>
-          <option>保持原分辨率</option>
-          <option>1080p</option>
-          <option>720p</option>
-        </select>
-      </label>
-      <label class="mini-field">
-        <span>帧率</span>
-        <select>
-          <option>原帧率</option>
-          <option>30 FPS</option>
-          <option>60 FPS</option>
-        </select>
-      </label>
-      <label class="mini-field">
-        <span>命名规则</span>
-        <select>
-          <option>前缀序号</option>
-          <option>时间戳</option>
-        </select>
-      </label>
-      <label class="mini-field">
-        <span>线程</span>
-        <select>
-          <option>1 线程</option>
-          <option>2 线程</option>
-        </select>
-      </label>
+
+    <div class="task-control-main">
+      <div class="task-control-summary">
+        <span class="task-state-dot" :class="{ 'task-state-dot--active': isProcessing }"></span>
+        <span>
+          <strong>{{ isProcessing ? "正在处理任务" : "准备生成视频" }}</strong>
+          <small>{{ outputDirectory ? `输出到：${outputDirectory}` : "请先选择输出目录" }}</small>
+        </span>
+      </div>
+
+      <div class="task-counts" aria-label="任务统计">
+        <span>素材 <strong>{{ totalVideos }}</strong></span>
+        <span>完成 <strong>{{ completedCount }}</strong></span>
+        <span v-if="failedCount > 0">失败 <strong>{{ failedCount }}</strong></span>
+      </div>
+
+      <div class="task-quick-actions">
+        <button class="panel-toggle" type="button" @click="$emit('openDrawer', 'logs')">日志</button>
+        <button class="panel-toggle" type="button" @click="$emit('openDrawer', 'exports')">结果</button>
+        <button v-if="isAdvancedMode" class="panel-toggle" type="button" @click="$emit('openDrawer', 'batch')">批量</button>
+      </div>
+
       <button
-        class="primary-button task-start-button"
+        class="primary-button task-primary-action"
         type="button"
-        :disabled="isProcessing"
+        :disabled="primaryActionDisabled"
         @click="$emit('startProcessing')"
       >
-        {{ isProcessing ? "处理中..." : "开始处理" }}
+        {{ isProcessing ? "处理中..." : primaryActionLabel }}
       </button>
-    </div>
-
-    <div v-else class="task-control-grid task-control-grid--simple">
-      <div class="simple-output-field">
-        <span>输出目录</span>
-        <strong>{{ outputDirectory ?? "未选择" }}</strong>
-      </div>
-      <div class="simple-output-field">
-        <span>处理状态</span>
-        <strong>{{ isProcessing ? "正在处理" : "准备就绪" }}</strong>
-      </div>
-      <button
-        class="primary-button task-start-button"
-        type="button"
-        :disabled="isProcessing"
-        @click="$emit('startProcessing')"
-      >
-        {{ isProcessing ? "处理中..." : "开始处理" }}
-      </button>
-    </div>
-
-    <div class="task-control-status">
-      <span>总视频数：{{ totalVideos }}</span>
-      <span>已完成：{{ completedCount }}</span>
-      <span>失败：{{ failedCount }}</span>
-      <span class="task-output-path">输出目录：{{ outputDirectory ?? "未选择" }}</span>
-      <button class="panel-toggle" type="button" @click="$emit('openDrawer', 'logs')">日志</button>
-      <button class="panel-toggle" type="button" @click="$emit('openDrawer', 'exports')">导出结果</button>
-      <button class="panel-toggle" type="button" @click="$emit('openDrawer', 'batch')">批量结果</button>
     </div>
   </footer>
 </template>

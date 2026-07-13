@@ -1,7 +1,11 @@
 mod ai_remix;
 mod video_engine;
 
-use ai_remix::{plan_ai_remix as create_ai_remix_plan, AiRemixPlanResult, AiRemixSegmentInput};
+use ai_remix::{
+    analyze_ai_remix_segments as create_ai_remix_segment_analysis,
+    plan_ai_remix as create_ai_remix_plan, AiRemixPlanResult, AiRemixSegmentAnalysisResult,
+    AiRemixSegmentInput, AiRemixVisualSegmentInput,
+};
 use std::path::Path;
 use std::process::Command;
 use video_engine::canvas::{CanvasAspectRatio, CanvasBackgroundMode};
@@ -101,6 +105,13 @@ fn generate_thumbnail(
 }
 
 #[tauri::command]
+async fn analyze_ai_remix_segments(
+    segments: Vec<AiRemixVisualSegmentInput>,
+) -> Result<AiRemixSegmentAnalysisResult, String> {
+    create_ai_remix_segment_analysis(segments).await
+}
+
+#[tauri::command]
 async fn plan_ai_remix(
     script: String,
     segments: Vec<AiRemixSegmentInput>,
@@ -139,6 +150,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            analyze_ai_remix_segments,
             check_ffmpeg_environment,
             concat_selected_segments,
             export_current_video,

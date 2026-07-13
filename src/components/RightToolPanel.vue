@@ -36,141 +36,83 @@ defineEmits<{
   toggleAdvancedMode: [enabled: boolean];
 }>();
 
-const mainTools: Array<{ key: ToolKey; title: string; note: string; active?: boolean }> = [
-  { key: "remix", title: "混剪设置", note: "切片、抽取、批量生成", active: true },
-  { key: "canvas", title: "画布设置", note: "比例和模糊背景" },
-  { key: "effects", title: "视频效果", note: "镜像、旋转、变速、画面调整" },
-  { key: "transition", title: "平滑混剪", note: "淡入淡出、过滤过短片段" },
-  { key: "pip", title: "画中画", note: "叠加视频或图片" },
-  { key: "bgm", title: "背景音乐", note: "本地音乐和音量" },
+const primaryTools: Array<{ key: ToolKey; title: string; note: string; symbol: string }> = [
+  { key: "canvas", title: "画布与比例", note: "原画、9:16、模糊背景", symbol: "▣" },
+  { key: "effects", title: "画面效果", note: "镜像、旋转、色彩与缩放", symbol: "◐" },
+  { key: "transition", title: "平滑混剪", note: "淡入淡出并过滤过短片段", symbol: "≈" },
+  { key: "pip", title: "画中画", note: "叠加视频或图片素材", symbol: "▤" },
+  { key: "bgm", title: "背景音乐", note: "本地音乐、音量和淡入淡出", symbol: "♫" },
 ];
 
-const reservedTools: Array<{ key: ToolKey; title: string }> = [
-  { key: "cover", title: "视频封面" },
-  { key: "frame", title: "视频帧操作" },
-  { key: "subtitles", title: "字幕入口" },
-  { key: "audio", title: "音频设置" },
-  { key: "tts", title: "语音合成" },
-  { key: "watermark", title: "去除水印" },
+const advancedTools: Array<{ key: ToolKey; title: string; note: string }> = [
+  { key: "remix", title: "切片与批量参数", note: "切片时长、抽取数量、生成数量" },
+  { key: "cover", title: "视频封面", note: "选择当前视频的封面帧" },
 ];
 </script>
 
 <template>
-  <aside class="right-rail tool-rail" aria-label="功能入口">
-    <section class="panel engine-panel engine-panel--compact">
-      <div>
-        <p class="panel__label">本地引擎</p>
-        <h2>{{ environment?.available ? "FFmpeg 就绪" : "等待检测" }}</h2>
-      </div>
+  <aside class="right-rail tool-rail" aria-label="成片设置">
+    <section class="panel workspace-status-panel">
       <span class="engine-status-dot" :class="{ 'engine-status-dot--ok': environment?.available }"></span>
-      <p class="engine-message">{{ statusText }}</p>
+      <span>
+        <strong>{{ environment?.available ? "本地引擎已就绪" : "正在检测本地引擎" }}</strong>
+        <small>{{ statusText }}</small>
+      </span>
     </section>
 
-    <section class="panel mode-panel">
-      <div class="mode-panel__header">
+    <section class="panel creation-settings-panel">
+      <div class="creation-settings-panel__header">
         <div>
-          <p class="panel__label">当前模式</p>
-          <h2>{{ isAdvancedMode ? "高级模式" : "新手模式" }}</h2>
+          <p class="panel__label">成片设置</p>
+          <h2>常用调整</h2>
         </div>
         <button
           class="mode-switch"
           type="button"
+          :aria-pressed="isAdvancedMode"
           @click="$emit('toggleAdvancedMode', !isAdvancedMode)"
         >
-          {{ isAdvancedMode ? "切回新手" : "进入高级" }}
+          {{ isAdvancedMode ? "精简显示" : "显示高级" }}
         </button>
       </div>
-      <p>{{ isAdvancedMode ? "显示完整功能入口，适合精细调参。" : "只显示最重要的导入、预览、处理和结果。" }}</p>
-    </section>
 
-    <section v-if="!isAdvancedMode" class="panel simple-action-panel">
-      <div class="panel__header">
-        <div>
-          <p class="panel__label">新手流程</p>
-          <h2>四步完成</h2>
-        </div>
-      </div>
-      <div class="simple-steps">
-        <span>1 导入素材</span>
-        <span>2 预览视频</span>
-        <span>3 开始处理</span>
-        <span>4 查看结果</span>
-      </div>
-      <div class="simple-entry-list">
-        <button class="tool-entry" type="button" @click="$emit('openTool', 'remix')">
-          <span><strong>高级设置</strong><small>切片、抽取、批量数量</small></span>
-          <em>打开</em>
-        </button>
-        <button class="tool-entry" type="button" @click="$emit('openDrawer', 'exports')">
-          <span><strong>查看结果</strong><small>打开导出文件位置</small></span>
-          <em>展开</em>
-        </button>
-      </div>
-    </section>
-
-    <section v-if="isAdvancedMode" class="panel tool-list-panel parameter-panel">
-      <div class="parameter-panel__tabs">
-        <button class="parameter-tab parameter-tab--active" type="button">设置入口</button>
-      </div>
-      <div class="tool-list">
+      <div class="creation-tool-list">
         <button
-          v-for="tool in mainTools"
+          v-for="tool in primaryTools"
           :key="tool.key"
-          class="tool-entry parameter-entry"
-          :class="{ 'parameter-entry--active': tool.active }"
+          class="creation-tool"
           type="button"
           @click="$emit('openTool', tool.key)"
         >
-          <span class="parameter-entry__icon" aria-hidden="true">◎</span>
-          <span>
-            <strong>{{ tool.title }}</strong>
-            <small>{{ tool.note }}</small>
-          </span>
-          <em>›</em>
+          <span class="creation-tool__symbol" aria-hidden="true">{{ tool.symbol }}</span>
+          <span><strong>{{ tool.title }}</strong><small>{{ tool.note }}</small></span>
+          <em aria-hidden="true">›</em>
         </button>
       </div>
-    </section>
 
-    <section v-if="isAdvancedMode" class="panel reserved-panel">
-      <div class="panel__header">
-        <div>
-          <p class="panel__label">预留入口</p>
-          <h2>后续能力</h2>
-        </div>
-      </div>
-      <div class="reserved-chip-grid">
+      <details v-if="isAdvancedMode" class="advanced-tool-group">
+        <summary>更多高级设置</summary>
         <button
-          v-for="tool in reservedTools"
+          v-for="tool in advancedTools"
           :key="tool.key"
-          class="reserved-chip"
           type="button"
           @click="$emit('openTool', tool.key)"
         >
-          {{ tool.title }}
+          <span><strong>{{ tool.title }}</strong><small>{{ tool.note }}</small></span>
+          <em aria-hidden="true">›</em>
         </button>
-      </div>
+      </details>
     </section>
 
-    <section class="panel tool-list-panel drawer-entry-panel">
-      <div class="panel__header">
-        <div>
-          <p class="panel__label">信息面板</p>
-          <h2>日志和结果</h2>
-        </div>
+    <section class="panel result-shortcuts-panel">
+      <div>
+        <p class="panel__label">任务信息</p>
+        <h2>日志与结果</h2>
       </div>
-      <div class="tool-list">
-        <button class="tool-entry" type="button" @click="$emit('openDrawer', 'logs')">
-          <span><strong>任务日志</strong><small>查看处理过程</small></span>
-          <em>展开</em>
-        </button>
-        <button class="tool-entry" type="button" @click="$emit('openDrawer', 'exports')">
-          <span><strong>导出结果</strong><small>打开导出位置</small></span>
-          <em>展开</em>
-        </button>
-        <button class="tool-entry" type="button" @click="$emit('openDrawer', 'batch')">
-          <span><strong>批量生成结果</strong><small>查看本轮结果</small></span>
-          <em>展开</em>
-        </button>
+      <div class="result-shortcuts">
+        <button type="button" @click="$emit('openDrawer', 'logs')">任务日志</button>
+        <button type="button" @click="$emit('openDrawer', 'exports')">导出结果</button>
+        <button type="button" @click="$emit('openDrawer', 'batch')">批量结果</button>
       </div>
     </section>
   </aside>
