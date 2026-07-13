@@ -44,6 +44,10 @@ export function useTaskLogs() {
     appendTaskLog(splitLogs.value, message, level);
   }
 
+  function clearSplitLogs() {
+    splitLogs.value = [];
+  }
+
   function appendMixLog(message: string, level: TaskLogLevel) {
     appendTaskLog(mixLogs.value, message, level);
   }
@@ -79,6 +83,7 @@ export function useTaskLogs() {
     addExportResult,
     batchMixLogs,
     clearAiRemixLogs,
+    clearSplitLogs,
     exportLogs,
     exportResultItems,
     mixLogs,

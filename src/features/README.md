@@ -24,6 +24,15 @@ ai-remix/
 └─ index.ts     对外统一出口
 ```
 
+```text
+materials/
+├─ components   素材库和片段列表
+├─ services     文件夹扫描、元数据读取和多视频切片工作流
+├─ useMaterialCovers.ts 素材封面状态
+├─ useMaterials.ts 素材与切片主流程
+└─ index.ts     对外统一出口
+```
+
 边界规则：
 
 1. `App.vue` 只负责组合功能、页面级导航和少量跨功能状态。

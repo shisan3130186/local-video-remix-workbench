@@ -6,7 +6,6 @@ import type { CSSProperties } from "vue";
 import BatchResultDrawer from "./components/BatchResultDrawer.vue";
 import ExportResultDrawer from "./components/ExportResultDrawer.vue";
 import HomePage from "./components/HomePage.vue";
-import MaterialPanel from "./components/MaterialPanel.vue";
 import PreviewPanel from "./components/PreviewPanel.vue";
 import RightToolPanel from "./components/RightToolPanel.vue";
 import TaskControlBar from "./components/TaskControlBar.vue";
@@ -19,7 +18,7 @@ import {
 import { useRemixSettings } from "./composables/useRemixSettings";
 import { useTaskLogs } from "./composables/useTaskLogs";
 import { useAiRemix } from "./features/ai-remix";
-import { listVideoFilesInFolder } from "./services/videoImportService";
+import { MaterialPanel, useMaterials } from "./features/materials";
 import {
   concatSelectedSegments,
   pickCategorizedSegments,
@@ -29,52 +28,28 @@ import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
   MixVideoResult,
-  SegmentCategory,
 } from "./services/videoMixService";
 import { openPathInFileManager } from "./services/fileManagerService";
-import {
-  checkFfmpegEnvironment,
-  readVideoMetadata,
-} from "./services/videoProbeService";
+import { checkFfmpegEnvironment } from "./services/videoProbeService";
 import { exportCurrentVideo } from "./services/videoRenderService";
-import { splitCurrentVideo } from "./services/videoSplitService";
-import { generateThumbnail } from "./services/videoThumbnailService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
 import type { DrawerKey, ToolKey } from "./types/workbench";
 
 const environment = ref<FfmpegEnvironmentResult | null>(null);
 const isChecking = ref(true);
 const checkError = ref<string | null>(null);
-const importedVideos = ref<ImportedVideo[]>([]);
-const selectedVideo = ref<ImportedVideo | null>(null);
-const isImporting = ref(false);
-const importError = ref<string | null>(null);
 const outputDirectory = ref<string | null>(null);
 const outputDirectoryError = ref<string | null>(null);
 const fileManagerError = ref<string | null>(null);
 const isExporting = ref(false);
 const exportError = ref<string | null>(null);
 const exportResultPath = ref<string | null>(null);
-const segmentDurationSeconds = ref(5);
-const isSplitting = ref(false);
-const splitError = ref<string | null>(null);
-const splitOutputDirectory = ref<string | null>(null);
-const splitSegmentCount = ref<number | null>(null);
-const splitSegmentPaths = ref<string[]>([]);
-const segmentCategories = ref<Record<string, SegmentCategory | "">>({});
 const randomPickCount = ref(1);
 const randomPickError = ref<string | null>(null);
 const randomSelectedSegments = ref<string[]>([]);
 const isMixing = ref(false);
 const mixError = ref<string | null>(null);
 const mixResultPath = ref<string | null>(null);
-const videoCoverPaths = ref<Record<string, string>>({});
-const segmentThumbnailPaths = ref<Record<string, string>>({});
-const selectedSegmentPath = ref<string | null>(null);
-const selectedCoverPath = ref<string | null>(null);
-const coverFrameSeconds = ref(1);
-const isGeneratingCover = ref(false);
-const coverError = ref<string | null>(null);
 const batchGenerateCount = ref(3);
 const isBatchMixing = ref(false);
 const batchMixError = ref<string | null>(null);
@@ -97,10 +72,10 @@ const {
   addExportResult,
   batchMixLogs,
   clearAiRemixLogs,
+  clearSplitLogs,
   exportLogs,
   exportResultItems,
   mixLogs,
-  splitLogs,
   taskLogs,
 } = useTaskLogs();
 
@@ -132,6 +107,39 @@ const {
 } = useRemixSettings();
 
 const {
+  coverError,
+  coverFrameSeconds,
+  generateCoverFrame,
+  importError,
+  importedVideos,
+  importVideoFolder: importMaterialFolder,
+  importVideos: importMaterialVideos,
+  isGeneratingCover,
+  isImporting,
+  isSplitting,
+  mergeSegmentThumbnailPaths,
+  segmentCategories,
+  segmentDurationSeconds,
+  segmentThumbnailUrls,
+  selectSegment,
+  selectedCoverUrl,
+  selectedSegmentPath,
+  selectedVideo,
+  selectVideo: selectMaterialVideo,
+  splitAllMaterials,
+  splitError,
+  splitOutputDirectory,
+  splitSegmentCount,
+  splitSegmentPaths,
+  updateSegmentCategory,
+  videoCoverUrls,
+} = useMaterials({
+  outputDirectory,
+  appendSplitLog,
+  clearSplitLogs,
+});
+
+const {
   aiGenerateError,
   aiPlanError,
   aiPlannedShots,
@@ -157,10 +165,7 @@ const {
   appendSplitLog,
   clearAiRemixLogs,
   onSegmentThumbnailsPrepared(entries) {
-    segmentThumbnailPaths.value = {
-      ...segmentThumbnailPaths.value,
-      ...entries,
-    };
+    mergeSegmentThumbnailPaths(entries);
   },
   validateExportSettings() {
     return (
@@ -220,19 +225,6 @@ const previewCanvasStyle = computed(
 const shouldShowBlurBackground = computed(
   () => canvasAspectRatio.value !== "original" && canvasBackgroundMode.value === "blur",
 );
-
-const videoCoverUrls = computed(() => mapFilePathsToUrls(videoCoverPaths.value));
-
-const segmentThumbnailUrls = computed(() => mapFilePathsToUrls(segmentThumbnailPaths.value));
-
-const selectedCoverUrl = computed(() => {
-  if (!selectedCoverPath.value) {
-    return null;
-  }
-
-  return convertFileSrc(selectedCoverPath.value);
-});
-
 
 const isAnyProcessing = computed(
   () =>
@@ -313,100 +305,23 @@ async function runEnvironmentCheck() {
 }
 
 async function importVideos() {
-  importError.value = null;
-  isImporting.value = true;
-
-  try {
-    const selected = await open({
-      multiple: true,
-      filters: [
-        {
-          name: "视频文件",
-          extensions: ["mp4", "mov", "avi", "mkv"],
-        },
-      ],
-    });
-
-    if (!selected) {
-      return;
-    }
-
-    const filePaths = Array.isArray(selected) ? selected : [selected];
-    await loadVideosFromPaths(filePaths);
-  } catch (error) {
-    importError.value =
-      error instanceof Error ? error.message : String(error ?? "视频导入失败。");
-  } finally {
-    isImporting.value = false;
+  if (await importMaterialVideos()) {
+    resetAiRemixState(true);
+    resetRandomPickState();
   }
 }
 
 async function importVideoFolder() {
-  importError.value = null;
-  isImporting.value = true;
-
-  try {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-    });
-
-    if (!selected || Array.isArray(selected)) {
-      return;
-    }
-
-    const filePaths = await listVideoFilesInFolder(selected);
-
-    if (filePaths.length === 0) {
-      importedVideos.value = [];
-      selectedVideo.value = null;
-      importError.value = "该文件夹中没有检测到 mp4 / mov / avi / mkv 视频文件。";
-      return;
-    }
-
-    await loadVideosFromPaths(filePaths);
-  } catch (error) {
-    importError.value =
-      error instanceof Error ? error.message : String(error ?? "文件夹导入失败。");
-  } finally {
-    isImporting.value = false;
-  }
-}
-
-async function loadVideosFromPaths(filePaths: string[]) {
-  const videos = await Promise.all(
-    filePaths.map(async (filePath) => {
-      const metadata = await readVideoMetadata(filePath);
-
-      return {
-        ...metadata,
-        id: `${metadata.filePath}-${metadata.fileSizeBytes}`,
-      };
-    }),
-  );
-
-  videoCoverPaths.value = {};
-  importedVideos.value = videos;
-  selectedVideo.value = videos[0] ?? null;
-  selectedCoverPath.value = null;
-  resetSplitAndRandomState();
-
-  if (selectedVideo.value) {
-    void ensureVideoCover(selectedVideo.value);
+  if (await importMaterialFolder()) {
+    resetAiRemixState(true);
+    resetRandomPickState();
   }
 }
 
 function selectVideo(video: ImportedVideo) {
-  selectedVideo.value = video;
-  selectedSegmentPath.value = null;
-  selectedCoverPath.value = videoCoverPaths.value[video.id] ?? null;
-  coverError.value = null;
-  resetSplitAndRandomState();
-  void ensureVideoCover(video);
-}
-
-function selectSegment(segmentPath: string) {
-  selectedSegmentPath.value = segmentPath;
+  selectMaterialVideo(video);
+  resetAiRemixState(true);
+  resetRandomPickState();
 }
 
 async function selectOutputDirectory() {
@@ -473,87 +388,9 @@ async function exportSelectedVideo() {
 }
 
 async function splitSelectedVideo() {
-  splitError.value = null;
-  splitOutputDirectory.value = null;
-  splitSegmentCount.value = null;
-  splitSegmentPaths.value = [];
-  splitLogs.value = [];
   resetRandomPickState();
   resetAiRemixState(false);
-
-  if (importedVideos.value.length === 0) {
-    splitError.value = "请先导入至少一个要切片的视频。";
-    appendSplitLog(`切片失败：${splitError.value}`, "error");
-    return;
-  }
-
-  if (!outputDirectory.value) {
-    splitError.value = "请先选择输出目录。";
-    appendSplitLog(`切片失败：${splitError.value}`, "error");
-    return;
-  }
-
-  if (!Number.isFinite(segmentDurationSeconds.value) || segmentDurationSeconds.value <= 0) {
-    splitError.value = "切片秒数必须大于 0。";
-    appendSplitLog(`切片失败：${splitError.value}`, "error");
-    return;
-  }
-
-  appendSplitLog(`开始切片全部素材，共 ${importedVideos.value.length} 个视频。`, "info");
-  isSplitting.value = true;
-
-  try {
-    const allSegmentPaths: string[] = [];
-    const failedVideos: string[] = [];
-
-    for (const [index, video] of importedVideos.value.entries()) {
-      appendSplitLog(
-        `正在切片 ${index + 1}/${importedVideos.value.length}：${video.fileName}`,
-        "info",
-      );
-
-      try {
-        const result = await splitCurrentVideo(
-          video.filePath,
-          outputDirectory.value,
-          segmentDurationSeconds.value,
-        );
-        allSegmentPaths.push(...result.segmentPaths);
-        appendSplitLog(
-          `${video.fileName} 切片完成：${result.segmentCount} 个片段。`,
-          "success",
-        );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error ?? "视频切片失败");
-        failedVideos.push(video.fileName);
-        appendSplitLog(`${video.fileName} 切片失败：${message}`, "error");
-      }
-    }
-
-    if (allSegmentPaths.length < 2) {
-      throw new Error("成功生成的片段不足 2 个，无法继续 AI 混剪。请检查任务日志。 ");
-    }
-
-    splitOutputDirectory.value = outputDirectory.value;
-    splitSegmentCount.value = allSegmentPaths.length;
-    splitSegmentPaths.value = allSegmentPaths;
-    segmentCategories.value = buildEmptySegmentCategoryMap(allSegmentPaths);
-    await prepareSegmentAssets(allSegmentPaths);
-    appendSplitLog(
-      `全部素材切片完成：${importedVideos.value.length - failedVideos.length} 个成功，共 ${allSegmentPaths.length} 个片段。`,
-      failedVideos.length > 0 ? "error" : "success",
-    );
-
-    if (failedVideos.length > 0) {
-      splitError.value = `${failedVideos.length} 个视频切片失败，已保留其他视频生成的片段。`;
-    }
-  } catch (error) {
-    splitError.value =
-      error instanceof Error ? error.message : String(error ?? "视频切片失败。");
-    appendSplitLog(`切片失败：${splitError.value}`, "error");
-  } finally {
-    isSplitting.value = false;
-  }
+  await splitAllMaterials(prepareSegmentAssets);
 }
 
 async function concatCategorizedSegments() {
@@ -841,19 +678,6 @@ async function generateBatchMixes() {
   }
 }
 
-function resetSplitAndRandomState() {
-  splitError.value = null;
-  splitOutputDirectory.value = null;
-  splitSegmentCount.value = null;
-  splitSegmentPaths.value = [];
-  segmentCategories.value = {};
-  segmentThumbnailPaths.value = {};
-  selectedSegmentPath.value = null;
-  splitLogs.value = [];
-  resetAiRemixState(true);
-  resetRandomPickState();
-}
-
 function resetRandomPickState() {
   randomPickError.value = null;
   randomSelectedSegments.value = [];
@@ -873,13 +697,6 @@ function resetBatchMixState() {
   batchMixError.value = null;
   batchMixResults.value = [];
   batchMixLogs.value = [];
-}
-
-function updateSegmentCategory(segmentPath: string, category: SegmentCategory | "") {
-  segmentCategories.value = {
-    ...segmentCategories.value,
-    [segmentPath]: category,
-  };
 }
 
 function validatePlaybackSpeed() {
@@ -1101,70 +918,6 @@ async function selectPipOverlayFile() {
   }
 }
 
-async function ensureVideoCover(video: ImportedVideo) {
-  if (videoCoverPaths.value[video.id]) {
-    selectedCoverPath.value = videoCoverPaths.value[video.id];
-    return;
-  }
-
-  try {
-    const result = await generateThumbnail(
-      video.filePath,
-      outputDirectory.value,
-      getDefaultCoverTime(video),
-      "cover",
-    );
-    videoCoverPaths.value = {
-      ...videoCoverPaths.value,
-      [video.id]: result.thumbnailPath,
-    };
-
-    if (selectedVideo.value?.id === video.id) {
-      selectedCoverPath.value = result.thumbnailPath;
-    }
-  } catch (error) {
-    if (selectedVideo.value?.id === video.id) {
-      coverError.value =
-        error instanceof Error ? error.message : String(error ?? "生成封面帧失败。");
-    }
-  }
-}
-
-async function generateCoverFrame() {
-  coverError.value = null;
-
-  if (!selectedVideo.value) {
-    coverError.value = "请先选择一个视频素材。";
-    return;
-  }
-
-  if (!Number.isFinite(coverFrameSeconds.value) || coverFrameSeconds.value < 0) {
-    coverError.value = "抽帧时间必须大于或等于 0。";
-    return;
-  }
-
-  isGeneratingCover.value = true;
-
-  try {
-    const result = await generateThumbnail(
-      selectedVideo.value.filePath,
-      outputDirectory.value,
-      coverFrameSeconds.value,
-      "selected_cover",
-    );
-    videoCoverPaths.value = {
-      ...videoCoverPaths.value,
-      [selectedVideo.value.id]: result.thumbnailPath,
-    };
-    selectedCoverPath.value = result.thumbnailPath;
-  } catch (error) {
-    coverError.value =
-      error instanceof Error ? error.message : String(error ?? "生成封面帧失败。");
-  } finally {
-    isGeneratingCover.value = false;
-  }
-}
-
 async function openOutputDirectory() {
   fileManagerError.value = null;
 
@@ -1293,13 +1046,6 @@ async function selectBgmAudioFile() {
   }
 }
 
-function buildEmptySegmentCategoryMap(segmentPaths: string[]) {
-  return Object.fromEntries(segmentPaths.map((segmentPath) => [segmentPath, ""])) as Record<
-    string,
-    SegmentCategory | ""
-  >;
-}
-
 function formatDuration(durationSeconds: number | null) {
   if (durationSeconds === null) {
     return "未知";
@@ -1338,20 +1084,6 @@ function formatFileSize(fileSizeBytes: number) {
 
 function formatFileName(filePath: string) {
   return filePath.split(/[\\/]/).pop() ?? filePath;
-}
-
-function getDefaultCoverTime(video: ImportedVideo) {
-  if (video.durationSeconds === null) {
-    return 0.1;
-  }
-
-  return Math.min(1, Math.max(0.1, video.durationSeconds / 10));
-}
-
-function mapFilePathsToUrls(paths: Record<string, string>) {
-  return Object.fromEntries(
-    Object.entries(paths).map(([key, path]) => [key, convertFileSrc(path)]),
-  );
 }
 
 onMounted(() => {

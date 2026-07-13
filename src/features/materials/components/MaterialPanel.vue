@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import type { SegmentCategory, SegmentCategoryOption } from "../services/videoMixService";
-import type { ImportedVideo } from "../types/videoProbe";
+import type { SegmentCategory, SegmentCategoryOption } from "../../../services/videoMixService";
+import type { ImportedVideo } from "../../../types/videoProbe";
 
 const props = defineProps<{
   isAdvancedMode: boolean;
@@ -45,7 +45,11 @@ watch(
 );
 
 function updateCategory(event: Event, segmentPath: string) {
-  emit("updateSegmentCategory", segmentPath, (event.target as HTMLSelectElement).value as SegmentCategory | "");
+  emit(
+    "updateSegmentCategory",
+    segmentPath,
+    (event.target as HTMLSelectElement).value as SegmentCategory | "",
+  );
 }
 </script>
 
