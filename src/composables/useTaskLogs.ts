@@ -56,6 +56,10 @@ export function useTaskLogs() {
     appendTaskLog(aiRemixLogs.value, message, level);
   }
 
+  function clearAiRemixLogs() {
+    aiRemixLogs.value = [];
+  }
+
   function addExportResult(type: ExportResultType, path: string) {
     exportResultItems.value.unshift({
       id: Date.now() + exportResultItems.value.length,
@@ -74,6 +78,7 @@ export function useTaskLogs() {
     appendSplitLog,
     addExportResult,
     batchMixLogs,
+    clearAiRemixLogs,
     exportLogs,
     exportResultItems,
     mixLogs,

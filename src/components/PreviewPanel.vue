@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CSSProperties } from "vue";
-import AiRemixPlanner from "./AiRemixPlanner.vue";
-import type { AiRemixPlannedShot, AiRemixSegment } from "../services/aiRemixService";
+import { AiRemixPlanner } from "../features/ai-remix";
+import type { AiRemixPlannedShot, AiRemixSegment } from "../features/ai-remix";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { CanvasAspectRatio } from "../services/videoMixService";
 import type { ToolKey } from "../types/workbench";

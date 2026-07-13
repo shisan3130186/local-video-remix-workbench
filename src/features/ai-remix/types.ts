@@ -1,5 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
-
 export interface AiRemixVisualSegmentInput {
   segmentId: string;
   durationSeconds: number;
@@ -42,22 +40,4 @@ export interface AiRemixPlannedShot {
   text: string;
   segment: AiRemixSegment;
   alternativeSegments: AiRemixSegment[];
-}
-
-export function analyzeAiRemixSegments(
-  segments: AiRemixVisualSegmentInput[],
-): Promise<AiRemixSegmentAnalysisResult> {
-  return invoke<AiRemixSegmentAnalysisResult>("analyze_ai_remix_segments", {
-    segments,
-  });
-}
-
-export function planAiRemix(
-  script: string,
-  segments: AiRemixSegmentInput[],
-): Promise<AiRemixPlanResult> {
-  return invoke<AiRemixPlanResult>("plan_ai_remix", {
-    script,
-    segments,
-  });
 }

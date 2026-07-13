@@ -1,0 +1,180 @@
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { readVideoMetadata } from "../../../services/videoProbeService";
+import { generateThumbnail } from "../../../services/videoThumbnailService";
+import type { TaskLogLevel } from "../../../types/workbench";
+import { analyzeAiRemixSegments } from "./aiRemixService";
+import type {
+  AiRemixPlanResult,
+  AiRemixPlannedShot,
+  AiRemixSegment,
+} from "../types";
+
+interface PrepareAiRemixSegmentsOptions {
+  segmentPaths: string[];
+  outputDirectory: string;
+  onSegmentError: (message: string) => void;
+}
+
+export interface PrepareAiRemixSegmentsResult {
+  preparedSegments: AiRemixSegment[];
+  thumbnailEntries: Record<string, string>;
+  preparationErrors: string[];
+}
+
+interface AnalyzeAiRemixDescriptionsOptions {
+  appendLog: (message: string, level: TaskLogLevel) => void;
+  updateProgress: (message: string) => void;
+}
+
+export async function prepareAiRemixSegments({
+  segmentPaths,
+  outputDirectory,
+  onSegmentError,
+}: PrepareAiRemixSegmentsOptions): Promise<PrepareAiRemixSegmentsResult> {
+  const thumbnailEntries: Record<string, string> = {};
+  const preparedSegments: AiRemixSegment[] = [];
+  const preparationErrors: string[] = [];
+
+  for (const [index, segmentPath] of segmentPaths.entries()) {
+    try {
+      const [thumbnailResult, metadata] = await Promise.all([
+        generateThumbnail(segmentPath, outputDirectory, 0.1, `segment_${index + 1}`),
+        readVideoMetadata(segmentPath),
+      ]);
+      const durationSeconds = metadata.durationSeconds;
+
+      if (durationSeconds === null || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+        throw new Error("无法读取有效片段时长。");
+      }
+
+      thumbnailEntries[segmentPath] = thumbnailResult.thumbnailPath;
+      preparedSegments.push({
+        segmentId: `segment-${String(index + 1).padStart(3, "0")}`,
+        path: segmentPath,
+        durationSeconds,
+        thumbnailPath: thumbnailResult.thumbnailPath,
+        thumbnailUrl: convertFileSrc(thumbnailResult.thumbnailPath),
+        description: null,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error ?? "未知错误");
+      preparationErrors.push(`${formatFileName(segmentPath)}：${errorMessage}`);
+      onSegmentError(
+        `片段 AI 信息准备失败：${formatFileName(segmentPath)}，${errorMessage}`,
+      );
+    }
+  }
+
+  return { preparedSegments, thumbnailEntries, preparationErrors };
+}
+
+export async function analyzeAiRemixSegmentDescriptions(
+  segments: AiRemixSegment[],
+  { appendLog, updateProgress }: AnalyzeAiRemixDescriptionsOptions,
+) {
+  const pendingSegments = segments.filter((segment) => !segment.description?.trim());
+
+  if (pendingSegments.length === 0) {
+    appendLog("复用当前切片已缓存的画面理解结果。", "info");
+    return segments;
+  }
+
+  const batches = pendingSegments.map((segment) => [segment]);
+  let completedCount = segments.length - pendingSegments.length;
+  let updatedSegments = segments;
+  updateProgress(`正在理解片段画面 ${completedCount}/${segments.length}`);
+  appendLog(
+    `开始分批理解 ${pendingSegments.length} 个片段画面：每次只发送 1 张预览图，最多同时处理 2 张。`,
+    "info",
+  );
+
+  for (let waveIndex = 0; waveIndex < batches.length; waveIndex += 2) {
+    const wave = batches.slice(waveIndex, waveIndex + 2);
+    const waveSegmentIds = wave.flatMap((batch) => batch.map((segment) => segment.segmentId));
+    appendLog(
+      `正在理解 ${waveSegmentIds.join("、")}（第 ${waveIndex + 1}-${waveIndex + wave.length}/${batches.length} 批）。`,
+      "info",
+    );
+    const results = await Promise.allSettled(
+      wave.map((batch) =>
+        analyzeAiRemixSegments(
+          batch.map((segment) => ({
+            segmentId: segment.segmentId,
+            durationSeconds: segment.durationSeconds,
+            thumbnailPath: segment.thumbnailPath,
+          })),
+        ),
+      ),
+    );
+    const descriptions = new Map<string, string>();
+    const errors: string[] = [];
+
+    results.forEach((result, resultIndex) => {
+      const batch = wave[resultIndex];
+
+      if (result.status === "fulfilled") {
+        result.value.segments.forEach((analysis) => {
+          descriptions.set(analysis.segmentId, analysis.description.trim());
+        });
+        completedCount += batch.length;
+      } else {
+        const message =
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason ?? "片段画面理解失败");
+        errors.push(`${batch.map((segment) => segment.segmentId).join("、")}：${message}`);
+      }
+    });
+
+    if (descriptions.size > 0) {
+      updatedSegments = updatedSegments.map((segment) => ({
+        ...segment,
+        description: descriptions.get(segment.segmentId) ?? segment.description,
+      }));
+    }
+
+    updateProgress(`正在理解片段画面 ${completedCount}/${segments.length}`);
+    appendLog(
+      `片段画面理解进度：${completedCount}/${segments.length}。`,
+      errors.length > 0 ? "error" : "success",
+    );
+
+    if (errors.length > 0) {
+      throw new Error(`部分片段理解失败：${errors[0]}`);
+    }
+  }
+
+  return updatedSegments;
+}
+
+export function createAiRemixPlannedShots(
+  result: AiRemixPlanResult,
+  segments: AiRemixSegment[],
+): AiRemixPlannedShot[] {
+  const segmentMap = new Map(segments.map((segment) => [segment.segmentId, segment]));
+  const primarySegmentIds = new Set(result.shots.map((shot) => shot.segmentId));
+  const planTimestamp = Date.now();
+
+  return result.shots.map((shot, index) => {
+    const segment = segmentMap.get(shot.segmentId);
+    const alternativeSegments = shot.alternativeSegmentIds
+      .filter((segmentId) => !primarySegmentIds.has(segmentId))
+      .map((segmentId) => segmentMap.get(segmentId));
+
+    if (!segment || alternativeSegments.some((alternative) => !alternative)) {
+      throw new Error("AI 分镜结果包含无法识别的片段编号。");
+    }
+
+    return {
+      shotId: `shot-${planTimestamp}-${index + 1}`,
+      text: shot.text.trim(),
+      segment,
+      alternativeSegments: alternativeSegments as AiRemixSegment[],
+    };
+  });
+}
+
+function formatFileName(filePath: string) {
+  return filePath.split(/[\\/]/).pop() ?? filePath;
+}

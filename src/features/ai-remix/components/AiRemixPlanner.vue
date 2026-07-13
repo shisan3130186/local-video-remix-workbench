@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AiRemixPlannedShot, AiRemixSegment } from "../services/aiRemixService";
+import type { AiRemixPlannedShot, AiRemixSegment } from "../types";
 
 defineProps<{
   preparedSegments: AiRemixSegment[];

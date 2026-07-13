@@ -13,6 +13,17 @@ src/features/<feature-name>/
 └─ constants.ts   该功能固定选项
 ```
 
+当前已落地模块：
+
+```text
+ai-remix/
+├─ components   AI 分镜展示和人工调整
+├─ services     Tauri AI 调用、片段准备和画面理解工作流
+├─ types.ts     AI 片段和分镜类型
+├─ useAiRemix.ts AI 状态与主流程
+└─ index.ts     对外统一出口
+```
+
 边界规则：
 
 1. `App.vue` 只负责组合功能、页面级导航和少量跨功能状态。
