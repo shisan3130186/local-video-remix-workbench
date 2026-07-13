@@ -74,6 +74,12 @@ cd E:\Workspace\Project_03_本地短视频批量混剪工作台
 corepack pnpm tauri build
 ```
 
+## Windows 安装包状态
+
+NSIS 安装器已经可以成功生成，但当前只适合内部技术测试：安装包尚未内置 FFmpeg / FFprobe，AI 仍需要从启动环境读取配置，安装包也没有代码签名。
+
+详细结论见 `docs/12_代码质量与安装包可行性审计.md`，发布前检查见 `tasks/安装包发布准备清单.md`。
+
 ## 当前开发规则
 
 开发前必须阅读：

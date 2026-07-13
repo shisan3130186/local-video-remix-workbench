@@ -1,3 +1,4 @@
+use crate::video_engine::tool_paths::ffmpeg_program;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -45,7 +46,7 @@ pub fn generate_video_thumbnail(
         .ok_or_else(|| "预览图输出路径包含无法识别的字符。".to_string())?;
     let time_text = format!("{time_seconds:.3}");
 
-    let output = Command::new("ffmpeg")
+    let output = Command::new(ffmpeg_program())
         .args([
             "-y",
             "-ss",

@@ -54,6 +54,18 @@ export interface SubtitleSettings {
   backgroundEnabled: boolean;
 }
 
+export interface RemixExportSettings {
+  applyHorizontalMirror: boolean;
+  playbackSpeed: number;
+  canvasAspectRatio: CanvasAspectRatio;
+  canvasBackgroundMode: CanvasBackgroundMode;
+  smoothRemixEnabled: boolean;
+  videoEffectSettings: VideoEffectSettings;
+  pictureInPictureSettings: PictureInPictureSettings;
+  bgmSettings: BgmSettings;
+  subtitleSettings: SubtitleSettings;
+}
+
 export type CanvasAspectRatio =
   | "original"
   | "portrait916"
@@ -148,28 +160,12 @@ export function pickCategorizedSegments(
 export function concatSelectedSegments(
   segmentPaths: string[],
   outputDirectory: string,
-  applyHorizontalMirror: boolean,
-  playbackSpeed: number,
-  canvasAspectRatio: CanvasAspectRatio,
-  canvasBackgroundMode: CanvasBackgroundMode,
-  smoothRemixEnabled: boolean,
-  videoEffectSettings: VideoEffectSettings,
-  pictureInPictureSettings: PictureInPictureSettings,
-  bgmSettings: BgmSettings,
-  subtitleSettings: SubtitleSettings,
+  settings: RemixExportSettings,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_selected_segments", {
     segmentPaths,
     outputDirectory,
-    applyHorizontalMirror,
-    playbackSpeed,
-    canvasAspectRatio,
-    canvasBackgroundMode,
-    smoothRemixEnabled,
-    videoEffectSettings,
-    pictureInPictureSettings,
-    bgmSettings,
-    subtitleSettings,
+    settings,
   });
 }
 

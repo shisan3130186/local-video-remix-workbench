@@ -1,3 +1,4 @@
+use crate::video_engine::tool_paths::ffmpeg_program;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -43,7 +44,7 @@ pub fn split_video_by_duration(
     let segment_duration_text = format!("{segment_duration_seconds:.3}");
     let force_key_frames = format!("expr:gte(t,n_forced*{segment_duration_text})");
 
-    let output = Command::new("ffmpeg")
+    let output = Command::new(ffmpeg_program())
         .args([
             "-y",
             "-i",

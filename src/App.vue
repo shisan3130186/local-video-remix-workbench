@@ -27,6 +27,7 @@ import type {
   MixVideoResult,
   PictureInPictureSettings,
   PipPosition,
+  RemixExportSettings,
   RotationMode,
   SegmentCategory,
   SegmentCategoryOption,
@@ -324,6 +325,20 @@ const disabledSubtitleSettings = computed(
     fontSize: 36,
     textColor: "#ffffff",
     backgroundEnabled: false,
+  }),
+);
+
+const remixExportSettings = computed(
+  (): RemixExportSettings => ({
+    applyHorizontalMirror: applyHorizontalMirror.value,
+    playbackSpeed: playbackSpeed.value,
+    canvasAspectRatio: canvasAspectRatio.value,
+    canvasBackgroundMode: canvasBackgroundMode.value,
+    smoothRemixEnabled: smoothRemixEnabled.value,
+    videoEffectSettings: videoEffectSettings.value,
+    pictureInPictureSettings: pictureInPictureSettings.value,
+    bgmSettings: bgmSettings.value,
+    subtitleSettings: disabledSubtitleSettings.value,
   }),
 );
 
@@ -732,15 +747,7 @@ async function concatCategorizedSegments() {
     const result = await concatSelectedSegments(
       randomSelectedSegments.value,
       outputDirectory.value,
-      applyHorizontalMirror.value,
-      playbackSpeed.value,
-      canvasAspectRatio.value,
-      canvasBackgroundMode.value,
-      smoothRemixEnabled.value,
-      videoEffectSettings.value,
-      pictureInPictureSettings.value,
-      bgmSettings.value,
-      disabledSubtitleSettings.value,
+      remixExportSettings.value,
     );
     mixResultPath.value = result.outputPath;
     addExportResult("分类混剪", result.outputPath);
@@ -831,15 +838,7 @@ async function concatRandomSegments() {
     const result = await concatSelectedSegments(
       randomSelectedSegments.value,
       outputDirectory.value,
-      applyHorizontalMirror.value,
-      playbackSpeed.value,
-      canvasAspectRatio.value,
-      canvasBackgroundMode.value,
-      smoothRemixEnabled.value,
-      videoEffectSettings.value,
-      pictureInPictureSettings.value,
-      bgmSettings.value,
-      disabledSubtitleSettings.value,
+      remixExportSettings.value,
     );
     mixResultPath.value = result.outputPath;
     addExportResult("拼接导出", result.outputPath);
@@ -926,15 +925,7 @@ async function generateBatchMixes() {
       const result = await concatSelectedSegments(
         pickedSegments,
         outputDirectory.value,
-        applyHorizontalMirror.value,
-        playbackSpeed.value,
-        canvasAspectRatio.value,
-        canvasBackgroundMode.value,
-        smoothRemixEnabled.value,
-        videoEffectSettings.value,
-        pictureInPictureSettings.value,
-        bgmSettings.value,
-        disabledSubtitleSettings.value,
+        remixExportSettings.value,
       );
       batchMixResults.value.push(result.outputPath);
       addExportResult("批量生成", result.outputPath);
@@ -1619,15 +1610,7 @@ async function generateAiRemixVideo() {
     const result = await concatSelectedSegments(
       aiPlannedShots.value.map((shot) => shot.segment.path),
       outputDirectory.value,
-      applyHorizontalMirror.value,
-      playbackSpeed.value,
-      canvasAspectRatio.value,
-      canvasBackgroundMode.value,
-      smoothRemixEnabled.value,
-      videoEffectSettings.value,
-      pictureInPictureSettings.value,
-      bgmSettings.value,
-      disabledSubtitleSettings.value,
+      remixExportSettings.value,
     );
     mixResultPath.value = result.outputPath;
     addExportResult("AI 智能混剪", result.outputPath);

@@ -1,4 +1,5 @@
 use crate::video_engine::canvas::{build_canvas_filter, CanvasAspectRatio, CanvasBackgroundMode};
+use crate::video_engine::tool_paths::ffmpeg_program;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -65,7 +66,7 @@ pub fn export_basic_video(
         output_path_text.to_string(),
     ]);
 
-    let output = Command::new("ffmpeg")
+    let output = Command::new(ffmpeg_program())
         .args(ffmpeg_args)
         .output()
         .map_err(|error| format!("无法调用 ffmpeg：{error}"))?;

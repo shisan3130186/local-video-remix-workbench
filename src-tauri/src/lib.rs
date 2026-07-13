@@ -10,10 +10,7 @@ use std::path::Path;
 use std::process::Command;
 use video_engine::canvas::{CanvasAspectRatio, CanvasBackgroundMode};
 use video_engine::import::list_supported_videos_in_folder;
-use video_engine::mix::{
-    concat_video_segments, BgmSettings, MixVideoResult, PictureInPictureSettings,
-    VideoEffectSettings,
-};
+use video_engine::mix::{concat_video_segments, MixVideoResult, RemixSettings};
 use video_engine::probe::{
     check_environment, probe_video_metadata, FfmpegEnvironmentResult, VideoMetadata,
 };
@@ -123,27 +120,9 @@ async fn plan_ai_remix(
 fn concat_selected_segments(
     segment_paths: Vec<String>,
     output_directory: String,
-    apply_horizontal_mirror: bool,
-    playback_speed: f64,
-    canvas_aspect_ratio: CanvasAspectRatio,
-    canvas_background_mode: CanvasBackgroundMode,
-    smooth_remix_enabled: bool,
-    video_effect_settings: VideoEffectSettings,
-    picture_in_picture_settings: PictureInPictureSettings,
-    bgm_settings: BgmSettings,
+    settings: RemixSettings,
 ) -> Result<MixVideoResult, String> {
-    concat_video_segments(
-        segment_paths,
-        output_directory,
-        apply_horizontal_mirror,
-        playback_speed,
-        canvas_aspect_ratio,
-        canvas_background_mode,
-        smooth_remix_enabled,
-        video_effect_settings,
-        picture_in_picture_settings,
-        bgm_settings,
-    )
+    concat_video_segments(segment_paths, output_directory, settings)
 }
 
 pub fn run() {

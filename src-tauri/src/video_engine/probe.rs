@@ -1,5 +1,7 @@
+use crate::video_engine::tool_paths::{ffmpeg_program, ffprobe_program};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 #[derive(Debug, Serialize)]
@@ -52,8 +54,10 @@ struct FfprobeFormat {
 }
 
 pub fn check_environment() -> FfmpegEnvironmentResult {
-    let ffmpeg = probe_tool("ffmpeg");
-    let ffprobe = probe_tool("ffprobe");
+    let ffmpeg_program = ffmpeg_program();
+    let ffprobe_program = ffprobe_program();
+    let ffmpeg = probe_tool("ffmpeg", &ffmpeg_program);
+    let ffprobe = probe_tool("ffprobe", &ffprobe_program);
     let available = ffmpeg.available && ffprobe.available;
     let message = if available {
         "FFmpeg 环境正常。".to_string()
@@ -77,7 +81,7 @@ pub fn probe_video_metadata(file_path: String) -> Result<VideoMetadata, String> 
         return Err("选择的路径不是视频文件。".to_string());
     }
 
-    let output = Command::new("ffprobe")
+    let output = Command::new(ffprobe_program())
         .args([
             "-v",
             "error",
@@ -136,8 +140,8 @@ pub fn probe_video_metadata(file_path: String) -> Result<VideoMetadata, String> 
     })
 }
 
-fn probe_tool(binary_name: &str) -> ToolProbeResult {
-    match Command::new(binary_name).arg("-version").output() {
+fn probe_tool(binary_name: &str, program: &Path) -> ToolProbeResult {
+    match Command::new(program).arg("-version").output() {
         Ok(output) if output.status.success() => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let version = stdout.lines().next().map(|line| line.trim().to_string());

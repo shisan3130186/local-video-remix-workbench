@@ -51,3 +51,8 @@ Thumbs.db
 .vscode/
 .idea/
 .codegraph/
+
+# Local third-party FFmpeg packaging binaries are large and must not be committed.
+src-tauri/resources/ffmpeg/*.exe
+src-tauri/resources/ffmpeg/*.dll
+src-tauri/resources/ffmpeg/*.zip

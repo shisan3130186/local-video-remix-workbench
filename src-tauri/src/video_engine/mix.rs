@@ -1,6 +1,7 @@
 use crate::video_engine::canvas::{
     build_canvas_filter, build_plain_video_filter, CanvasAspectRatio, CanvasBackgroundMode,
 };
+use crate::video_engine::tool_paths::{ffmpeg_program, ffprobe_program};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -63,6 +64,26 @@ pub struct BgmSettings {
     fade_out_seconds: f64,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubtitleSettings {
+    enabled: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemixSettings {
+    apply_horizontal_mirror: bool,
+    playback_speed: f64,
+    canvas_aspect_ratio: CanvasAspectRatio,
+    canvas_background_mode: CanvasBackgroundMode,
+    smooth_remix_enabled: bool,
+    video_effect_settings: VideoEffectSettings,
+    picture_in_picture_settings: PictureInPictureSettings,
+    bgm_settings: BgmSettings,
+    subtitle_settings: SubtitleSettings,
+}
+
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PipPosition {
@@ -76,15 +97,24 @@ pub enum PipPosition {
 pub fn concat_video_segments(
     segment_paths: Vec<String>,
     output_directory: String,
-    apply_horizontal_mirror: bool,
-    playback_speed: f64,
-    canvas_aspect_ratio: CanvasAspectRatio,
-    canvas_background_mode: CanvasBackgroundMode,
-    smooth_remix_enabled: bool,
-    video_effect_settings: VideoEffectSettings,
-    picture_in_picture_settings: PictureInPictureSettings,
-    bgm_settings: BgmSettings,
+    settings: RemixSettings,
 ) -> Result<MixVideoResult, String> {
+    let RemixSettings {
+        apply_horizontal_mirror,
+        playback_speed,
+        canvas_aspect_ratio,
+        canvas_background_mode,
+        smooth_remix_enabled,
+        video_effect_settings,
+        picture_in_picture_settings,
+        bgm_settings,
+        subtitle_settings,
+    } = settings;
+
+    if subtitle_settings.enabled {
+        return Err("当前版本尚未支持字幕烧录，请先关闭字幕。".to_string());
+    }
+
     let output_dir = Path::new(&output_directory);
     let normalized_playback_speed = normalize_playback_speed(playback_speed)?;
     let normalized_effect_settings = normalize_video_effect_settings(video_effect_settings)?;
@@ -279,7 +309,7 @@ pub fn concat_video_segments(
         output_path_text.to_string(),
     ]);
 
-    let output = Command::new("ffmpeg")
+    let output = Command::new(ffmpeg_program())
         .args(ffmpeg_args)
         .output()
         .map_err(|error| format!("无法调用 ffmpeg：{error}"));
@@ -644,7 +674,7 @@ fn prepare_smooth_segments(
 }
 
 fn probe_segment_info(segment_path: &str) -> Result<SegmentInfo, String> {
-    let duration_output = Command::new("ffprobe")
+    let duration_output = Command::new(ffprobe_program())
         .args([
             "-v",
             "error",
@@ -675,7 +705,7 @@ fn probe_segment_info(segment_path: &str) -> Result<SegmentInfo, String> {
         .parse::<f64>()
         .map_err(|_| format!("无法识别片段时长：{duration_text}"))?;
 
-    let audio_output = Command::new("ffprobe")
+    let audio_output = Command::new(ffprobe_program())
         .args([
             "-v",
             "error",
@@ -740,7 +770,7 @@ fn create_smooth_segment(
 
     ffmpeg_args.push(temp_path_text.to_string());
 
-    let output = Command::new("ffmpeg")
+    let output = Command::new(ffmpeg_program())
         .args(ffmpeg_args)
         .output()
         .map_err(|error| format!("无法调用 ffmpeg 生成平滑片段：{error}"))?;
