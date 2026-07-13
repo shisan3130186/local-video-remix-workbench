@@ -1,10 +1,5 @@
 <script setup lang="ts">
-interface ExportResultItem {
-  id: number;
-  type: "基础导出" | "拼接导出" | "分类混剪" | "批量生成" | "AI 智能混剪";
-  path: string;
-  time: string;
-}
+import type { ExportResultItem } from "../types/workbench";
 
 defineProps<{
   open: boolean;

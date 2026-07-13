@@ -12,6 +12,12 @@ import RightToolPanel from "./components/RightToolPanel.vue";
 import TaskControlBar from "./components/TaskControlBar.vue";
 import TaskLogDrawer from "./components/TaskLogDrawer.vue";
 import ToolSettingModal from "./components/ToolSettingModal.vue";
+import {
+  SEGMENT_CATEGORY_OPTIONS as segmentCategoryOptions,
+  WORKBENCH_MODULE_CARDS as moduleCards,
+} from "./constants/workbench";
+import { useRemixSettings } from "./composables/useRemixSettings";
+import { useTaskLogs } from "./composables/useTaskLogs";
 import { analyzeAiRemixSegments, planAiRemix } from "./services/aiRemixService";
 import type { AiRemixPlannedShot, AiRemixSegment } from "./services/aiRemixService";
 import { listVideoFilesInFolder } from "./services/videoImportService";
@@ -21,18 +27,10 @@ import {
   pickRandomSegments,
 } from "./services/videoMixService";
 import type {
-  BgmSettings,
   CanvasAspectRatio,
   CanvasBackgroundMode,
   MixVideoResult,
-  PictureInPictureSettings,
-  PipPosition,
-  RemixExportSettings,
-  RotationMode,
   SegmentCategory,
-  SegmentCategoryOption,
-  SubtitleSettings,
-  VideoEffectSettings,
 } from "./services/videoMixService";
 import { openPathInFileManager } from "./services/fileManagerService";
 import {
@@ -43,45 +41,7 @@ import { exportCurrentVideo } from "./services/videoRenderService";
 import { splitCurrentVideo } from "./services/videoSplitService";
 import { generateThumbnail } from "./services/videoThumbnailService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
-
-type TaskLogLevel = "info" | "success" | "error";
-type ToolKey =
-  | "remix"
-  | "canvas"
-  | "audio"
-  | "bgm"
-  | "tts"
-  | "subtitleStyle"
-  | "watermark"
-  | "cover"
-  | "entrance"
-  | "frame"
-  | "effects"
-  | "transition"
-  | "pip"
-  | "adjust"
-  | "fusion"
-  | "rotate"
-  | "mirror"
-  | "speed"
-  | "zoom"
-  | "subtitles"
-  | "export";
-type DrawerKey = "logs" | "exports" | "batch";
-
-interface TaskLogEntry {
-  id: number;
-  time: string;
-  message: string;
-  level: TaskLogLevel;
-}
-
-interface ExportResultItem {
-  id: number;
-  type: "基础导出" | "拼接导出" | "分类混剪" | "批量生成" | "AI 智能混剪";
-  path: string;
-  time: string;
-}
+import type { DrawerKey, ToolKey } from "./types/workbench";
 
 const environment = ref<FfmpegEnvironmentResult | null>(null);
 const isChecking = ref(true);
@@ -96,7 +56,6 @@ const fileManagerError = ref<string | null>(null);
 const isExporting = ref(false);
 const exportError = ref<string | null>(null);
 const exportResultPath = ref<string | null>(null);
-const exportLogs = ref<TaskLogEntry[]>([]);
 const segmentDurationSeconds = ref(5);
 const isSplitting = ref(false);
 const splitError = ref<string | null>(null);
@@ -104,35 +63,12 @@ const splitOutputDirectory = ref<string | null>(null);
 const splitSegmentCount = ref<number | null>(null);
 const splitSegmentPaths = ref<string[]>([]);
 const segmentCategories = ref<Record<string, SegmentCategory | "">>({});
-const splitLogs = ref<TaskLogEntry[]>([]);
 const randomPickCount = ref(1);
 const randomPickError = ref<string | null>(null);
 const randomSelectedSegments = ref<string[]>([]);
 const isMixing = ref(false);
 const mixError = ref<string | null>(null);
 const mixResultPath = ref<string | null>(null);
-const mixLogs = ref<TaskLogEntry[]>([]);
-const applyHorizontalMirror = ref(false);
-const playbackSpeed = ref(1.0);
-const smoothRemixEnabled = ref(false);
-const applyVerticalMirror = ref(false);
-const rotationMode = ref<RotationMode>("none");
-const brightness = ref(0);
-const contrast = ref(1);
-const saturation = ref(1);
-const effectScale = ref(1);
-const pipEnabled = ref(false);
-const pipOverlayFilePath = ref<string | null>(null);
-const pipPosition = ref<PipPosition>("topRight");
-const pipSizeRatio = ref(0.3);
-const pipOpacity = ref(1);
-const pipMargin = ref(24);
-const bgmEnabled = ref(false);
-const bgmAudioFilePath = ref<string | null>(null);
-const originalVolume = ref(1);
-const bgmVolume = ref(0.35);
-const bgmFadeInSeconds = ref(0.5);
-const bgmFadeOutSeconds = ref(0.5);
 const videoCoverPaths = ref<Record<string, string>>({});
 const segmentThumbnailPaths = ref<Record<string, string>>({});
 const aiScript = ref("");
@@ -145,7 +81,6 @@ const aiPlanningProgressText = ref<string | null>(null);
 const isGeneratingAiRemix = ref(false);
 const aiPlanError = ref<string | null>(null);
 const aiGenerateError = ref<string | null>(null);
-const aiRemixLogs = ref<TaskLogEntry[]>([]);
 const selectedSegmentPath = ref<string | null>(null);
 const selectedCoverPath = ref<string | null>(null);
 const coverFrameSeconds = ref(1);
@@ -155,10 +90,6 @@ const batchGenerateCount = ref(3);
 const isBatchMixing = ref(false);
 const batchMixError = ref<string | null>(null);
 const batchMixResults = ref<string[]>([]);
-const batchMixLogs = ref<TaskLogEntry[]>([]);
-const exportResultItems = ref<ExportResultItem[]>([]);
-const canvasAspectRatio = ref<CanvasAspectRatio>("original");
-const canvasBackgroundMode = ref<CanvasBackgroundMode>("black");
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
 const isWorkspaceVisible = ref(true);
@@ -167,59 +98,48 @@ const activeDrawer = ref<DrawerKey | null>(null);
 const isWelcomeVisible = ref(true);
 const isAdvancedMode = ref(false);
 
-const moduleCards = [
-  {
-    title: "AI 智能混剪",
-    category: "创作中心",
-    description: "导入素材后，按切片、抽取、拼接和批量生成形成本地混剪流程。",
-    tags: ["视频混剪", "批量生成", "画布适配"],
-    available: true,
-  },
-  {
-    title: "视频效果处理",
-    category: "效率工具",
-    description: "面向镜像、变速、画布比例和背景填充的本地视频处理入口。",
-    tags: ["镜像", "变速", "模糊背景"],
-    available: true,
-  },
-  {
-    title: "视频混剪",
-    category: "创作中心",
-    description: "固定切片、随机抽取、拼接抽中片段和批量导出。",
-    tags: ["切片", "随机抽取", "拼接"],
-    available: true,
-  },
-  {
-    title: "分类混剪",
-    category: "创作中心",
-    description: "按素材分类和规则生成不同混剪版本。",
-    tags: ["分类素材", "规则混剪"],
-    available: true,
-  },
-  {
-    title: "文案改写",
-    category: "效率工具",
-    description: "后续用于文案多版本整理和创意表达。",
-    tags: ["文案", "多版本"],
-    available: false,
-  },
-  {
-    title: "视频内容提炼",
-    category: "自动化",
-    description: "后续用于从素材中提取片段价值和内容标签。",
-    tags: ["内容提炼", "素材标签"],
-    available: false,
-  },
-];
+const {
+  aiRemixLogs,
+  appendAiRemixLog,
+  appendBatchMixLog,
+  appendExportLog,
+  appendMixLog,
+  appendSplitLog,
+  addExportResult,
+  batchMixLogs,
+  exportLogs,
+  exportResultItems,
+  mixLogs,
+  splitLogs,
+  taskLogs,
+} = useTaskLogs();
 
-const segmentCategoryOptions: SegmentCategoryOption[] = [
-  { key: "hook", label: "开头钩子" },
-  { key: "product", label: "产品展示" },
-  { key: "usage", label: "使用过程" },
-  { key: "detail", label: "细节特写" },
-  { key: "result", label: "效果展示" },
-  { key: "ending", label: "结尾引导" },
-];
+const {
+  applyHorizontalMirror,
+  applyVerticalMirror,
+  bgmAudioFilePath,
+  bgmEnabled,
+  bgmFadeInSeconds,
+  bgmFadeOutSeconds,
+  bgmVolume,
+  brightness,
+  canvasAspectRatio,
+  canvasBackgroundMode,
+  contrast,
+  effectScale,
+  originalVolume,
+  pipEnabled,
+  pipMargin,
+  pipOpacity,
+  pipOverlayFilePath,
+  pipPosition,
+  pipSizeRatio,
+  playbackSpeed,
+  remixExportSettings,
+  rotationMode,
+  saturation,
+  smoothRemixEnabled,
+} = useRemixSettings();
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -276,71 +196,6 @@ const selectedCoverUrl = computed(() => {
   return convertFileSrc(selectedCoverPath.value);
 });
 
-const taskLogs = computed(() => [
-  ...exportLogs.value.map((log) => ({ ...log, group: "基础导出" })),
-  ...splitLogs.value.map((log) => ({ ...log, group: "视频切片" })),
-  ...mixLogs.value.map((log) => ({ ...log, group: "片段拼接" })),
-  ...batchMixLogs.value.map((log) => ({ ...log, group: "批量生成" })),
-  ...aiRemixLogs.value.map((log) => ({ ...log, group: "AI 智能混剪" })),
-]);
-
-const videoEffectSettings = computed(
-  (): VideoEffectSettings => ({
-    verticalMirror: applyVerticalMirror.value,
-    rotation: rotationMode.value,
-    brightness: brightness.value,
-    contrast: contrast.value,
-    saturation: saturation.value,
-    scale: effectScale.value,
-  }),
-);
-
-const pictureInPictureSettings = computed(
-  (): PictureInPictureSettings => ({
-    enabled: pipEnabled.value,
-    overlayFilePath: pipOverlayFilePath.value,
-    position: pipPosition.value,
-    sizeRatio: pipSizeRatio.value,
-    opacity: pipOpacity.value,
-    margin: pipMargin.value,
-  }),
-);
-
-const bgmSettings = computed(
-  (): BgmSettings => ({
-    enabled: bgmEnabled.value,
-    audioFilePath: bgmAudioFilePath.value,
-    originalVolume: originalVolume.value,
-    bgmVolume: bgmVolume.value,
-    fadeInSeconds: bgmFadeInSeconds.value,
-    fadeOutSeconds: bgmFadeOutSeconds.value,
-  }),
-);
-
-const disabledSubtitleSettings = computed(
-  (): SubtitleSettings => ({
-    enabled: false,
-    text: "",
-    position: "bottom",
-    fontSize: 36,
-    textColor: "#ffffff",
-    backgroundEnabled: false,
-  }),
-);
-
-const remixExportSettings = computed(
-  (): RemixExportSettings => ({
-    applyHorizontalMirror: applyHorizontalMirror.value,
-    playbackSpeed: playbackSpeed.value,
-    canvasAspectRatio: canvasAspectRatio.value,
-    canvasBackgroundMode: canvasBackgroundMode.value,
-    smoothRemixEnabled: smoothRemixEnabled.value,
-    videoEffectSettings: videoEffectSettings.value,
-    pictureInPictureSettings: pictureInPictureSettings.value,
-    bgmSettings: bgmSettings.value,
-    subtitleSettings: disabledSubtitleSettings.value,
-  }),
-);
 
 const isAnyProcessing = computed(
   () =>
@@ -997,26 +852,6 @@ function resetBatchMixState() {
   batchMixError.value = null;
   batchMixResults.value = [];
   batchMixLogs.value = [];
-}
-
-function appendSplitLog(message: string, level: TaskLogLevel) {
-  appendTaskLog(splitLogs.value, message, level);
-}
-
-function appendMixLog(message: string, level: TaskLogLevel) {
-  appendTaskLog(mixLogs.value, message, level);
-}
-
-function appendBatchMixLog(message: string, level: TaskLogLevel) {
-  appendTaskLog(batchMixLogs.value, message, level);
-}
-
-function appendAiRemixLog(message: string, level: TaskLogLevel) {
-  appendTaskLog(aiRemixLogs.value, message, level);
-}
-
-function appendExportLog(message: string, level: TaskLogLevel) {
-  appendTaskLog(exportLogs.value, message, level);
 }
 
 function updateSegmentCategory(segmentPath: string, category: SegmentCategory | "") {
@@ -1730,24 +1565,6 @@ function syncPreviewBackground() {
 watch([previewUrl, shouldShowBlurBackground], () => {
   requestAnimationFrame(syncPreviewBackground);
 });
-
-function appendTaskLog(logs: TaskLogEntry[], message: string, level: TaskLogLevel) {
-  logs.push({
-    id: Date.now() + logs.length,
-    time: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
-    message,
-    level,
-  });
-}
-
-function addExportResult(type: ExportResultItem["type"], path: string) {
-  exportResultItems.value.unshift({
-    id: Date.now() + exportResultItems.value.length,
-    type,
-    path,
-    time: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
-  });
-}
 
 async function selectBgmAudioFile() {
   try {

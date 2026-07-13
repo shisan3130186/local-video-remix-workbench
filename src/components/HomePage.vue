@@ -1,11 +1,5 @@
 <script setup lang="ts">
-interface ModuleCard {
-  title: string;
-  category: string;
-  description: string;
-  tags: string[];
-  available: boolean;
-}
+import type { ModuleCard } from "../types/workbench";
 
 const props = defineProps<{
   moduleCards: ModuleCard[];

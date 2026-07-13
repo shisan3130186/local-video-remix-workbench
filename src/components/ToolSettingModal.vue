@@ -5,29 +5,7 @@ import type {
   PipPosition,
   RotationMode,
 } from "../services/videoMixService";
-
-type ToolKey =
-  | "remix"
-  | "canvas"
-  | "audio"
-  | "bgm"
-  | "tts"
-  | "subtitleStyle"
-  | "watermark"
-  | "cover"
-  | "entrance"
-  | "frame"
-  | "effects"
-  | "transition"
-  | "pip"
-  | "adjust"
-  | "fusion"
-  | "rotate"
-  | "mirror"
-  | "speed"
-  | "zoom"
-  | "subtitles"
-  | "export";
+import type { ToolKey } from "../types/workbench";
 
 const props = defineProps<{
   activeTool: ToolKey | null;

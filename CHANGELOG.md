@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 2026-07-13：前端渐进式重构第一阶段
+
+- 新增 `src/types/workbench.ts`，统一工作台工具、日志、模块卡片和导出结果类型。
+- 新增 `src/constants/workbench.ts`，集中首页模块卡片和片段分类选项。
+- 新增 `useTaskLogs`，统一管理各类任务日志和导出结果。
+- 新增 `useRemixSettings`，统一管理画布、效果、画中画、BGM 和导出设置。
+- 多个组件移除重复类型定义，改用共享类型。
+- `App.vue` 从 2095 行减少到 1895 行。
+- 本次没有修改页面布局、视觉样式、AI 请求或 VideoEngine 行为。
+- 前端构建、Rust Clippy、AI 测试和 FFmpeg 工具路径测试全部通过。
+
 ## 2026-07-13：代码质量与安装包准备
 
 - 完成代码质量审计，确认项目无需重写，但 `App.vue`、`styles.css` 和 `mix.rs` 是后续小步治理重点。

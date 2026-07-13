@@ -1,28 +1,6 @@
 <script setup lang="ts">
 import type { FfmpegEnvironmentResult } from "../types/videoProbe";
-
-type ToolKey =
-  | "remix"
-  | "canvas"
-  | "audio"
-  | "bgm"
-  | "tts"
-  | "subtitleStyle"
-  | "watermark"
-  | "cover"
-  | "entrance"
-  | "frame"
-  | "effects"
-  | "transition"
-  | "pip"
-  | "adjust"
-  | "fusion"
-  | "rotate"
-  | "mirror"
-  | "speed"
-  | "zoom"
-  | "subtitles"
-  | "export";
+import type { DrawerKey, ToolKey } from "../types/workbench";
 
 defineProps<{
   isAdvancedMode: boolean;
@@ -32,7 +10,7 @@ defineProps<{
 
 defineEmits<{
   openTool: [tool: ToolKey];
-  openDrawer: [drawer: "logs" | "exports" | "batch"];
+  openDrawer: [drawer: DrawerKey];
   toggleAdvancedMode: [enabled: boolean];
 }>();
 

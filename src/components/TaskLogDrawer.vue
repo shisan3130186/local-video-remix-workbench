@@ -1,17 +1,9 @@
 <script setup lang="ts">
-type TaskLogLevel = "info" | "success" | "error";
-
-interface TaskLogEntry {
-  id: number;
-  time: string;
-  message: string;
-  level: TaskLogLevel;
-  group: string;
-}
+import type { GroupedTaskLogEntry } from "../types/workbench";
 
 defineProps<{
   open: boolean;
-  taskLogs: TaskLogEntry[];
+  taskLogs: GroupedTaskLogEntry[];
 }>();
 
 defineEmits<{

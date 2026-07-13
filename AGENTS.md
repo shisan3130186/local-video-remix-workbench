@@ -53,3 +53,11 @@ AI能力：优先 API，后续接本地模型
 - 修改后必须更新 PROJECT_STATUS.md 和 TODO_NEXT.md
 - 重要技术选择必须记录到 DECISIONS.md
 - 每次提交前必须说明改动范围
+
+## 前端代码组织规则
+
+- `App.vue` 只负责页面组合、跨功能编排和少量全局状态，禁止继续堆入完整新功能。
+- TTS、图片转视频、去水印和视频工具等新业务优先放入 `src/features/<feature-name>`。
+- 功能状态和流程放 composable，Tauri / API 调用放 service，展示逻辑放组件。
+- 多功能共享类型和常量才允许放入 `src/types` 与 `src/constants`。
+- 大文件采用渐进式拆分，每次只迁移一个可独立验收的功能，不做一次性重写。

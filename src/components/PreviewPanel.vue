@@ -4,8 +4,9 @@ import AiRemixPlanner from "./AiRemixPlanner.vue";
 import type { AiRemixPlannedShot, AiRemixSegment } from "../services/aiRemixService";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { CanvasAspectRatio } from "../services/videoMixService";
+import type { ToolKey } from "../types/workbench";
 
-type ToolKey = "remix" | "canvas" | "cover";
+type PreviewToolKey = Extract<ToolKey, "remix" | "canvas" | "cover">;
 
 defineProps<{
   isAdvancedMode: boolean;
@@ -50,7 +51,7 @@ defineEmits<{
   exportSelectedVideo: [];
   syncPreviewBackground: [];
   openDrawer: [drawer: "logs" | "exports" | "batch"];
-  openTool: [tool: ToolKey];
+  openTool: [tool: PreviewToolKey];
   planAiRemix: [];
   moveAiShot: [index: number, direction: -1 | 1];
   removeAiShot: [index: number];
