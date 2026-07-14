@@ -1,0 +1,91 @@
+import type {
+  CanvasAspectRatio,
+  CanvasBackgroundMode,
+  PipPosition,
+  RotationMode,
+} from "../../services/videoMixService";
+import type { ToolKey } from "../../types/workbench";
+
+export interface ToolSettingModalProps {
+  activeTool: ToolKey | null;
+  isSplitting: boolean;
+  isMixing: boolean;
+  isBatchMixing: boolean;
+  isExporting: boolean;
+  splitError: string | null;
+  splitOutputDirectory: string | null;
+  splitSegmentCount: number | null;
+  randomPickError: string | null;
+  outputDirectory: string | null;
+  outputDirectoryError: string | null;
+  segmentDurationSeconds: number;
+  randomPickCount: number;
+  batchGenerateCount: number;
+  canvasAspectRatio: CanvasAspectRatio;
+  canvasBackgroundMode: CanvasBackgroundMode;
+  applyHorizontalMirror: boolean;
+  applyVerticalMirror: boolean;
+  smoothRemixEnabled: boolean;
+  playbackSpeed: number;
+  rotationMode: RotationMode;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  effectScale: number;
+  pipEnabled: boolean;
+  pipOverlayFilePath: string | null;
+  pipPosition: PipPosition;
+  pipSizeRatio: number;
+  pipOpacity: number;
+  pipMargin: number;
+  bgmEnabled: boolean;
+  bgmAudioFilePath: string | null;
+  originalVolume: number;
+  bgmVolume: number;
+  bgmFadeInSeconds: number;
+  bgmFadeOutSeconds: number;
+  selectedCoverUrl: string | null;
+  coverFrameSeconds: number;
+  isGeneratingCover: boolean;
+  coverError: string | null;
+}
+
+export type ToolSettingModalEmits = {
+  close: [];
+  reset: [tool: ToolKey];
+  splitSelectedVideo: [];
+  pickSegmentsRandomly: [];
+  concatRandomSegments: [];
+  generateBatchMixes: [];
+  selectOutputDirectory: [];
+  openOutputDirectory: [];
+  exportSelectedVideo: [];
+  selectPipOverlayFile: [];
+  selectBgmAudioFile: [];
+  generateCoverFrame: [];
+  "update:segmentDurationSeconds": [value: number];
+  "update:randomPickCount": [value: number];
+  "update:batchGenerateCount": [value: number];
+  "update:canvasAspectRatio": [value: CanvasAspectRatio];
+  "update:canvasBackgroundMode": [value: CanvasBackgroundMode];
+  "update:applyHorizontalMirror": [value: boolean];
+  "update:applyVerticalMirror": [value: boolean];
+  "update:smoothRemixEnabled": [value: boolean];
+  "update:playbackSpeed": [value: number];
+  "update:rotationMode": [value: RotationMode];
+  "update:brightness": [value: number];
+  "update:contrast": [value: number];
+  "update:saturation": [value: number];
+  "update:effectScale": [value: number];
+  "update:pipEnabled": [value: boolean];
+  "update:pipPosition": [value: PipPosition];
+  "update:pipSizeRatio": [value: number];
+  "update:pipOpacity": [value: number];
+  "update:pipMargin": [value: number];
+  "update:bgmEnabled": [value: boolean];
+  "update:originalVolume": [value: number];
+  "update:bgmVolume": [value: number];
+  "update:bgmFadeInSeconds": [value: number];
+  "update:bgmFadeOutSeconds": [value: number];
+  "update:coverFrameSeconds": [value: number];
+};

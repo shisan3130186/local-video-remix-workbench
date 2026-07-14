@@ -1,0 +1,393 @@
+@media (max-width: 640px) {
+  .ai-remix-shot__topline {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .ai-remix-segment__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+
+  .ai-remix-shot__primary {
+    grid-template-columns: 80px minmax(0, 1fr);
+  }
+
+  .ai-remix-shot__primary > img {
+    width: 80px;
+    height: 50px;
+  }
+}
+@media (max-width: 1180px) {
+  body {
+    min-width: 0;
+    overflow: auto;
+  }
+
+  .app-shell {
+    grid-template-rows: auto auto auto;
+    height: auto;
+  }
+
+  .top-bar,
+  .top-status {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .top-bar {
+    padding: 14px;
+  }
+
+  .module-grid,
+  .workbench {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+
+  .workbench,
+  .workbench--advanced {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+
+  .left-rail,
+  .center-stage,
+  .workbench--advanced .center-stage {
+    grid-template-rows: auto;
+  }
+
+  .material-library-panel,
+  .ai-workflow-panel,
+  .right-rail,
+  .tool-rail {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .material-empty-state {
+    min-height: 180px;
+  }
+
+  .workflow-guide {
+    min-height: 42px;
+  }
+
+  .task-control-main {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .task-counts {
+    justify-self: end;
+  }
+
+  .task-quick-actions {
+    justify-self: start;
+  }
+
+  .task-primary-action {
+    min-width: 190px;
+  }
+
+  .task-control-bar {
+    grid-column: auto;
+    grid-template-rows: auto auto;
+  }
+
+  .task-control-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .info-grid,
+  .result-grid,
+  .core-action-grid,
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-modal {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .workflow-guide {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 7px;
+  }
+
+  .workflow-guide i {
+    display: none;
+  }
+
+  .workflow-guide span {
+    justify-content: center;
+  }
+
+  .workflow-guide small {
+    display: none;
+  }
+
+  .secondary-workflows__actions,
+  .material-import-actions,
+  .result-shortcuts {
+    grid-template-columns: 1fr;
+  }
+
+  .task-control-main {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .task-counts,
+  .task-quick-actions,
+  .task-primary-action {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .task-counts,
+  .task-quick-actions {
+    justify-content: flex-start;
+  }
+
+  .task-quick-actions button {
+    flex: 1;
+  }
+}
+
+/* Large desktop readability: keep the competitor-like three-column balance
+   without forcing the same density onto smaller laptop screens. */
+@media (min-width: 1600px) and (min-height: 900px) {
+  .workbench,
+  .workbench--advanced {
+    grid-template-columns: 350px minmax(760px, 1fr) 330px;
+    grid-template-rows: minmax(0, 1fr) 76px;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .center-stage,
+  .workbench--advanced .center-stage {
+    grid-template-rows: 48px minmax(420px, 1.3fr) minmax(300px, 0.7fr);
+    gap: 10px;
+  }
+
+  .left-rail,
+  .right-rail,
+  .tool-rail {
+    gap: 10px;
+  }
+
+  .panel,
+  .right-rail .panel {
+    padding: 16px;
+  }
+
+  .panel h2 {
+    font-size: 16px;
+  }
+
+  .panel__label {
+    font-size: 12px;
+  }
+
+  .library-tabs {
+    margin: 14px 0 12px;
+  }
+
+  .library-tabs button {
+    min-height: 40px;
+    font-size: 14px;
+  }
+
+  .material-import-actions button {
+    min-height: 42px;
+    font-size: 14px;
+  }
+
+  .asset-tree,
+  .segment-library-list {
+    gap: 9px;
+  }
+
+  .asset-row {
+    grid-template-columns: 84px minmax(0, 1fr);
+    min-height: 78px;
+    gap: 12px;
+    padding: 7px;
+  }
+
+  .asset-row__thumb {
+    width: 84px;
+    height: 64px;
+  }
+
+  .asset-row__content strong,
+  .segment-library-item strong {
+    font-size: 14px;
+  }
+
+  .asset-row__content small,
+  .segment-library-item small {
+    font-size: 12px;
+  }
+
+  .segment-library-item {
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 12px;
+    min-height: 88px;
+    padding: 8px;
+  }
+
+  .segment-library-item img,
+  .segment-library-item__placeholder {
+    width: 120px;
+    height: 72px;
+  }
+
+  .material-summary div {
+    padding: 9px;
+    font-size: 12px;
+  }
+
+  .output-mini-panel__heading,
+  .output-mini-panel .output-path,
+  .output-open-button {
+    font-size: 13px;
+  }
+
+  .workflow-guide {
+    padding: 0 16px;
+  }
+
+  .workflow-guide b {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  .workflow-guide small {
+    font-size: 13px;
+  }
+
+  .preview-panel--focused {
+    padding: 14px;
+  }
+
+  .preview-panel__header h2 {
+    font-size: 15px;
+  }
+
+  .preview-panel--focused .video-frame {
+    padding: 12px;
+  }
+
+  .ai-workflow-panel {
+    gap: 12px;
+  }
+
+  .ai-workflow-panel .ai-remix-script-field textarea {
+    min-height: 110px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .ai-remix-audio-note,
+  .ai-remix-progress {
+    font-size: 13px;
+  }
+
+  .ai-remix-shot-list {
+    gap: 12px;
+    max-height: 560px;
+  }
+
+  .ai-remix-shot {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .ai-remix-shot__topline p,
+  .ai-remix-segment__meta strong {
+    font-size: 14px;
+  }
+
+  .ai-remix-shot__primary {
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 14px;
+    padding: 10px;
+  }
+
+  .ai-remix-shot__primary > img {
+    width: 180px;
+    height: 104px;
+  }
+
+  .ai-remix-segment__meta small,
+  .ai-remix-alternatives > span {
+    font-size: 12px;
+  }
+
+  .ai-remix-alternative {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 10px;
+    padding: 7px;
+  }
+
+  .ai-remix-alternative img {
+    width: 96px;
+    height: 58px;
+  }
+
+  .ai-remix-alternative strong {
+    font-size: 13px;
+  }
+
+  .ai-remix-alternative small {
+    font-size: 11px;
+  }
+
+  .workspace-status-panel strong,
+  .creation-tool strong,
+  .advanced-tool-group strong {
+    font-size: 14px;
+  }
+
+  .workspace-status-panel small,
+  .creation-tool small,
+  .advanced-tool-group small {
+    font-size: 12px;
+  }
+
+  .creation-tool {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    min-height: 64px;
+    gap: 10px;
+    padding: 9px 10px;
+  }
+
+  .creation-tool__symbol {
+    width: 36px;
+    height: 36px;
+  }
+
+  .result-shortcuts button {
+    min-height: 36px;
+    font-size: 12px;
+  }
+
+  .task-control-summary strong {
+    font-size: 14px;
+  }
+
+  .task-control-summary small,
+  .task-counts span {
+    font-size: 12px;
+  }
+
+  .task-primary-action {
+    min-height: 44px;
+    font-size: 14px;
+  }
+}
