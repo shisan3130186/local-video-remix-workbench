@@ -3,7 +3,6 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, ref, watch } from "vue";
 import type { CSSProperties } from "vue";
-import BatchResultDrawer from "./components/BatchResultDrawer.vue";
 import ExportResultDrawer from "./components/ExportResultDrawer.vue";
 import HomePage from "./components/HomePage.vue";
 import PreviewPanel from "./components/PreviewPanel.vue";
@@ -20,18 +19,17 @@ import { useTaskLogs } from "./composables/useTaskLogs";
 import { useAiRemix } from "./features/ai-remix";
 import { MaterialPanel, useMaterials } from "./features/materials";
 import {
-  concatSelectedSegments,
-  pickCategorizedSegments,
-  pickRandomSegments,
-} from "./services/videoMixService";
+  BatchResultDrawer,
+  formatRemixCanvasLog,
+  formatSmoothRemixLog,
+  useRemixExport,
+} from "./features/remix-export";
 import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
-  MixVideoResult,
 } from "./services/videoMixService";
 import { openPathInFileManager } from "./services/fileManagerService";
 import { checkFfmpegEnvironment } from "./services/videoProbeService";
-import { exportCurrentVideo } from "./services/videoRenderService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
 import type { DrawerKey, ToolKey } from "./types/workbench";
 
@@ -41,19 +39,6 @@ const checkError = ref<string | null>(null);
 const outputDirectory = ref<string | null>(null);
 const outputDirectoryError = ref<string | null>(null);
 const fileManagerError = ref<string | null>(null);
-const isExporting = ref(false);
-const exportError = ref<string | null>(null);
-const exportResultPath = ref<string | null>(null);
-const randomPickCount = ref(1);
-const randomPickError = ref<string | null>(null);
-const randomSelectedSegments = ref<string[]>([]);
-const isMixing = ref(false);
-const mixError = ref<string | null>(null);
-const mixResultPath = ref<string | null>(null);
-const batchGenerateCount = ref(3);
-const isBatchMixing = ref(false);
-const batchMixError = ref<string | null>(null);
-const batchMixResults = ref<string[]>([]);
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
 const isWorkspaceVisible = ref(true);
@@ -70,12 +55,12 @@ const {
   appendMixLog,
   appendSplitLog,
   addExportResult,
-  batchMixLogs,
   clearAiRemixLogs,
+  clearBatchMixLogs,
+  clearExportLogs,
+  clearMixLogs,
   clearSplitLogs,
-  exportLogs,
   exportResultItems,
-  mixLogs,
   taskLogs,
 } = useTaskLogs();
 
@@ -140,6 +125,46 @@ const {
 });
 
 const {
+  batchGenerateCount,
+  batchMixError,
+  batchMixResults,
+  concatCategorizedSegments,
+  concatRandomSegments,
+  exportSelectedVideo,
+  generateBatchMixes,
+  isBatchMixing,
+  isExporting,
+  isMixing,
+  mixError,
+  pickSegmentsRandomly,
+  randomPickCount,
+  randomPickError,
+  randomSelectedSegments,
+  recordMixResult,
+  resetRandomPickState,
+  setMixing,
+} = useRemixExport({
+  selectedVideo,
+  outputDirectory,
+  canvasAspectRatio,
+  canvasBackgroundMode,
+  segmentPaths: splitSegmentPaths,
+  segmentCategories,
+  categoryOptions: segmentCategoryOptions,
+  remixExportSettings,
+  validatePictureInPicture: validatePictureInPictureSettings,
+  validateBgm: validateBgmSettings,
+  validatePlaybackSpeed,
+  appendExportLog,
+  appendMixLog,
+  appendBatchMixLog,
+  clearExportLogs,
+  clearMixLogs,
+  clearBatchMixLogs,
+  addExportResult,
+});
+
+const {
   aiGenerateError,
   aiPlanError,
   aiPlannedShots,
@@ -172,15 +197,12 @@ const {
       validatePictureInPictureSettings() ?? validateBgmSettings() ?? validatePlaybackSpeed()
     );
   },
-  setMixing(value) {
-    isMixing.value = value;
-  },
+  setMixing,
   onGenerated(result) {
-    mixResultPath.value = result.outputPath;
-    addExportResult("AI 智能混剪", result.outputPath);
+    recordMixResult("AI 智能混剪", result.outputPath);
   },
-  formatCanvasLog: buildRemixCanvasLog,
-  formatSmoothLog: buildSmoothRemixLog,
+  formatCanvasLog: formatRemixCanvasLog,
+  formatSmoothLog: formatSmoothRemixLog,
 });
 
 const statusText = computed(() => {
@@ -347,356 +369,10 @@ async function selectOutputDirectory() {
   }
 }
 
-async function exportSelectedVideo() {
-  exportError.value = null;
-  exportResultPath.value = null;
-  exportLogs.value = [];
-
-  if (!selectedVideo.value) {
-    exportError.value = "请先选择一个要导出的视频。";
-    appendExportLog(`导出失败：${exportError.value}`, "error");
-    return;
-  }
-
-  if (!outputDirectory.value) {
-    exportError.value = "请先选择输出目录。";
-    appendExportLog(`导出失败：${exportError.value}`, "error");
-    return;
-  }
-
-  appendExportLog("开始导出。", "info");
-  appendExportLog("导出中。", "info");
-  isExporting.value = true;
-
-  try {
-    const result = await exportCurrentVideo(
-      selectedVideo.value.filePath,
-      outputDirectory.value,
-      canvasAspectRatio.value,
-      canvasBackgroundMode.value,
-    );
-    exportResultPath.value = result.outputPath;
-    addExportResult("基础导出", result.outputPath);
-    appendExportLog(`导出成功：${result.outputPath}`, "success");
-  } catch (error) {
-    exportError.value =
-      error instanceof Error ? error.message : String(error ?? "视频导出失败。");
-    appendExportLog(`导出失败：${exportError.value}`, "error");
-  } finally {
-    isExporting.value = false;
-  }
-}
-
 async function splitSelectedVideo() {
   resetRandomPickState();
   resetAiRemixState(false);
   await splitAllMaterials(prepareSegmentAssets);
-}
-
-async function concatCategorizedSegments() {
-  mixError.value = null;
-  mixResultPath.value = null;
-  mixLogs.value = [];
-
-  const pipValidationError = validatePictureInPictureSettings();
-
-  if (pipValidationError) {
-    mixError.value = pipValidationError;
-    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
-    return;
-  }
-
-  const bgmValidationError = validateBgmSettings();
-
-  if (bgmValidationError) {
-    mixError.value = bgmValidationError;
-    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
-    return;
-  }
-
-  if (!outputDirectory.value) {
-    mixError.value = "请先选择输出目录。";
-    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
-    return;
-  }
-
-  const speedValidationError = validatePlaybackSpeed();
-
-  if (speedValidationError) {
-    mixError.value = speedValidationError;
-    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
-    return;
-  }
-
-  let categorizedPick;
-
-  try {
-    categorizedPick = pickCategorizedSegments(
-      splitSegmentPaths.value,
-      segmentCategories.value,
-      segmentCategoryOptions,
-    );
-  } catch (error) {
-    mixError.value =
-      error instanceof Error ? error.message : String(error ?? "分类混剪失败。");
-    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
-    return;
-  }
-
-  randomSelectedSegments.value = categorizedPick.pickedSegments.map(
-    (pickedSegment) => pickedSegment.path,
-  );
-
-  appendMixLog("开始分类混剪。", "info");
-  appendMixLog("分类顺序：开头钩子 -> 产品展示 -> 使用过程 -> 细节特写 -> 效果展示 -> 结尾引导。", "info");
-
-  for (const pickedSegment of categorizedPick.pickedSegments) {
-    appendMixLog(
-      `${pickedSegment.label}：抽中 ${formatFileName(pickedSegment.path)}。`,
-      "info",
-    );
-  }
-
-  if (categorizedPick.skippedCategories.length > 0) {
-    appendMixLog(
-      `已自动跳过空分类：${categorizedPick.skippedCategories.join("、")}。`,
-      "info",
-    );
-  }
-
-  appendMixLog(
-    `分类混剪中，变速倍数 ${playbackSpeed.value.toFixed(2)}x，平滑混剪${
-      smoothRemixEnabled.value ? "已开启" : "未开启"
-    }，BGM${bgmEnabled.value ? "已开启" : "未开启"}。`,
-    "info",
-  );
-  isMixing.value = true;
-
-  try {
-    const result = await concatSelectedSegments(
-      randomSelectedSegments.value,
-      outputDirectory.value,
-      remixExportSettings.value,
-    );
-    mixResultPath.value = result.outputPath;
-    addExportResult("分类混剪", result.outputPath);
-    appendMixLog(buildRemixCanvasLog(result), "info");
-    appendMixLog(buildSmoothRemixLog(result), "info");
-    appendMixLog(
-      `分类混剪成功：已使用 ${result.inputCount} 个片段生成 ${result.outputPath}${
-        buildMixOptionSummary()
-      }`,
-      "success",
-    );
-  } catch (error) {
-    mixError.value =
-      error instanceof Error ? error.message : String(error ?? "分类混剪失败。");
-    appendMixLog(`分类混剪失败：${mixError.value}`, "error");
-  } finally {
-    isMixing.value = false;
-  }
-}
-
-function pickSegmentsRandomly() {
-  randomPickError.value = null;
-  randomSelectedSegments.value = [];
-  resetMixState();
-
-  try {
-    randomSelectedSegments.value = pickRandomSegments(
-      splitSegmentPaths.value,
-      randomPickCount.value,
-    );
-  } catch (error) {
-    randomPickError.value =
-      error instanceof Error ? error.message : String(error ?? "随机抽取失败。");
-  }
-}
-
-async function concatRandomSegments() {
-  mixError.value = null;
-  mixResultPath.value = null;
-  mixLogs.value = [];
-
-  const pipValidationError = validatePictureInPictureSettings();
-
-  if (pipValidationError) {
-    mixError.value = pipValidationError;
-    appendMixLog(`拼接失败：${mixError.value}`, "error");
-    return;
-  }
-
-  const bgmValidationError = validateBgmSettings();
-
-  if (bgmValidationError) {
-    mixError.value = bgmValidationError;
-    appendMixLog(`拼接失败：${mixError.value}`, "error");
-    return;
-  }
-
-  if (!outputDirectory.value) {
-    mixError.value = "请先选择输出目录。";
-    appendMixLog(`拼接失败：${mixError.value}`, "error");
-    return;
-  }
-
-  if (randomSelectedSegments.value.length < 2) {
-    mixError.value = "至少需要随机抽取 2 个片段才能拼接。";
-    appendMixLog(`拼接失败：${mixError.value}`, "error");
-    return;
-  }
-
-  const speedValidationError = validatePlaybackSpeed();
-
-  if (speedValidationError) {
-    mixError.value = speedValidationError;
-    appendMixLog(`拼接失败：${mixError.value}`, "error");
-    return;
-  }
-
-  appendMixLog("开始拼接。", "info");
-  appendMixLog(
-    `拼接中，变速倍数 ${playbackSpeed.value.toFixed(2)}x，平滑混剪${
-      smoothRemixEnabled.value ? "已开启" : "未开启"
-    }，BGM${bgmEnabled.value ? "已开启" : "未开启"}。`,
-    "info",
-  );
-  isMixing.value = true;
-
-  try {
-    const result = await concatSelectedSegments(
-      randomSelectedSegments.value,
-      outputDirectory.value,
-      remixExportSettings.value,
-    );
-    mixResultPath.value = result.outputPath;
-    addExportResult("拼接导出", result.outputPath);
-    appendMixLog(buildRemixCanvasLog(result), "info");
-    appendMixLog(buildSmoothRemixLog(result), "info");
-    appendMixLog(
-      `拼接成功：已使用 ${result.inputCount} 个片段生成 ${result.outputPath}${
-        buildMixOptionSummary()
-      }`,
-      "success",
-    );
-  } catch (error) {
-    mixError.value =
-      error instanceof Error ? error.message : String(error ?? "片段拼接失败。");
-    appendMixLog(`拼接失败：${mixError.value}`, "error");
-  } finally {
-    isMixing.value = false;
-  }
-}
-
-async function generateBatchMixes() {
-  batchMixError.value = null;
-  batchMixResults.value = [];
-  batchMixLogs.value = [];
-
-  const pipValidationError = validatePictureInPictureSettings();
-
-  if (pipValidationError) {
-    batchMixError.value = pipValidationError;
-    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
-    return;
-  }
-
-  const bgmValidationError = validateBgmSettings();
-
-  if (bgmValidationError) {
-    batchMixError.value = bgmValidationError;
-    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
-    return;
-  }
-
-  if (!outputDirectory.value) {
-    batchMixError.value = "请先选择输出目录。";
-    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
-    return;
-  }
-
-  if (!Number.isInteger(batchGenerateCount.value) || batchGenerateCount.value <= 0) {
-    batchMixError.value = "批量生成数量必须大于 0。";
-    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
-    return;
-  }
-
-  if (!Number.isInteger(randomPickCount.value) || randomPickCount.value < 2) {
-    batchMixError.value = "每条混剪至少需要抽取 2 个片段。";
-    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
-    return;
-  }
-
-  const speedValidationError = validatePlaybackSpeed();
-
-  if (speedValidationError) {
-    batchMixError.value = speedValidationError;
-    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
-    return;
-  }
-
-  appendBatchMixLog(
-    `开始批量生成：计划生成 ${batchGenerateCount.value} 条，变速倍数 ${playbackSpeed.value.toFixed(2)}x，平滑混剪${
-      smoothRemixEnabled.value ? "已开启" : "未开启"
-    }，BGM${bgmEnabled.value ? "已开启" : "未开启"}。`,
-    "info",
-  );
-  isBatchMixing.value = true;
-
-  try {
-    for (let index = 0; index < batchGenerateCount.value; index += 1) {
-      const pickedSegments = pickRandomSegments(splitSegmentPaths.value, randomPickCount.value);
-      appendBatchMixLog(
-        `正在生成第 ${index + 1} 条，使用 ${pickedSegments.length} 个随机片段。`,
-        "info",
-      );
-
-      const result = await concatSelectedSegments(
-        pickedSegments,
-        outputDirectory.value,
-        remixExportSettings.value,
-      );
-      batchMixResults.value.push(result.outputPath);
-      addExportResult("批量生成", result.outputPath);
-      appendBatchMixLog(buildRemixCanvasLog(result), "info");
-      appendBatchMixLog(buildSmoothRemixLog(result), "info");
-      appendBatchMixLog(
-        `第 ${index + 1} 条生成成功：${result.outputPath}${
-          buildMixOptionSummary()
-        }`,
-        "success",
-      );
-    }
-
-    appendBatchMixLog(`批量生成完成：共生成 ${batchMixResults.value.length} 条。`, "success");
-  } catch (error) {
-    batchMixError.value =
-      error instanceof Error ? error.message : String(error ?? "批量生成失败。");
-    appendBatchMixLog(`批量生成失败：${batchMixError.value}`, "error");
-  } finally {
-    isBatchMixing.value = false;
-  }
-}
-
-function resetRandomPickState() {
-  randomPickError.value = null;
-  randomSelectedSegments.value = [];
-  resetMixState();
-}
-
-function resetMixState() {
-  isMixing.value = false;
-  mixError.value = null;
-  mixResultPath.value = null;
-  mixLogs.value = [];
-  resetBatchMixState();
-}
-
-function resetBatchMixState() {
-  isBatchMixing.value = false;
-  batchMixError.value = null;
-  batchMixResults.value = [];
-  batchMixLogs.value = [];
 }
 
 function validatePlaybackSpeed() {
@@ -761,64 +437,6 @@ function validateBgmSettings() {
   }
 
   return null;
-}
-
-function buildMixOptionSummary() {
-  const options = [];
-
-  if (applyHorizontalMirror.value) {
-    options.push("已应用水平镜像");
-  }
-
-  if (applyVerticalMirror.value) {
-    options.push("已应用垂直镜像");
-  }
-
-  if (smoothRemixEnabled.value) {
-    options.push("已应用平滑混剪");
-  }
-
-  if (rotationMode.value !== "none") {
-    options.push("已应用旋转");
-  }
-
-  if (
-    Math.abs(brightness.value) > 0.001 ||
-    Math.abs(contrast.value - 1) > 0.001 ||
-    Math.abs(saturation.value - 1) > 0.001
-  ) {
-    options.push("已应用画面调整");
-  }
-
-  if (Math.abs(effectScale.value - 1) > 0.001) {
-    options.push(`已应用 ${effectScale.value.toFixed(2)}x 轻微缩放`);
-  }
-
-  if (pipEnabled.value) {
-    options.push("已应用画中画");
-  }
-
-  if (bgmEnabled.value) {
-    const fadeSummary =
-      bgmFadeInSeconds.value > 0 || bgmFadeOutSeconds.value > 0
-        ? `，淡入 ${bgmFadeInSeconds.value.toFixed(1)} 秒，淡出 ${bgmFadeOutSeconds.value.toFixed(1)} 秒`
-        : "";
-    options.push(`已添加 BGM${fadeSummary}`);
-  }
-
-  if (Math.abs(playbackSpeed.value - 1) > 0.001) {
-    options.push(`已应用 ${playbackSpeed.value.toFixed(2)}x 变速`);
-  }
-
-  return options.length > 0 ? `，${options.join("，")}。` : "。";
-}
-
-function buildSmoothRemixLog(result: MixVideoResult) {
-  if (!result.smoothRemixEnabled) {
-    return "平滑混剪：未开启。";
-  }
-
-  return `平滑混剪：已开启，过滤过短片段 ${result.skippedShortSegmentCount} 个。`;
 }
 
 function resetToolSettings(tool: ToolKey) {
@@ -941,17 +559,6 @@ async function openPath(path: string) {
     fileManagerError.value =
       error instanceof Error ? error.message : String(error ?? "打开目录失败。");
   }
-}
-
-function buildRemixCanvasLog(result: {
-  outputAspectRatio: string;
-  outputResolution: string;
-  backgroundMode: string;
-  appliedToRemixExport: boolean;
-}) {
-  return `混剪画布：输出比例 ${result.outputAspectRatio}，输出分辨率 ${result.outputResolution}，背景方式 ${result.backgroundMode}，已应用到混剪导出：${
-    result.appliedToRemixExport ? "是" : "否"
-  }。`;
 }
 
 function getCanvasAspectRatioValue(aspectRatio: CanvasAspectRatio) {

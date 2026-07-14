@@ -33,6 +33,16 @@ materials/
 └─ index.ts     对外统一出口
 ```
 
+```text
+remix-export/
+├─ components   批量结果界面
+├─ services     基础导出和随机/分类抽取规则
+├─ useBasicExport.ts 基础导出状态
+├─ useRemixGeneration.ts 普通混剪与批量生成
+├─ remixResultMessages.ts 统一结果日志
+└─ index.ts     对外统一出口
+```
+
 边界规则：
 
 1. `App.vue` 只负责组合功能、页面级导航和少量跨功能状态。

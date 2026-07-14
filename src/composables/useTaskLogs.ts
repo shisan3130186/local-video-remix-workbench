@@ -40,6 +40,10 @@ export function useTaskLogs() {
     appendTaskLog(exportLogs.value, message, level);
   }
 
+  function clearExportLogs() {
+    exportLogs.value = [];
+  }
+
   function appendSplitLog(message: string, level: TaskLogLevel) {
     appendTaskLog(splitLogs.value, message, level);
   }
@@ -52,8 +56,16 @@ export function useTaskLogs() {
     appendTaskLog(mixLogs.value, message, level);
   }
 
+  function clearMixLogs() {
+    mixLogs.value = [];
+  }
+
   function appendBatchMixLog(message: string, level: TaskLogLevel) {
     appendTaskLog(batchMixLogs.value, message, level);
+  }
+
+  function clearBatchMixLogs() {
+    batchMixLogs.value = [];
   }
 
   function appendAiRemixLog(message: string, level: TaskLogLevel) {
@@ -83,6 +95,9 @@ export function useTaskLogs() {
     addExportResult,
     batchMixLogs,
     clearAiRemixLogs,
+    clearBatchMixLogs,
+    clearExportLogs,
+    clearMixLogs,
     clearSplitLogs,
     exportLogs,
     exportResultItems,
