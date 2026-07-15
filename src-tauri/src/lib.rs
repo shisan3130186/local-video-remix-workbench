@@ -1,4 +1,5 @@
 mod ai_remix;
+mod tts;
 mod video_engine;
 
 use ai_remix::{
@@ -8,6 +9,10 @@ use ai_remix::{
 };
 use std::path::Path;
 use std::process::Command;
+use tts::{
+    get_tts_config_status as read_tts_config_status, synthesize_tts as create_tts_audio,
+    TtsConfigStatus, TtsSynthesisResult,
+};
 use video_engine::canvas::{CanvasAspectRatio, CanvasBackgroundMode};
 use video_engine::import::list_supported_videos_in_folder;
 use video_engine::mix::{concat_video_segments, MixVideoResult, RemixSettings};
@@ -117,6 +122,20 @@ async fn plan_ai_remix(
 }
 
 #[tauri::command]
+fn get_tts_config_status() -> TtsConfigStatus {
+    read_tts_config_status()
+}
+
+#[tauri::command]
+async fn synthesize_tts(
+    text: String,
+    output_directory: String,
+    speaker: Option<String>,
+) -> Result<TtsSynthesisResult, String> {
+    create_tts_audio(text, output_directory, speaker).await
+}
+
+#[tauri::command]
 fn concat_selected_segments(
     segment_paths: Vec<String>,
     output_directory: String,
@@ -134,11 +153,13 @@ pub fn run() {
             concat_selected_segments,
             export_current_video,
             generate_thumbnail,
+            get_tts_config_status,
             list_video_files_in_folder,
             open_path_in_file_manager,
             plan_ai_remix,
             read_video_metadata,
-            split_current_video
+            split_current_video,
+            synthesize_tts
         ])
         .run(tauri::generate_context!())
         .expect("failed to run tauri app");

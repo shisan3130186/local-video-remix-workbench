@@ -4,6 +4,7 @@ import type {
   PipPosition,
   RotationMode,
 } from "../../services/videoMixService";
+import type { TtsSynthesisResult } from "../../features/tts";
 import type { ToolKey } from "../../types/workbench";
 
 export interface ToolSettingModalProps {
@@ -48,6 +49,16 @@ export interface ToolSettingModalProps {
   coverFrameSeconds: number;
   isGeneratingCover: boolean;
   coverError: string | null;
+  ttsText: string;
+  ttsSpeaker: string;
+  ttsResourceId: string;
+  ttsConfigured: boolean;
+  isLoadingTtsConfig: boolean;
+  isGeneratingTts: boolean;
+  ttsConfigError: string | null;
+  ttsError: string | null;
+  ttsResult: TtsSynthesisResult | null;
+  ttsAudioUrl: string | null;
 }
 
 export type ToolSettingModalEmits = {
@@ -63,6 +74,7 @@ export type ToolSettingModalEmits = {
   selectPipOverlayFile: [];
   selectBgmAudioFile: [];
   generateCoverFrame: [];
+  generateTts: [];
   "update:segmentDurationSeconds": [value: number];
   "update:randomPickCount": [value: number];
   "update:batchGenerateCount": [value: number];
@@ -88,4 +100,6 @@ export type ToolSettingModalEmits = {
   "update:bgmFadeInSeconds": [value: number];
   "update:bgmFadeOutSeconds": [value: number];
   "update:coverFrameSeconds": [value: number];
+  "update:ttsText": [value: string];
+  "update:ttsSpeaker": [value: string];
 };

@@ -26,6 +26,7 @@ export function useTaskLogs() {
   const mixLogs = ref<TaskLogEntry[]>([]);
   const batchMixLogs = ref<TaskLogEntry[]>([]);
   const aiRemixLogs = ref<TaskLogEntry[]>([]);
+  const ttsLogs = ref<TaskLogEntry[]>([]);
   const exportResultItems = ref<ExportResultItem[]>([]);
 
   const taskLogs = computed<GroupedTaskLogEntry[]>(() => [
@@ -34,6 +35,7 @@ export function useTaskLogs() {
     ...mixLogs.value.map((log) => ({ ...log, group: "片段拼接" })),
     ...batchMixLogs.value.map((log) => ({ ...log, group: "批量生成" })),
     ...aiRemixLogs.value.map((log) => ({ ...log, group: "AI 智能混剪" })),
+    ...ttsLogs.value.map((log) => ({ ...log, group: "TTS语音合成" })),
   ]);
 
   function appendExportLog(message: string, level: TaskLogLevel) {
@@ -76,6 +78,14 @@ export function useTaskLogs() {
     aiRemixLogs.value = [];
   }
 
+  function appendTtsLog(message: string, level: TaskLogLevel) {
+    appendTaskLog(ttsLogs.value, message, level);
+  }
+
+  function clearTtsLogs() {
+    ttsLogs.value = [];
+  }
+
   function addExportResult(type: ExportResultType, path: string) {
     exportResultItems.value.unshift({
       id: Date.now() + exportResultItems.value.length,
@@ -92,6 +102,7 @@ export function useTaskLogs() {
     appendExportLog,
     appendMixLog,
     appendSplitLog,
+    appendTtsLog,
     addExportResult,
     batchMixLogs,
     clearAiRemixLogs,
@@ -99,10 +110,12 @@ export function useTaskLogs() {
     clearExportLogs,
     clearMixLogs,
     clearSplitLogs,
+    clearTtsLogs,
     exportLogs,
     exportResultItems,
     mixLogs,
     splitLogs,
     taskLogs,
+    ttsLogs,
   };
 }

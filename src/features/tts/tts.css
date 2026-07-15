@@ -1,0 +1,73 @@
+.tts-config-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid #2d3632;
+  border-radius: 8px;
+  background: #171b1a;
+}
+
+.tts-config-summary > span:last-child,
+.tts-result__heading span {
+  display: grid;
+  gap: 2px;
+}
+
+.tts-config-summary small,
+.tts-result__heading small,
+.tts-script-field small {
+  color: #87958f;
+  font-size: 12px;
+}
+
+.tts-config-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #7e4a42;
+}
+
+.tts-config-dot--ready {
+  background: #2cd8b5;
+}
+
+.tts-config-help {
+  margin: 10px 0 0;
+  color: #c7d5d0;
+  font-size: 13px;
+}
+
+.tts-config-help code {
+  color: #38e6c0;
+}
+
+.tts-script-field textarea {
+  min-height: 136px;
+  resize: vertical;
+}
+
+.tts-result {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #1d6f5c;
+  border-radius: 8px;
+  background: #14332c;
+}
+
+.tts-result__heading {
+  display: flex;
+  justify-content: space-between;
+}
+
+.tts-audio-player {
+  width: 100%;
+  min-height: 40px;
+}
+
+.tts-result .output-path,
+.tts-result .empty-text {
+  margin: 0;
+}

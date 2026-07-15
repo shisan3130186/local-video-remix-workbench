@@ -43,6 +43,15 @@ remix-export/
 └─ index.ts     对外统一出口
 ```
 
+```text
+tts/
+├─ components   TTS配置、生成状态和音频试听
+├─ services     Tauri TTS调用
+├─ types.ts     配置状态、生成结果和字词时间
+├─ useTts.ts    TTS状态与主流程
+└─ index.ts     对外统一出口
+```
+
 边界规则：
 
 1. `App.vue` 只负责组合功能、页面级导航和少量跨功能状态。

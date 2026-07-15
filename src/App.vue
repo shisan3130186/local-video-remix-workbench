@@ -24,6 +24,7 @@ import {
   formatSmoothRemixLog,
   useRemixExport,
 } from "./features/remix-export";
+import { useTts } from "./features/tts";
 import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
@@ -54,12 +55,14 @@ const {
   appendExportLog,
   appendMixLog,
   appendSplitLog,
+  appendTtsLog,
   addExportResult,
   clearAiRemixLogs,
   clearBatchMixLogs,
   clearExportLogs,
   clearMixLogs,
   clearSplitLogs,
+  clearTtsLogs,
   exportResultItems,
   taskLogs,
 } = useTaskLogs();
@@ -205,6 +208,25 @@ const {
   formatSmoothLog: formatSmoothRemixLog,
 });
 
+const {
+  generateTts,
+  isGeneratingTts,
+  isLoadingTtsConfig,
+  loadTtsConfig,
+  resetTtsSettings,
+  ttsAudioUrl,
+  ttsConfig,
+  ttsConfigError,
+  ttsError,
+  ttsResult,
+  ttsSpeaker,
+} = useTts({
+  text: aiScript,
+  outputDirectory,
+  appendLog: appendTtsLog,
+  clearLogs: clearTtsLogs,
+});
+
 const statusText = computed(() => {
   if (isChecking.value) {
     return "正在检测 FFmpeg 环境...";
@@ -254,6 +276,7 @@ const isAnyProcessing = computed(
     isMixing.value ||
     isBatchMixing.value ||
     isSplitting.value ||
+    isGeneratingTts.value ||
     isPlanningAiRemix.value ||
     isGeneratingAiRemix.value,
 );
@@ -509,6 +532,11 @@ function resetToolSettings(tool: ToolKey) {
   if (tool === "cover" || tool === "frame") {
     coverFrameSeconds.value = 1;
     coverError.value = null;
+    return;
+  }
+
+  if (tool === "tts") {
+    resetTtsSettings();
   }
 }
 
@@ -695,6 +723,7 @@ function formatFileName(filePath: string) {
 
 onMounted(() => {
   void runEnvironmentCheck();
+  void loadTtsConfig();
 });
 </script>
 
@@ -875,6 +904,16 @@ onMounted(() => {
       :cover-frame-seconds="coverFrameSeconds"
       :is-generating-cover="isGeneratingCover"
       :cover-error="coverError"
+      :tts-text="aiScript"
+      :tts-speaker="ttsSpeaker"
+      :tts-resource-id="ttsConfig.resourceId"
+      :tts-configured="ttsConfig.configured"
+      :is-loading-tts-config="isLoadingTtsConfig"
+      :is-generating-tts="isGeneratingTts"
+      :tts-config-error="ttsConfigError"
+      :tts-error="ttsError"
+      :tts-result="ttsResult"
+      :tts-audio-url="ttsAudioUrl"
       @close="activeTool = null"
       @reset="resetToolSettings"
       @split-selected-video="splitSelectedVideo"
@@ -887,6 +926,7 @@ onMounted(() => {
       @select-pip-overlay-file="selectPipOverlayFile"
       @select-bgm-audio-file="selectBgmAudioFile"
       @generate-cover-frame="generateCoverFrame"
+      @generate-tts="generateTts"
       @update:segment-duration-seconds="segmentDurationSeconds = $event"
       @update:random-pick-count="randomPickCount = $event"
       @update:batch-generate-count="batchGenerateCount = $event"
@@ -912,6 +952,8 @@ onMounted(() => {
       @update:bgm-fade-in-seconds="bgmFadeInSeconds = $event"
       @update:bgm-fade-out-seconds="bgmFadeOutSeconds = $event"
       @update:cover-frame-seconds="coverFrameSeconds = $event"
+      @update:tts-text="aiScript = $event"
+      @update:tts-speaker="ttsSpeaker = $event"
     />
 
     <TaskLogDrawer

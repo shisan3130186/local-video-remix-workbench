@@ -3,6 +3,7 @@ import AudioSettingsPanel from "./tool-settings/AudioSettingsPanel.vue";
 import CanvasSettingsPanel from "./tool-settings/CanvasSettingsPanel.vue";
 import CoverSettingsPanel from "./tool-settings/CoverSettingsPanel.vue";
 import ExportSettingsPanel from "./tool-settings/ExportSettingsPanel.vue";
+import { TtsSettingsPanel } from "../features/tts";
 import PictureInPictureSettingsPanel from "./tool-settings/PictureInPictureSettingsPanel.vue";
 import RemixSettingsPanel from "./tool-settings/RemixSettingsPanel.vue";
 import TransitionSettingsPanel from "./tool-settings/TransitionSettingsPanel.vue";
@@ -117,6 +118,23 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           @update:bgm-volume="emit('update:bgmVolume', $event)"
           @update:bgm-fade-in-seconds="emit('update:bgmFadeInSeconds', $event)"
           @update:bgm-fade-out-seconds="emit('update:bgmFadeOutSeconds', $event)"
+        />
+
+        <TtsSettingsPanel
+          v-else-if="activeTool === 'tts'"
+          :text="ttsText"
+          :speaker="ttsSpeaker"
+          :resource-id="ttsResourceId"
+          :configured="ttsConfigured"
+          :is-loading-config="isLoadingTtsConfig"
+          :is-generating="isGeneratingTts"
+          :config-error="ttsConfigError"
+          :error="ttsError"
+          :result="ttsResult"
+          :audio-url="ttsAudioUrl"
+          @generate="emit('generateTts')"
+          @update:text="emit('update:ttsText', $event)"
+          @update:speaker="emit('update:ttsSpeaker', $event)"
         />
 
         <CoverSettingsPanel

@@ -529,7 +529,7 @@ AI 大脑 × 批量引擎 × 差异化裂变
 1. 飞书教程：`https://my.feishu.cn/docx/Zta4dp0TvobS2FxitKucMeQtnxc`
 2. 用户提供的 11 张竞品 UI 截图：`C:\Users\Administrator\Desktop\竞品ui功能设计图片`
 3. 当前项目状态：`PROJECT_STATUS.md`、`TODO_NEXT.md`、`DECISIONS.md`
-4. 当前 AI 前端：`src/components/AiRemixPlanner.vue`
+4. 当前 AI 前端：`src/features/ai-remix/components/AiRemixPlanner.vue`
 5. 当前 AI 后端：`src-tauri/src/ai_remix.rs`
 6. 当前主流程与 VideoEngine 相关代码。
 
