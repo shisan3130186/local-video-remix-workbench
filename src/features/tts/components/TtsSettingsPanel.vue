@@ -10,8 +10,14 @@ const props = defineProps<{
   configured: boolean;
   isLoadingConfig: boolean;
   isGenerating: boolean;
+  isGeneratingVideo: boolean;
   configError: string | null;
   error: string | null;
+  narratedVideoError: string | null;
+  narrationProgressText: string | null;
+  videoEnabled: boolean;
+  keepOriginalAudio: boolean;
+  originalAudioVolume: number;
   result: TtsSynthesisResult | null;
   audioUrl: string | null;
 }>();
@@ -20,6 +26,9 @@ const emit = defineEmits<{
   generate: [];
   "update:text": [value: string];
   "update:speaker": [value: string];
+  "update:videoEnabled": [value: boolean];
+  "update:keepOriginalAudio": [value: boolean];
+  "update:originalAudioVolume": [value: number];
 }>();
 
 const audioDurationSeconds = ref<number | null>(null);
@@ -37,6 +46,19 @@ function updateText(event: Event) {
 
 function updateSpeaker(event: Event) {
   emit("update:speaker", (event.target as HTMLInputElement).value);
+}
+
+function updateVideoEnabled(event: Event) {
+  emit("update:videoEnabled", (event.target as HTMLInputElement).checked);
+}
+
+function updateKeepOriginalAudio(event: Event) {
+  emit("update:keepOriginalAudio", (event.target as HTMLInputElement).checked);
+}
+
+function updateOriginalAudioVolume(event: Event) {
+  const percentage = Number((event.target as HTMLInputElement).value);
+  emit("update:originalAudioVolume", Math.min(100, Math.max(0, percentage)) / 100);
 }
 
 function readAudioDuration(event: Event) {
@@ -96,13 +118,75 @@ function formatDuration(value: number | null) {
     />
   </label>
 
+  <label class="option-toggle tts-video-toggle">
+    <input
+      :checked="videoEnabled"
+      type="checkbox"
+      :disabled="isGenerating || isGeneratingVideo || !configured"
+      @change="updateVideoEnabled"
+    />
+    <span>生成AI视频时加入逐句配音</span>
+  </label>
+  <p class="tts-video-help">
+    配音较长时冻结尾帧，较短时裁短画面。当前只支持1.0x速度，不生成字幕。
+  </p>
+
+  <section
+    class="tts-original-audio"
+    :class="{ 'tts-original-audio--enabled': keepOriginalAudio }"
+    aria-labelledby="tts-original-audio-title"
+  >
+    <div class="tts-original-audio__header">
+      <span>
+        <strong id="tts-original-audio-title">保留原视频声音</strong>
+        <small>包含原人声、环境声和背景音乐</small>
+      </span>
+      <label class="tts-switch">
+        <input
+          :checked="keepOriginalAudio"
+          type="checkbox"
+          :disabled="isGenerating || isGeneratingVideo"
+          aria-label="保留原视频声音"
+          @change="updateKeepOriginalAudio"
+        />
+        <span aria-hidden="true"></span>
+      </label>
+    </div>
+
+    <label class="tts-volume-control" for="tts-original-audio-volume">
+      <span>
+        <strong>原声音量</strong>
+        <output for="tts-original-audio-volume">
+          {{ Math.round(originalAudioVolume * 100) }}%
+        </output>
+      </span>
+      <input
+        id="tts-original-audio-volume"
+        :value="Math.round(originalAudioVolume * 100)"
+        type="range"
+        min="0"
+        max="100"
+        step="5"
+        :disabled="!keepOriginalAudio || isGenerating || isGeneratingVideo"
+        aria-label="原视频声音音量"
+        @input="updateOriginalAudioVolume"
+      />
+    </label>
+    <p>只在生成带AI配音的视频时生效；关闭后仅保留AI配音。</p>
+  </section>
+
+  <p v-if="isGeneratingVideo && narrationProgressText" class="tts-video-progress" role="status">
+    {{ narrationProgressText }}
+  </p>
+  <p v-if="narratedVideoError" class="error-text">{{ narratedVideoError }}</p>
+
   <button
     class="primary-button primary-button--full"
     type="button"
-    :disabled="isGenerating || isLoadingConfig || !configured"
+    :disabled="isGenerating || isGeneratingVideo || isLoadingConfig || !configured"
     @click="emit('generate')"
   >
-    {{ isGenerating ? "正在生成配音..." : result ? "重新生成配音" : "生成配音MP3" }}
+    {{ isGenerating ? "正在生成配音..." : result ? "重新生成配音" : "单独生成配音MP3" }}
   </button>
 
   <p v-if="error" class="error-text">{{ error }}</p>

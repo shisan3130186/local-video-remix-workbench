@@ -128,13 +128,22 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           :configured="ttsConfigured"
           :is-loading-config="isLoadingTtsConfig"
           :is-generating="isGeneratingTts"
+          :is-generating-video="isGeneratingNarratedVideo"
           :config-error="ttsConfigError"
           :error="ttsError"
+          :narrated-video-error="narratedVideoError"
+          :narration-progress-text="narrationProgressText"
+          :video-enabled="ttsVideoEnabled"
+          :keep-original-audio="ttsKeepOriginalAudio"
+          :original-audio-volume="ttsOriginalAudioVolume"
           :result="ttsResult"
           :audio-url="ttsAudioUrl"
           @generate="emit('generateTts')"
           @update:text="emit('update:ttsText', $event)"
           @update:speaker="emit('update:ttsSpeaker', $event)"
+          @update:video-enabled="emit('update:ttsVideoEnabled', $event)"
+          @update:keep-original-audio="emit('update:ttsKeepOriginalAudio', $event)"
+          @update:original-audio-volume="emit('update:ttsOriginalAudioVolume', $event)"
         />
 
         <CoverSettingsPanel

@@ -45,10 +45,10 @@ remix-export/
 
 ```text
 tts/
-├─ components   TTS配置、生成状态和音频试听
-├─ services     Tauri TTS调用
-├─ types.ts     配置状态、生成结果和字词时间
-├─ useTts.ts    TTS状态与主流程
+├─ components   TTS配置、逐句配音、原声保留、生成状态和音频试听
+├─ services     普通TTS、逐句临时TTS和配音视频Tauri调用
+├─ types.ts     配置状态、生成结果、逐句输入、原声设置和字词时间
+├─ useTts.ts    普通MP3、逐句配音视频和原声参数主流程
 └─ index.ts     对外统一出口
 ```
 

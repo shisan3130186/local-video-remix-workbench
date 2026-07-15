@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
@@ -95,6 +95,48 @@ pub async fn synthesize_tts(
     }
 
     let config = load_tts_config(speaker)?;
+    let parsed = request_tts_audio(normalized_text, &config).await?;
+    let output_path = output_dir.join(format!("tts_{}.mp3", current_timestamp_millis()?));
+
+    save_tts_result(normalized_text, output_path, config, parsed)
+}
+
+pub async fn synthesize_tts_shot(
+    text: String,
+    speaker: Option<String>,
+    session_id: String,
+    shot_index: usize,
+) -> Result<TtsSynthesisResult, String> {
+    let normalized_text = text.trim();
+
+    if normalized_text.is_empty() {
+        return Err("分镜配音文案不能为空。".to_string());
+    }
+
+    let session_dir = tts_session_directory(&session_id)?;
+    fs::create_dir_all(&session_dir).map_err(|error| format!("无法创建临时配音目录：{error}"))?;
+
+    let config = load_tts_config(speaker)?;
+    let parsed = request_tts_audio(normalized_text, &config).await?;
+    let output_path = session_dir.join(format!("shot_{shot_index:03}.mp3"));
+
+    save_tts_result(normalized_text, output_path, config, parsed)
+}
+
+pub fn cleanup_tts_session(session_id: String) -> Result<(), String> {
+    let session_dir = tts_session_directory(&session_id)?;
+
+    if !session_dir.exists() {
+        return Ok(());
+    }
+
+    fs::remove_dir_all(session_dir).map_err(|error| format!("无法清理临时配音文件：{error}"))
+}
+
+async fn request_tts_audio(
+    normalized_text: &str,
+    config: &TtsConfig,
+) -> Result<ParsedTtsResponse, String> {
     let request_id = Uuid::new_v4().to_string();
     let response = build_tts_client()?
         .post(TTS_ENDPOINT)
@@ -126,7 +168,15 @@ pub async fn synthesize_tts(
         return Err("火山语音服务已返回结果，但没有收到音频数据。".to_string());
     }
 
-    let output_path = output_dir.join(format!("tts_{}.mp3", current_timestamp_millis()?));
+    Ok(parsed)
+}
+
+fn save_tts_result(
+    normalized_text: &str,
+    output_path: PathBuf,
+    config: TtsConfig,
+    parsed: ParsedTtsResponse,
+) -> Result<TtsSynthesisResult, String> {
     fs::write(&output_path, &parsed.audio).map_err(|error| format!("无法保存配音文件：{error}"))?;
 
     Ok(TtsSynthesisResult {
@@ -137,6 +187,22 @@ pub async fn synthesize_tts(
         resource_id: config.resource_id,
         words: parsed.words,
     })
+}
+
+fn tts_session_directory(session_id: &str) -> Result<PathBuf, String> {
+    if session_id.is_empty()
+        || session_id.len() > 80
+        || !session_id
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '-')
+    {
+        return Err("临时配音会话编号无效。".to_string());
+    }
+
+    Ok(env::temp_dir()
+        .join("local-video-remix-workbench")
+        .join("tts-remix")
+        .join(session_id))
 }
 
 fn load_tts_config(speaker_override: Option<String>) -> Result<TtsConfig, String> {
@@ -369,5 +435,20 @@ mod tests {
     #[test]
     fn builds_tts_client_with_embedded_roots() {
         build_tts_client().unwrap();
+    }
+
+    #[test]
+    fn builds_safe_tts_session_directory() {
+        let path = tts_session_directory("session-123").unwrap();
+
+        assert!(path.ends_with(Path::new("tts-remix").join("session-123")));
+    }
+
+    #[test]
+    fn rejects_unsafe_tts_session_id() {
+        assert_eq!(
+            tts_session_directory("../private").unwrap_err(),
+            "临时配音会话编号无效。"
+        );
     }
 }

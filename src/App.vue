@@ -209,23 +209,67 @@ const {
 });
 
 const {
+  generateNarratedVideo,
   generateTts,
+  isGeneratingNarratedVideo,
   isGeneratingTts,
   isLoadingTtsConfig,
   loadTtsConfig,
+  narratedVideoError,
+  narrationProgressText,
   resetTtsSettings,
   ttsAudioUrl,
   ttsConfig,
   ttsConfigError,
   ttsError,
   ttsResult,
+  ttsKeepOriginalAudio,
+  ttsOriginalAudioVolume,
   ttsSpeaker,
+  ttsVideoEnabled,
 } = useTts({
   text: aiScript,
   outputDirectory,
   appendLog: appendTtsLog,
   clearLogs: clearTtsLogs,
+  validateExportSettings() {
+    return (
+      validatePictureInPictureSettings() ?? validateBgmSettings() ?? validatePlaybackSpeed()
+    );
+  },
+  setMixing,
+  onGenerated(result) {
+    recordMixResult("AI配音混剪", result.outputPath);
+  },
+  formatCanvasLog: formatRemixCanvasLog,
+  formatSmoothLog: formatSmoothRemixLog,
 });
+
+const isGeneratingCurrentAiVideo = computed(
+  () =>
+    isGeneratingAiRemix.value ||
+    isGeneratingNarratedVideo.value ||
+    isGeneratingTts.value,
+);
+
+const currentAiGenerateError = computed(() =>
+  ttsVideoEnabled.value ? narratedVideoError.value : aiGenerateError.value,
+);
+
+async function generateCurrentAiRemixVideo() {
+  if (!ttsVideoEnabled.value) {
+    await generateAiRemixVideo();
+    return;
+  }
+
+  await generateNarratedVideo(
+    aiPlannedShots.value.map((shot) => ({
+      text: shot.text,
+      segmentPath: shot.segment.path,
+    })),
+    remixExportSettings.value,
+  );
+}
 
 const statusText = computed(() => {
   if (isChecking.value) {
@@ -277,6 +321,7 @@ const isAnyProcessing = computed(
     isBatchMixing.value ||
     isSplitting.value ||
     isGeneratingTts.value ||
+    isGeneratingNarratedVideo.value ||
     isPlanningAiRemix.value ||
     isGeneratingAiRemix.value,
 );
@@ -300,7 +345,7 @@ const primaryTaskActionLabel = computed(() => {
     return "选择输出目录";
   }
 
-  return "生成当前分镜视频";
+  return ttsVideoEnabled.value ? "生成带AI配音的视频" : "生成当前分镜视频";
 });
 
 const primaryTaskActionDisabled = computed(
@@ -332,7 +377,7 @@ async function runPrimaryTaskAction() {
     return;
   }
 
-  await generateAiRemixVideo();
+  await generateCurrentAiRemixVideo();
 }
 
 async function runEnvironmentCheck() {
@@ -816,9 +861,11 @@ onMounted(() => {
         :ai-preparation-error="aiPreparationError"
         :is-planning-ai-remix="isPlanningAiRemix"
         :ai-planning-progress-text="aiPlanningProgressText"
-        :is-generating-ai-remix="isGeneratingAiRemix"
+        :is-generating-ai-remix="isGeneratingCurrentAiVideo"
+        :tts-video-enabled="ttsVideoEnabled"
+        :narration-progress-text="narrationProgressText"
         :ai-plan-error="aiPlanError"
-        :ai-generate-error="aiGenerateError"
+        :ai-generate-error="currentAiGenerateError"
         :format-duration="formatDuration"
         :format-resolution="formatResolution"
         :format-frame-rate="formatFrameRate"
@@ -836,7 +883,7 @@ onMounted(() => {
         @move-ai-shot="moveAiRemixShot"
         @remove-ai-shot="removeAiRemixShot"
         @replace-ai-shot-segment="replaceAiRemixShotSegment"
-        @generate-ai-remix="generateAiRemixVideo"
+        @generate-ai-remix="generateCurrentAiRemixVideo"
       />
 
       <RightToolPanel
@@ -910,8 +957,14 @@ onMounted(() => {
       :tts-configured="ttsConfig.configured"
       :is-loading-tts-config="isLoadingTtsConfig"
       :is-generating-tts="isGeneratingTts"
+      :is-generating-narrated-video="isGeneratingNarratedVideo"
       :tts-config-error="ttsConfigError"
       :tts-error="ttsError"
+      :narrated-video-error="narratedVideoError"
+      :narration-progress-text="narrationProgressText"
+      :tts-video-enabled="ttsVideoEnabled"
+      :tts-keep-original-audio="ttsKeepOriginalAudio"
+      :tts-original-audio-volume="ttsOriginalAudioVolume"
       :tts-result="ttsResult"
       :tts-audio-url="ttsAudioUrl"
       @close="activeTool = null"
@@ -954,6 +1007,9 @@ onMounted(() => {
       @update:cover-frame-seconds="coverFrameSeconds = $event"
       @update:tts-text="aiScript = $event"
       @update:tts-speaker="ttsSpeaker = $event"
+      @update:tts-video-enabled="ttsVideoEnabled = $event"
+      @update:tts-keep-original-audio="ttsKeepOriginalAudio = $event"
+      @update:tts-original-audio-volume="ttsOriginalAudioVolume = $event"
     />
 
     <TaskLogDrawer

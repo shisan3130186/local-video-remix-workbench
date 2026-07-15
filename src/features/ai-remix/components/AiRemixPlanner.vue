@@ -9,6 +9,8 @@ defineProps<{
   isPlanning: boolean;
   planningProgressText: string | null;
   isGenerating: boolean;
+  ttsVideoEnabled: boolean;
+  generationProgressText: string | null;
   planError: string | null;
   generateError: string | null;
 }>();
@@ -60,8 +62,10 @@ function formatSeconds(value: number) {
         <small>{{ script.length }} / 4000 字</small>
       </label>
 
-      <p class="ai-remix-audio-note">
-        第一版不会朗读这段文案；生成视频会保留所选原片段的声音，也可以通过右侧背景音乐设置进行混音。
+      <p class="ai-remix-audio-note" :class="{ 'ai-remix-audio-note--enabled': ttsVideoEnabled }">
+        {{ ttsVideoEnabled
+          ? "AI配音已开启：将逐句生成语音并静音原片段声音；长配音冻结尾帧，短配音裁短画面。"
+          : "当前使用原片段声音。需要文案配音时，请打开右侧“AI配音”并开启逐句配音。" }}
       </p>
 
       <button
@@ -158,7 +162,9 @@ function formatSeconds(value: number) {
           :disabled="isGenerating || isPlanning || plannedShots.length < 2"
           @click="$emit('generate')"
         >
-          {{ isGenerating ? "正在生成 AI 混剪视频..." : "按当前分镜生成视频" }}
+          {{ isGenerating
+            ? generationProgressText ?? "正在生成 AI 混剪视频..."
+            : ttsVideoEnabled ? "生成带AI配音的视频" : "按当前分镜生成视频" }}
         </button>
       </div>
     </template>

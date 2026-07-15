@@ -20,7 +20,7 @@ const primaryTools: Array<{ key: ToolKey; title: string; note: string; symbol: s
   { key: "transition", title: "平滑混剪", note: "淡入淡出并过滤过短片段", symbol: "≈" },
   { key: "pip", title: "画中画", note: "叠加视频或图片素材", symbol: "▤" },
   { key: "bgm", title: "背景音乐", note: "本地音乐、音量和淡入淡出", symbol: "♫" },
-  { key: "tts", title: "AI配音", note: "文案生成配音文件并试听", symbol: "声" },
+  { key: "tts", title: "AI配音", note: "逐句配音、试听和生成视频", symbol: "声" },
 ];
 
 const advancedTools: Array<{ key: ToolKey; title: string; note: string }> = [

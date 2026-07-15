@@ -99,6 +99,28 @@ pub fn concat_video_segments(
     output_directory: String,
     settings: RemixSettings,
 ) -> Result<MixVideoResult, String> {
+    concat_video_segments_with_options(segment_paths, output_directory, settings, true)
+}
+
+pub(crate) fn concat_narrated_prepared_segments(
+    segment_paths: Vec<String>,
+    output_directory: String,
+    mut settings: RemixSettings,
+) -> Result<MixVideoResult, String> {
+    if should_apply_speed_filter(settings.playback_speed) {
+        return Err("AI配音视频暂时只支持 1.0x 速度，请把视频变速恢复为 1.0x。".to_string());
+    }
+
+    settings.bgm_settings.original_volume = 1.0;
+    concat_video_segments_with_options(segment_paths, output_directory, settings, false)
+}
+
+fn concat_video_segments_with_options(
+    segment_paths: Vec<String>,
+    output_directory: String,
+    settings: RemixSettings,
+    filter_short_smooth_segments: bool,
+) -> Result<MixVideoResult, String> {
     let RemixSettings {
         apply_horizontal_mirror,
         playback_speed,
@@ -140,7 +162,12 @@ pub fn concat_video_segments(
     let list_path = output_dir.join(format!("concat_list_{timestamp}.txt"));
     let output_path = output_dir.join(format!("remix_{timestamp}.mp4"));
     let prepared_segments = if smooth_remix_enabled {
-        prepare_smooth_segments(&segment_paths, output_dir, timestamp)?
+        prepare_smooth_segments(
+            &segment_paths,
+            output_dir,
+            timestamp,
+            filter_short_smooth_segments,
+        )?
     } else {
         PreparedSegments {
             segment_paths,
@@ -647,6 +674,7 @@ fn prepare_smooth_segments(
     segment_paths: &[String],
     output_dir: &Path,
     timestamp: u64,
+    filter_short_segments: bool,
 ) -> Result<PreparedSegments, String> {
     let mut prepared_paths = Vec::new();
     let mut temporary_paths = Vec::new();
@@ -655,7 +683,7 @@ fn prepare_smooth_segments(
     for (index, segment_path) in segment_paths.iter().enumerate() {
         let info = probe_segment_info(segment_path)?;
 
-        if info.duration_seconds < 1.5 {
+        if filter_short_segments && info.duration_seconds < 1.5 {
             skipped_short_segment_count += 1;
             continue;
         }
@@ -731,7 +759,7 @@ fn create_smooth_segment(
     temp_path: &Path,
     info: &SegmentInfo,
 ) -> Result<(), String> {
-    let fade_duration = 0.2;
+    let fade_duration = 0.2_f64.min((info.duration_seconds / 2.0).max(0.01));
     let fade_out_start = (info.duration_seconds - fade_duration).max(0.0);
     let video_filter = format!(
         "fade=t=in:st=0:d={fade_duration},fade=t=out:st={fade_out_start:.3}:d={fade_duration},format=yuv420p"

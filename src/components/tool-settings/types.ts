@@ -55,8 +55,14 @@ export interface ToolSettingModalProps {
   ttsConfigured: boolean;
   isLoadingTtsConfig: boolean;
   isGeneratingTts: boolean;
+  isGeneratingNarratedVideo: boolean;
   ttsConfigError: string | null;
   ttsError: string | null;
+  narratedVideoError: string | null;
+  narrationProgressText: string | null;
+  ttsVideoEnabled: boolean;
+  ttsKeepOriginalAudio: boolean;
+  ttsOriginalAudioVolume: number;
   ttsResult: TtsSynthesisResult | null;
   ttsAudioUrl: string | null;
 }
@@ -102,4 +108,7 @@ export type ToolSettingModalEmits = {
   "update:coverFrameSeconds": [value: number];
   "update:ttsText": [value: string];
   "update:ttsSpeaker": [value: string];
+  "update:ttsVideoEnabled": [value: boolean];
+  "update:ttsKeepOriginalAudio": [value: boolean];
+  "update:ttsOriginalAudioVolume": [value: number];
 };

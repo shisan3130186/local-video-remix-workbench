@@ -34,6 +34,8 @@ defineProps<{
   isPlanningAiRemix: boolean;
   aiPlanningProgressText: string | null;
   isGeneratingAiRemix: boolean;
+  ttsVideoEnabled: boolean;
+  narrationProgressText: string | null;
   aiPlanError: string | null;
   aiGenerateError: string | null;
   formatDuration: (durationSeconds: number | null) => string;
@@ -180,6 +182,8 @@ const aiScript = defineModel<string>("aiScript", { required: true });
         :is-planning="isPlanningAiRemix"
         :planning-progress-text="aiPlanningProgressText"
         :is-generating="isGeneratingAiRemix"
+        :tts-video-enabled="ttsVideoEnabled"
+        :generation-progress-text="narrationProgressText"
         :plan-error="aiPlanError"
         :generate-error="aiGenerateError"
         @plan="$emit('planAiRemix')"

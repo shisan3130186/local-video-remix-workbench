@@ -49,7 +49,8 @@ export type ExportResultType =
   | "拼接导出"
   | "分类混剪"
   | "批量生成"
-  | "AI 智能混剪";
+  | "AI 智能混剪"
+  | "AI配音混剪";
 
 export interface ExportResultItem {
   id: number;

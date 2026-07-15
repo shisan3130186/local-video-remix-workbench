@@ -10,12 +10,16 @@ use ai_remix::{
 use std::path::Path;
 use std::process::Command;
 use tts::{
-    get_tts_config_status as read_tts_config_status, synthesize_tts as create_tts_audio,
+    cleanup_tts_session as remove_tts_session, get_tts_config_status as read_tts_config_status,
+    synthesize_tts as create_tts_audio, synthesize_tts_shot as create_tts_shot_audio,
     TtsConfigStatus, TtsSynthesisResult,
 };
 use video_engine::canvas::{CanvasAspectRatio, CanvasBackgroundMode};
 use video_engine::import::list_supported_videos_in_folder;
 use video_engine::mix::{concat_video_segments, MixVideoResult, RemixSettings};
+use video_engine::narrated_mix::{
+    concat_narrated_segments as create_narrated_video, NarratedAudioSettings, NarratedSegmentInput,
+};
 use video_engine::probe::{
     check_environment, probe_video_metadata, FfmpegEnvironmentResult, VideoMetadata,
 };
@@ -136,6 +140,21 @@ async fn synthesize_tts(
 }
 
 #[tauri::command]
+async fn synthesize_tts_shot(
+    text: String,
+    speaker: Option<String>,
+    session_id: String,
+    shot_index: usize,
+) -> Result<TtsSynthesisResult, String> {
+    create_tts_shot_audio(text, speaker, session_id, shot_index).await
+}
+
+#[tauri::command]
+fn cleanup_tts_session(session_id: String) -> Result<(), String> {
+    remove_tts_session(session_id)
+}
+
+#[tauri::command]
 fn concat_selected_segments(
     segment_paths: Vec<String>,
     output_directory: String,
@@ -144,12 +163,24 @@ fn concat_selected_segments(
     concat_video_segments(segment_paths, output_directory, settings)
 }
 
+#[tauri::command]
+fn concat_narrated_segments(
+    segments: Vec<NarratedSegmentInput>,
+    output_directory: String,
+    settings: RemixSettings,
+    audio_settings: NarratedAudioSettings,
+) -> Result<MixVideoResult, String> {
+    create_narrated_video(segments, output_directory, settings, audio_settings)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             analyze_ai_remix_segments,
             check_ffmpeg_environment,
+            cleanup_tts_session,
+            concat_narrated_segments,
             concat_selected_segments,
             export_current_video,
             generate_thumbnail,
@@ -159,7 +190,8 @@ pub fn run() {
             plan_ai_remix,
             read_video_metadata,
             split_current_video,
-            synthesize_tts
+            synthesize_tts,
+            synthesize_tts_shot
         ])
         .run(tauri::generate_context!())
         .expect("failed to run tauri app");

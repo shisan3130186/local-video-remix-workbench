@@ -19,3 +19,18 @@ export interface TtsSynthesisResult {
   resourceId: string;
   words: TtsWordTiming[];
 }
+
+export interface NarratedShotSource {
+  text: string;
+  segmentPath: string;
+}
+
+export interface NarratedSegmentInput {
+  videoPath: string;
+  narrationPath: string;
+}
+
+export interface NarratedAudioSettings {
+  keepOriginalAudio: boolean;
+  originalAudioVolume: number;
+}

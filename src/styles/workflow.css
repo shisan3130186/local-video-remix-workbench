@@ -143,6 +143,12 @@
   line-height: 1.5;
 }
 
+.ai-remix-audio-note--enabled {
+  border-color: #1d6f5c;
+  color: #c8f4e9;
+  background: #14332c;
+}
+
 .ai-remix-progress {
   border-color: #2a6657;
   color: #b9ddd3;
