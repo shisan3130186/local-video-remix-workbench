@@ -49,8 +49,12 @@ function formatSeconds(value: number) {
     </template>
 
     <template v-else>
+      <p v-if="preparationError" class="workflow-notice" role="status">
+        {{ preparationError }}
+      </p>
+
       <label class="ai-remix-script-field" for="ai-remix-script">
-        <span>成片文案（当前仅用于匹配画面）</span>
+        <span>成片文案（软件自动断句，AI 匹配画面）</span>
         <textarea
           id="ai-remix-script"
           v-model="script"
@@ -64,7 +68,7 @@ function formatSeconds(value: number) {
 
       <p class="ai-remix-audio-note" :class="{ 'ai-remix-audio-note--enabled': ttsVideoEnabled }">
         {{ ttsVideoEnabled
-          ? "AI配音已开启：将逐句生成语音并静音原片段声音；长配音冻结尾帧，短配音裁短画面。"
+          ? "AI配音已开启：将逐句生成语音；画面过短时优先换用更长备选片段，只允许很短的安全补帧。"
           : "当前使用原片段声音。需要文案配音时，请打开右侧“AI配音”并开启逐句配音。" }}
       </p>
 

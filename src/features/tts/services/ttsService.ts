@@ -3,6 +3,7 @@ import type { MixVideoResult, RemixExportSettings } from "../../../services/vide
 import type {
   NarratedAudioSettings,
   NarratedSegmentInput,
+  NarratedSubtitleSettings,
   TtsConfigStatus,
   TtsSynthesisResult,
 } from "../types";
@@ -46,11 +47,13 @@ export function concatNarratedSegments(
   outputDirectory: string,
   settings: RemixExportSettings,
   audioSettings: NarratedAudioSettings,
+  subtitleSettings: NarratedSubtitleSettings,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_narrated_segments", {
     segments,
     outputDirectory,
     settings,
     audioSettings,
+    subtitleSettings,
   });
 }

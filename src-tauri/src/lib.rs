@@ -25,7 +25,8 @@ use video_engine::probe::{
 };
 use video_engine::render::{export_basic_video, RenderVideoResult};
 use video_engine::split::{split_video_by_duration, SplitVideoResult};
-use video_engine::thumbnail::{generate_video_thumbnail, VideoThumbnailResult};
+use video_engine::subtitle::NarratedSubtitleSettings;
+use video_engine::thumbnail::{generate_video_thumbnail, ThumbnailFitMode, VideoThumbnailResult};
 
 #[tauri::command]
 fn check_ffmpeg_environment() -> FfmpegEnvironmentResult {
@@ -77,6 +78,11 @@ fn open_path_in_file_manager(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn is_existing_directory(path: String) -> bool {
+    Path::new(&path).is_dir()
+}
+
+#[tauri::command]
 fn export_current_video(
     input_file_path: String,
     output_directory: String,
@@ -106,8 +112,15 @@ fn generate_thumbnail(
     output_directory: Option<String>,
     time_seconds: f64,
     label: String,
+    fit_mode: ThumbnailFitMode,
 ) -> Result<VideoThumbnailResult, String> {
-    generate_video_thumbnail(input_file_path, output_directory, time_seconds, label)
+    generate_video_thumbnail(
+        input_file_path,
+        output_directory,
+        time_seconds,
+        label,
+        fit_mode,
+    )
 }
 
 #[tauri::command]
@@ -169,8 +182,15 @@ fn concat_narrated_segments(
     output_directory: String,
     settings: RemixSettings,
     audio_settings: NarratedAudioSettings,
+    subtitle_settings: NarratedSubtitleSettings,
 ) -> Result<MixVideoResult, String> {
-    create_narrated_video(segments, output_directory, settings, audio_settings)
+    create_narrated_video(
+        segments,
+        output_directory,
+        settings,
+        audio_settings,
+        subtitle_settings,
+    )
 }
 
 pub fn run() {
@@ -185,6 +205,7 @@ pub fn run() {
             export_current_video,
             generate_thumbnail,
             get_tts_config_status,
+            is_existing_directory,
             list_video_files_in_folder,
             open_path_in_file_manager,
             plan_ai_remix,

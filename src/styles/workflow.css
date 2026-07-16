@@ -63,6 +63,17 @@
   line-height: 1.35;
 }
 
+.workflow-notice {
+  min-height: 28px;
+  padding: 7px 10px;
+  border: 1px solid rgba(79, 220, 180, 0.34);
+  border-radius: 7px;
+  color: #b8f2df;
+  background: rgba(22, 79, 62, 0.32);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .ai-remix-planner {
   display: grid;
   gap: 10px;

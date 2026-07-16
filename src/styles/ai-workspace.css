@@ -164,9 +164,10 @@
 }
 
 .asset-row__thumb img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .asset-row__content {
@@ -430,6 +431,10 @@
 .ai-preparation-callout small {
   color: #7e908a;
   font-size: 11px;
+}
+
+.ai-preparation-callout .workflow-inline-error {
+  color: #ff9b8f;
 }
 
 .ai-workflow-panel .ai-remix-planner {

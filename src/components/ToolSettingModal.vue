@@ -136,6 +136,9 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           :video-enabled="ttsVideoEnabled"
           :keep-original-audio="ttsKeepOriginalAudio"
           :original-audio-volume="ttsOriginalAudioVolume"
+          :subtitle-enabled="ttsSubtitleEnabled"
+          :subtitle-position="ttsSubtitlePosition"
+          :subtitle-size="ttsSubtitleSize"
           :result="ttsResult"
           :audio-url="ttsAudioUrl"
           @generate="emit('generateTts')"
@@ -144,6 +147,9 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           @update:video-enabled="emit('update:ttsVideoEnabled', $event)"
           @update:keep-original-audio="emit('update:ttsKeepOriginalAudio', $event)"
           @update:original-audio-volume="emit('update:ttsOriginalAudioVolume', $event)"
+          @update:subtitle-enabled="emit('update:ttsSubtitleEnabled', $event)"
+          @update:subtitle-position="emit('update:ttsSubtitlePosition', $event)"
+          @update:subtitle-size="emit('update:ttsSubtitleSize', $event)"
         />
 
         <CoverSettingsPanel

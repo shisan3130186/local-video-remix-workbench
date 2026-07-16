@@ -13,7 +13,6 @@ import type { AiRemixPlannedShot, AiRemixSegment } from "./types";
 
 interface UseAiRemixOptions {
   outputDirectory: Readonly<Ref<string | null>>;
-  segmentPaths: Readonly<Ref<string[]>>;
   remixExportSettings: Readonly<Ref<RemixExportSettings>>;
   appendAiRemixLog: (message: string, level: TaskLogLevel) => void;
   appendSplitLog: (message: string, level: TaskLogLevel) => void;
@@ -86,14 +85,21 @@ export function useAiRemix(options: UseAiRemixOptions) {
         );
       }
 
-      if (preparationErrors.length === 0 && preparedSegments.length === segmentPaths.length) {
-        aiPreparedSegments.value = preparedSegments;
+      aiPreparedSegments.value = preparedSegments;
+
+      if (preparedSegments.length >= 2) {
+        aiPreparationError.value =
+          preparationErrors.length > 0
+            ? `${preparedSegments.length}/${segmentPaths.length} 个片段准备完成，${preparationErrors.length} 个失败片段已自动跳过。可以继续填写文案。`
+            : null;
         options.appendSplitLog(
-          `AI 片段信息准备完成：${preparedSegments.length} 个片段。`,
-          "success",
+          preparationErrors.length > 0
+            ? `AI 片段信息部分完成：${preparedSegments.length}/${segmentPaths.length} 个可用，已跳过 ${preparationErrors.length} 个失败片段。`
+            : `AI 片段信息准备完成：${preparedSegments.length} 个片段。`,
+          preparationErrors.length > 0 ? "error" : "success",
         );
       } else {
-        aiPreparationError.value = `有 ${preparationErrors.length} 个片段缺少预览图或时长，请重新切片后再试。`;
+        aiPreparationError.value = `只有 ${preparedSegments.length}/${segmentPaths.length} 个片段准备成功，AI 混剪至少需要 2 个可用片段。请查看任务日志。`;
       }
     } catch (error) {
       aiPreparationError.value =
@@ -119,8 +125,8 @@ export function useAiRemix(options: UseAiRemixOptions) {
   async function requestAiRemixPlan() {
     aiPlanError.value = null;
 
-    if (aiPreparedSegments.value.length !== options.segmentPaths.value.length) {
-      aiPlanError.value = "片段预览图或时长尚未准备完整，请重新切片后再试。";
+    if (aiPreparedSegments.value.length < 2) {
+      aiPlanError.value = "可用片段不足 2 个，请重新切片或查看任务日志。";
       return;
     }
 
@@ -146,8 +152,8 @@ export function useAiRemix(options: UseAiRemixOptions) {
         throw new Error("仍有片段缺少画面描述，请重试。已成功识别的片段会继续保留。 ");
       }
 
-      aiPlanningProgressText.value = "正在根据文案和画面描述生成分镜...";
-      options.appendAiRemixLog("片段画面理解完成，开始生成纯文字分镜规划。", "info");
+      aiPlanningProgressText.value = "正在为软件自动断好的短句匹配画面...";
+      options.appendAiRemixLog("片段画面理解完成，开始为固定短句匹配画面。", "info");
       const result = await planAiRemix(
         aiScript.value,
         segmentsWithDescriptions.map((segment) => ({

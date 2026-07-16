@@ -1,5 +1,5 @@
 use crate::video_engine::tool_paths::ffmpeg_program;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -14,11 +14,19 @@ pub struct VideoThumbnailResult {
     message: String,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ThumbnailFitMode {
+    Source,
+    Contain,
+}
+
 pub fn generate_video_thumbnail(
     input_file_path: String,
     output_directory: Option<String>,
     time_seconds: f64,
     label: String,
+    fit_mode: ThumbnailFitMode,
 ) -> Result<VideoThumbnailResult, String> {
     let input_path = Path::new(&input_file_path);
 
@@ -45,6 +53,7 @@ pub fn generate_video_thumbnail(
         .to_str()
         .ok_or_else(|| "预览图输出路径包含无法识别的字符。".to_string())?;
     let time_text = format!("{time_seconds:.3}");
+    let video_filter = thumbnail_video_filter(fit_mode);
 
     let output = Command::new(ffmpeg_program())
         .args([
@@ -56,7 +65,7 @@ pub fn generate_video_thumbnail(
             "-frames:v",
             "1",
             "-vf",
-            "scale=320:-2",
+            video_filter,
             "-q:v",
             "3",
             thumbnail_path_text,
@@ -83,6 +92,15 @@ pub fn generate_video_thumbnail(
         time_seconds,
         message: "预览图生成完成。".to_string(),
     })
+}
+
+fn thumbnail_video_filter(fit_mode: ThumbnailFitMode) -> &'static str {
+    match fit_mode {
+        ThumbnailFitMode::Source => "scale=320:-2",
+        ThumbnailFitMode::Contain => {
+            "scale=320:240:force_original_aspect_ratio=decrease,pad=320:240:(ow-iw)/2:(oh-ih)/2:color=0x101312"
+        }
+    }
 }
 
 fn build_thumbnail_directory(output_directory: Option<String>) -> Result<PathBuf, String> {
@@ -123,4 +141,25 @@ fn current_timestamp_millis() -> Result<u128, String> {
         .duration_since(UNIX_EPOCH)
         .map_err(|error| format!("无法生成预览图文件名：{error}"))?
         .as_millis())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keeps_source_aspect_ratio_for_ai_thumbnails() {
+        assert_eq!(
+            thumbnail_video_filter(ThumbnailFitMode::Source),
+            "scale=320:-2"
+        );
+    }
+
+    #[test]
+    fn pads_material_covers_without_cropping_portrait_video() {
+        let filter = thumbnail_video_filter(ThumbnailFitMode::Contain);
+
+        assert!(filter.contains("force_original_aspect_ratio=decrease"));
+        assert!(filter.contains("pad=320:240"));
+    }
 }

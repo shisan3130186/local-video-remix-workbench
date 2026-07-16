@@ -5,5 +5,6 @@ pub mod narrated_mix;
 pub mod probe;
 pub mod render;
 pub mod split;
+pub mod subtitle;
 pub mod thumbnail;
 pub mod tool_paths;

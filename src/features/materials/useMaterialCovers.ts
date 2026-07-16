@@ -45,6 +45,7 @@ export function useMaterialCovers({ selectedVideo, outputDirectory }: UseMateria
         outputDirectory.value,
         getDefaultCoverTime(video),
         "cover",
+        "contain",
       );
       videoCoverPaths.value = {
         ...videoCoverPaths.value,
@@ -83,6 +84,7 @@ export function useMaterialCovers({ selectedVideo, outputDirectory }: UseMateria
         outputDirectory.value,
         coverFrameSeconds.value,
         "selected_cover",
+        "contain",
       );
       videoCoverPaths.value = {
         ...videoCoverPaths.value,

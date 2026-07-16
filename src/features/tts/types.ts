@@ -23,14 +23,33 @@ export interface TtsSynthesisResult {
 export interface NarratedShotSource {
   text: string;
   segmentPath: string;
+  segmentDurationSeconds: number;
+  alternativeSegments: NarratedVideoCandidate[];
+}
+
+export interface NarratedVideoCandidate {
+  videoPath: string;
+  durationSeconds: number;
 }
 
 export interface NarratedSegmentInput {
   videoPath: string;
+  videoDurationSeconds: number;
   narrationPath: string;
+  subtitleText: string;
+  alternativeVideos: NarratedVideoCandidate[];
 }
 
 export interface NarratedAudioSettings {
   keepOriginalAudio: boolean;
   originalAudioVolume: number;
+}
+
+export type NarratedSubtitlePosition = "top" | "middle" | "bottom";
+export type NarratedSubtitleSize = "small" | "medium" | "large";
+
+export interface NarratedSubtitleSettings {
+  enabled: boolean;
+  position: NarratedSubtitlePosition;
+  size: NarratedSubtitleSize;
 }

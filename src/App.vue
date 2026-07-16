@@ -29,7 +29,7 @@ import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
 } from "./services/videoMixService";
-import { openPathInFileManager } from "./services/fileManagerService";
+import { isExistingDirectory, openPathInFileManager } from "./services/fileManagerService";
 import { checkFfmpegEnvironment } from "./services/videoProbeService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
 import type { DrawerKey, ToolKey } from "./types/workbench";
@@ -187,7 +187,6 @@ const {
   resetAiRemixState,
 } = useAiRemix({
   outputDirectory,
-  segmentPaths: splitSegmentPaths,
   remixExportSettings,
   appendAiRemixLog,
   appendSplitLog,
@@ -225,6 +224,9 @@ const {
   ttsResult,
   ttsKeepOriginalAudio,
   ttsOriginalAudioVolume,
+  ttsSubtitleEnabled,
+  ttsSubtitlePosition,
+  ttsSubtitleSize,
   ttsSpeaker,
   ttsVideoEnabled,
 } = useTts({
@@ -266,6 +268,11 @@ async function generateCurrentAiRemixVideo() {
     aiPlannedShots.value.map((shot) => ({
       text: shot.text,
       segmentPath: shot.segment.path,
+      segmentDurationSeconds: shot.segment.durationSeconds,
+      alternativeSegments: shot.alternativeSegments.map((segment) => ({
+        videoPath: segment.path,
+        durationSeconds: segment.durationSeconds,
+      })),
     })),
     remixExportSettings.value,
   );
@@ -425,22 +432,51 @@ async function selectOutputDirectory() {
     });
 
     if (!selected || Array.isArray(selected)) {
-      return;
+      return false;
     }
 
     outputDirectory.value = selected;
+    return true;
   } catch (error) {
     outputDirectoryError.value =
       error instanceof Error
         ? error.message
         : String(error ?? "输出目录选择失败。");
+    return false;
   }
 }
 
 async function splitSelectedVideo() {
+  if (!(await ensureSplitOutputDirectory())) {
+    return;
+  }
+
   resetRandomPickState();
   resetAiRemixState(false);
   await splitAllMaterials(prepareSegmentAssets);
+}
+
+async function ensureSplitOutputDirectory() {
+  if (outputDirectory.value) {
+    try {
+      if (await isExistingDirectory(outputDirectory.value)) {
+        return true;
+      }
+    } catch (error) {
+      outputDirectoryError.value =
+        error instanceof Error ? error.message : String(error ?? "无法检查输出目录。");
+      return false;
+    }
+
+    outputDirectory.value = null;
+    outputDirectoryError.value = "原来的输出目录已经不存在，请重新选择一个文件夹。";
+  }
+
+  const selected = await selectOutputDirectory();
+  if (!selected && !outputDirectoryError.value) {
+    outputDirectoryError.value = "切片前必须先选择一个有效的输出目录。";
+  }
+  return selected;
 }
 
 function validatePlaybackSpeed() {
@@ -851,6 +887,7 @@ onMounted(() => {
         :is-batch-mixing="isBatchMixing"
         :is-exporting="isExporting"
         :split-segment-count="splitSegmentCount"
+        :split-error="splitError || outputDirectoryError"
         :random-selected-count="randomSelectedSegments.length"
         :batch-mix-result-count="batchMixResults.length"
         :mix-error="mixError"
@@ -965,6 +1002,9 @@ onMounted(() => {
       :tts-video-enabled="ttsVideoEnabled"
       :tts-keep-original-audio="ttsKeepOriginalAudio"
       :tts-original-audio-volume="ttsOriginalAudioVolume"
+      :tts-subtitle-enabled="ttsSubtitleEnabled"
+      :tts-subtitle-position="ttsSubtitlePosition"
+      :tts-subtitle-size="ttsSubtitleSize"
       :tts-result="ttsResult"
       :tts-audio-url="ttsAudioUrl"
       @close="activeTool = null"
@@ -1010,6 +1050,9 @@ onMounted(() => {
       @update:tts-video-enabled="ttsVideoEnabled = $event"
       @update:tts-keep-original-audio="ttsKeepOriginalAudio = $event"
       @update:tts-original-audio-volume="ttsOriginalAudioVolume = $event"
+      @update:tts-subtitle-enabled="ttsSubtitleEnabled = $event"
+      @update:tts-subtitle-position="ttsSubtitlePosition = $event"
+      @update:tts-subtitle-size="ttsSubtitleSize = $event"
     />
 
     <TaskLogDrawer

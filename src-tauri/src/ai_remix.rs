@@ -3,12 +3,20 @@ use reqwest::tls::Certificate;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::error::Error as StdError;
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
+
+const TARGET_SHOT_TEXT_MIN_CHARACTERS: usize = 6;
+const TARGET_SHOT_TEXT_MAX_CHARACTERS: usize = 14;
+const MAX_SHOT_TEXT_CHARACTERS: usize = 16;
+const ESTIMATED_SPEECH_CHARACTERS_PER_SECOND: f64 = 4.2;
+const ESTIMATED_SPEECH_TAIL_SECONDS: f64 = 0.35;
+const SAFE_VIDEO_MIN_PLAYBACK_RATE: f64 = 0.92;
+const SAFE_VIDEO_MAX_FREEZE_SECONDS: f64 = 0.8;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -79,7 +87,7 @@ impl AiRequestStage {
     fn label(self) -> &'static str {
         match self {
             Self::VisualAnalysis => "片段画面理解",
-            Self::RemixPlanning => "纯文字分镜规划",
+            Self::RemixPlanning => "固定短句画面匹配",
         }
     }
 
@@ -126,17 +134,14 @@ pub async fn plan_ai_remix(
     segments: Vec<AiRemixSegmentInput>,
 ) -> Result<AiRemixPlanResult, String> {
     let normalized_script = script.trim();
-    validate_planning_inputs(normalized_script, &segments)?;
-    let expected_ids = segments
-        .iter()
-        .map(|segment| segment.segment_id.clone())
-        .collect::<Vec<_>>();
-    let planning_prompt = build_planning_prompt(normalized_script, &segments);
+    let fixed_shot_texts = split_script_into_shots(normalized_script)?;
+    validate_planning_inputs(normalized_script, &fixed_shot_texts, &segments)?;
+    let planning_prompt = build_planning_prompt(&fixed_shot_texts, &segments);
     let content = request_ai_completion(
         json!([
             {
                 "role": "system",
-                "content": "你是短视频分镜规划助手。请把用户文案拆成按叙事顺序排列的镜头句子，并根据已有的片段画面描述，为每句话选择画面最匹配的主片段。只选择与文案相关的片段，不要求使用全部素材；不同分镜的主片段不得重复。每个分镜最多返回 3 个相关备选片段。只允许返回 JSON 对象，不要返回 Markdown、代码围栏、解释或其他字段。格式必须是：{\"shots\":[{\"text\":\"镜头对应的文案\",\"segmentId\":\"segment-001\",\"alternativeSegmentIds\":[\"segment-002\"]}]}"
+                "content": "你是短视频画面匹配助手。软件已经完成文案断句，你不能修改、合并或新增分镜，只需要为每个 shotIndex 选择最匹配且时长合适的主片段。主片段不能重复。每个分镜最多返回 3 个内容相关、尽量更长的备选片段；备选片段可以与其他分镜的主片段重复，软件会自动清理冲突。必须覆盖全部 shotIndex。只允许返回 JSON 对象，不要返回 Markdown、代码围栏、解释或其他字段。格式必须是：{\"matches\":[{\"shotIndex\":1,\"segmentId\":\"segment-001\",\"alternativeSegmentIds\":[\"segment-002\"]}]}"
             },
             {
                 "role": "user",
@@ -149,7 +154,7 @@ pub async fn plan_ai_remix(
     .await?;
 
     Ok(AiRemixPlanResult {
-        shots: parse_and_validate_shots(&content, &expected_ids)?,
+        shots: parse_and_validate_shots(&content, &fixed_shot_texts, &segments)?,
     })
 }
 
@@ -278,13 +283,25 @@ fn validate_visual_inputs(segments: &[AiRemixVisualSegmentInput]) -> Result<(), 
     Ok(())
 }
 
-fn validate_planning_inputs(script: &str, segments: &[AiRemixSegmentInput]) -> Result<(), String> {
+fn validate_planning_inputs(
+    script: &str,
+    fixed_shot_texts: &[String],
+    segments: &[AiRemixSegmentInput],
+) -> Result<(), String> {
     if script.is_empty() {
         return Err("请先输入用于规划混剪的文案。".to_string());
     }
 
     if segments.len() < 2 {
         return Err("AI 智能混剪至少需要 2 个片段。".to_string());
+    }
+
+    if fixed_shot_texts.len() > segments.len() {
+        return Err(format!(
+            "软件已把文案拆成 {} 个短分镜，但当前只有 {} 个可用片段。请缩短文案，或切出更多片段后重试。",
+            fixed_shot_texts.len(),
+            segments.len()
+        ));
     }
 
     let mut segment_ids = HashSet::new();
@@ -369,7 +386,20 @@ fn build_visual_analysis_content(
     Ok(content)
 }
 
-fn build_planning_prompt(script: &str, segments: &[AiRemixSegmentInput]) -> String {
+fn build_planning_prompt(fixed_shot_texts: &[String], segments: &[AiRemixSegmentInput]) -> String {
+    let shot_lines = fixed_shot_texts
+        .iter()
+        .enumerate()
+        .map(|(index, text)| {
+            format!(
+                "- shotIndex：{}；固定文案：{}；预计配音：{:.2} 秒",
+                index + 1,
+                text,
+                estimate_narration_duration(text)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
     let segment_lines = segments
         .iter()
         .map(|segment| {
@@ -384,7 +414,7 @@ fn build_planning_prompt(script: &str, segments: &[AiRemixSegmentInput]) -> Stri
         .join("\n");
 
     format!(
-        "用户文案：\n{script}\n\n可用片段：\n{segment_lines}\n\n请将文案拆成适合短视频节奏的分镜句子，为每句话选择最匹配的主片段，并给出最多 3 个备选片段。可以舍弃无关素材，主片段之间不能重复。"
+        "固定分镜（只匹配画面，不要修改文案）：\n{shot_lines}\n\n可用片段：\n{segment_lines}\n\n请为每个 shotIndex 返回一个主片段和最多3个相关备选片段。优先选择画面内容匹配、时长足够的片段；主片段不能重复，必须覆盖全部固定分镜。"
     )
 }
 
@@ -434,86 +464,295 @@ fn parse_and_validate_analyses(
 
 fn parse_and_validate_shots(
     content: &str,
-    expected_ids: &[String],
+    fixed_shot_texts: &[String],
+    segments: &[AiRemixSegmentInput],
 ) -> Result<Vec<AiRemixShot>, String> {
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase", deny_unknown_fields)]
-    struct ShotsResponse {
-        shots: Vec<AiRemixShot>,
+    struct ShotMatch {
+        shot_index: usize,
+        segment_id: String,
+        #[serde(default)]
+        alternative_segment_ids: Vec<String>,
     }
 
-    let parsed = serde_json::from_str::<ShotsResponse>(content)
-        .map_err(|_| "AI 必须严格返回只包含 shots 的 JSON 对象。".to_string())?;
-
-    if parsed.shots.len() < 2 {
-        return Err("AI 至少需要返回 2 个分镜。".to_string());
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase", deny_unknown_fields)]
+    struct MatchesResponse {
+        matches: Vec<ShotMatch>,
     }
 
-    if parsed.shots.len() > expected_ids.len() {
+    let mut parsed = serde_json::from_str::<MatchesResponse>(content)
+        .map_err(|_| "AI 必须严格返回只包含 matches 的 JSON 对象。".to_string())?;
+
+    if parsed.matches.len() != fixed_shot_texts.len() {
         return Err(format!(
-            "AI 返回了 {} 个分镜，但本次只有 {} 个可用片段。",
-            parsed.shots.len(),
-            expected_ids.len()
+            "AI 返回了 {} 个画面匹配，但软件已经固定了 {} 个分镜。请重新生成。",
+            parsed.matches.len(),
+            fixed_shot_texts.len()
         ));
     }
 
-    let expected = expected_ids
+    let expected = segments
         .iter()
-        .map(String::as_str)
+        .map(|segment| segment.segment_id.as_str())
         .collect::<HashSet<_>>();
-    let mut primary_ids = HashSet::new();
+    let duration_by_id = segments
+        .iter()
+        .map(|segment| (segment.segment_id.as_str(), segment.duration_seconds))
+        .collect::<HashMap<_, _>>();
+    let mut returned_shot_indices = HashSet::new();
+    let mut primary_ids = HashSet::<String>::new();
 
-    for (index, shot) in parsed.shots.iter().enumerate() {
-        if shot.text.trim().is_empty() {
-            return Err(format!("AI 返回的第 {} 个分镜文案为空。", index + 1));
+    for shot_match in &parsed.matches {
+        if shot_match.shot_index == 0 || shot_match.shot_index > fixed_shot_texts.len() {
+            return Err(format!(
+                "AI 返回了未知分镜序号：{}。",
+                shot_match.shot_index
+            ));
         }
 
-        if !expected.contains(shot.segment_id.as_str()) {
-            return Err(format!("AI 返回了未知主片段编号：{}。", shot.segment_id));
+        if !returned_shot_indices.insert(shot_match.shot_index) {
+            return Err(format!(
+                "AI 重复返回了第 {} 个分镜。",
+                shot_match.shot_index
+            ));
         }
 
-        if !primary_ids.insert(shot.segment_id.as_str()) {
-            return Err(format!("AI 重复使用了主片段编号：{}。", shot.segment_id));
+        if !expected.contains(shot_match.segment_id.as_str()) {
+            return Err(format!(
+                "AI 返回了未知主片段编号：{}。",
+                shot_match.segment_id
+            ));
         }
 
-        if shot.alternative_segment_ids.len() > 3 {
-            return Err(format!("第 {} 个分镜返回的备选片段超过 3 个。", index + 1));
+        if !primary_ids.insert(shot_match.segment_id.clone()) {
+            return Err(format!(
+                "AI 重复使用了主片段编号：{}。",
+                shot_match.segment_id
+            ));
+        }
+
+        if shot_match.alternative_segment_ids.len() > 3 {
+            return Err(format!(
+                "第 {} 个分镜返回的备选片段超过 3 个。",
+                shot_match.shot_index
+            ));
         }
 
         let mut alternative_ids = HashSet::new();
 
-        for alternative_id in &shot.alternative_segment_ids {
+        for alternative_id in &shot_match.alternative_segment_ids {
             if !expected.contains(alternative_id.as_str()) {
                 return Err(format!("AI 返回了未知备选片段编号：{alternative_id}。"));
             }
 
-            if alternative_id == &shot.segment_id {
+            if alternative_id == &shot_match.segment_id {
                 return Err(format!(
                     "第 {} 个分镜的主片段不能同时作为备选片段。",
-                    index + 1
+                    shot_match.shot_index
                 ));
             }
 
             if !alternative_ids.insert(alternative_id.as_str()) {
-                return Err(format!("第 {} 个分镜包含重复备选片段。", index + 1));
+                return Err(format!(
+                    "第 {} 个分镜包含重复备选片段。",
+                    shot_match.shot_index
+                ));
             }
         }
     }
 
-    Ok(parsed.shots)
+    parsed
+        .matches
+        .sort_by_key(|shot_match| shot_match.shot_index);
+    let mut shots = parsed
+        .matches
+        .into_iter()
+        .map(|shot_match| AiRemixShot {
+            text: fixed_shot_texts[shot_match.shot_index - 1].clone(),
+            segment_id: shot_match.segment_id,
+            alternative_segment_ids: shot_match.alternative_segment_ids,
+        })
+        .collect::<Vec<_>>();
+
+    for shot in &mut shots {
+        shot.alternative_segment_ids
+            .retain(|alternative_id| !primary_ids.contains(alternative_id));
+    }
+
+    for (index, shot) in shots.iter().enumerate() {
+        let longest_candidate_duration = std::iter::once(&shot.segment_id)
+            .chain(shot.alternative_segment_ids.iter())
+            .filter_map(|segment_id| duration_by_id.get(segment_id.as_str()).copied())
+            .fold(0.0_f64, f64::max);
+        let estimated_narration_duration = estimate_narration_duration(&shot.text);
+        let safely_supported_duration = longest_candidate_duration / SAFE_VIDEO_MIN_PLAYBACK_RATE
+            + SAFE_VIDEO_MAX_FREEZE_SECONDS;
+        if estimated_narration_duration > safely_supported_duration + 0.001 {
+            return Err(format!(
+                "第 {} 个分镜预计配音约 {:.1} 秒，但主画面和备选画面最长只能安全适配到 {:.1} 秒。请重新生成更短分镜。",
+                index + 1,
+                estimated_narration_duration,
+                safely_supported_duration
+            ));
+        }
+    }
+
+    Ok(shots)
+}
+
+fn split_script_into_shots(script: &str) -> Result<Vec<String>, String> {
+    let normalized = script.trim();
+    if count_effective_characters(normalized) < 2 {
+        return Err("文案内容太短，至少需要能够拆成 2 个分镜。".to_string());
+    }
+
+    let characters = normalized.chars().collect::<Vec<_>>();
+    let mut shots = Vec::new();
+    let mut current = String::new();
+    let mut current_effective_count = 0;
+    let mut index = 0;
+
+    while index < characters.len() {
+        let character = characters[index];
+        current.push(character);
+        if character.is_alphanumeric() {
+            current_effective_count += 1;
+        }
+
+        let reached_natural_boundary = current_effective_count >= TARGET_SHOT_TEXT_MIN_CHARACTERS
+            && is_script_boundary(character);
+        let reached_target_limit = current_effective_count >= TARGET_SHOT_TEXT_MAX_CHARACTERS;
+
+        if reached_target_limit {
+            while index + 1 < characters.len() && is_script_boundary(characters[index + 1]) {
+                index += 1;
+                current.push(characters[index]);
+            }
+        }
+
+        if reached_natural_boundary || reached_target_limit {
+            push_script_shot(&mut shots, &mut current);
+            current_effective_count = 0;
+        }
+
+        index += 1;
+    }
+
+    push_script_shot(&mut shots, &mut current);
+    merge_short_trailing_shot(&mut shots);
+
+    if shots.len() == 1 {
+        shots = split_single_script_shot(&shots[0])?;
+    }
+
+    if shots
+        .iter()
+        .any(|shot| count_effective_characters(shot) > MAX_SHOT_TEXT_CHARACTERS)
+    {
+        return Err("文案自动断句失败，请补充逗号或句号后重试。".to_string());
+    }
+
+    Ok(shots)
+}
+
+fn push_script_shot(shots: &mut Vec<String>, current: &mut String) {
+    let normalized = current.trim();
+    if !normalized.is_empty() {
+        shots.push(normalized.to_string());
+    }
+    current.clear();
+}
+
+fn merge_short_trailing_shot(shots: &mut Vec<String>) {
+    if shots.len() < 2 {
+        return;
+    }
+
+    let trailing_count = shots
+        .last()
+        .map(|shot| count_effective_characters(shot))
+        .unwrap_or(0);
+    if trailing_count >= TARGET_SHOT_TEXT_MIN_CHARACTERS {
+        return;
+    }
+
+    let previous_index = shots.len() - 2;
+    let combined_count = count_effective_characters(&shots[previous_index]) + trailing_count;
+    if combined_count <= MAX_SHOT_TEXT_CHARACTERS {
+        let trailing = shots.pop().unwrap_or_default();
+        shots[previous_index].push_str(&trailing);
+    }
+}
+
+fn split_single_script_shot(shot: &str) -> Result<Vec<String>, String> {
+    let total_effective_count = count_effective_characters(shot);
+    let target_first_count = total_effective_count / 2;
+    let mut current_effective_count = 0;
+
+    for (byte_index, character) in shot.char_indices() {
+        if character.is_alphanumeric() {
+            current_effective_count += 1;
+        }
+
+        let split_index = byte_index + character.len_utf8();
+        if current_effective_count >= target_first_count && split_index < shot.len() {
+            let first = shot[..split_index].trim().to_string();
+            let second = shot[split_index..].trim().to_string();
+            if !first.is_empty() && !second.is_empty() {
+                return Ok(vec![first, second]);
+            }
+        }
+    }
+
+    Err("文案内容太短，至少需要能够拆成 2 个分镜。".to_string())
+}
+
+fn is_script_boundary(character: char) -> bool {
+    matches!(
+        character,
+        '，' | ',' | '。' | '.' | '！' | '!' | '？' | '?' | '；' | ';' | '：' | ':' | '、'
+    )
+}
+
+fn count_effective_characters(text: &str) -> usize {
+    text.chars()
+        .filter(|character| character.is_alphanumeric())
+        .count()
+}
+
+fn estimate_narration_duration(text: &str) -> f64 {
+    count_effective_characters(text) as f64 / ESTIMATED_SPEECH_CHARACTERS_PER_SECOND
+        + ESTIMATED_SPEECH_TAIL_SECONDS
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         build_ai_client, build_ai_request_body, build_chat_completions_url,
-        parse_and_validate_analyses, parse_and_validate_shots, AiRequestStage,
+        parse_and_validate_analyses, parse_and_validate_shots, split_script_into_shots,
+        AiRemixSegmentInput, AiRequestStage, MAX_SHOT_TEXT_CHARACTERS,
     };
     use serde_json::json;
     use std::time::Duration;
 
     fn expected_ids() -> Vec<String> {
         vec!["segment-001".to_string(), "segment-002".to_string()]
+    }
+
+    fn planning_segments(count: usize) -> Vec<AiRemixSegmentInput> {
+        (1..=count)
+            .map(|index| AiRemixSegmentInput {
+                segment_id: format!("segment-{index:03}"),
+                duration_seconds: 5.0,
+                description: format!("测试画面 {index}"),
+            })
+            .collect()
+    }
+
+    fn fixed_shots() -> Vec<String> {
+        vec!["先展示结果，".to_string(), "再展示过程。".to_string()]
     }
 
     #[test]
@@ -597,39 +836,66 @@ mod tests {
     #[test]
     fn accepts_valid_shot_plan() {
         let result = parse_and_validate_shots(
-            r#"{"shots":[{"text":"先展示结果","segmentId":"segment-002","alternativeSegmentIds":[]},{"text":"再展示过程","segmentId":"segment-001","alternativeSegmentIds":["segment-002"]}]}"#,
-            &expected_ids(),
+            r#"{"matches":[{"shotIndex":2,"segmentId":"segment-001","alternativeSegmentIds":[]},{"shotIndex":1,"segmentId":"segment-002","alternativeSegmentIds":[]}]}"#,
+            &fixed_shots(),
+            &planning_segments(2),
         )
         .unwrap();
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].segment_id, "segment-002");
+        assert_eq!(result[0].text, "先展示结果，");
     }
 
     #[test]
     fn rejects_duplicate_primary_ids() {
         let error = parse_and_validate_shots(
-            r#"{"shots":[{"text":"镜头一","segmentId":"segment-001","alternativeSegmentIds":[]},{"text":"镜头二","segmentId":"segment-001","alternativeSegmentIds":[]}]}"#,
-            &expected_ids(),
+            r#"{"matches":[{"shotIndex":1,"segmentId":"segment-001","alternativeSegmentIds":[]},{"shotIndex":2,"segmentId":"segment-001","alternativeSegmentIds":[]}]}"#,
+            &fixed_shots(),
+            &planning_segments(2),
         )
         .unwrap_err();
         assert!(error.contains("重复"));
     }
 
     #[test]
-    fn rejects_single_shot() {
+    fn rejects_missing_shot_match() {
         let error = parse_and_validate_shots(
-            r#"{"shots":[{"text":"镜头一","segmentId":"segment-001","alternativeSegmentIds":[]}]}"#,
-            &expected_ids(),
+            r#"{"matches":[{"shotIndex":1,"segmentId":"segment-001","alternativeSegmentIds":[]}]}"#,
+            &fixed_shots(),
+            &planning_segments(2),
         )
         .unwrap_err();
-        assert!(error.contains("至少"));
+        assert!(error.contains("固定了 2 个分镜"));
+    }
+
+    #[test]
+    fn rejects_unknown_shot_index() {
+        let error = parse_and_validate_shots(
+            r#"{"matches":[{"shotIndex":1,"segmentId":"segment-001","alternativeSegmentIds":[]},{"shotIndex":3,"segmentId":"segment-002","alternativeSegmentIds":[]}]}"#,
+            &fixed_shots(),
+            &planning_segments(2),
+        )
+        .unwrap_err();
+        assert!(error.contains("未知分镜序号"));
+    }
+
+    #[test]
+    fn rejects_duplicate_shot_index() {
+        let error = parse_and_validate_shots(
+            r#"{"matches":[{"shotIndex":1,"segmentId":"segment-001","alternativeSegmentIds":[]},{"shotIndex":1,"segmentId":"segment-002","alternativeSegmentIds":[]}]}"#,
+            &fixed_shots(),
+            &planning_segments(2),
+        )
+        .unwrap_err();
+        assert!(error.contains("重复返回了第 1 个分镜"));
     }
 
     #[test]
     fn rejects_unknown_primary_id() {
         let error = parse_and_validate_shots(
-            r#"{"shots":[{"text":"镜头一","segmentId":"segment-001","alternativeSegmentIds":[]},{"text":"镜头二","segmentId":"segment-999","alternativeSegmentIds":[]}]}"#,
-            &expected_ids(),
+            r#"{"matches":[{"shotIndex":1,"segmentId":"segment-001","alternativeSegmentIds":[]},{"shotIndex":2,"segmentId":"segment-999","alternativeSegmentIds":[]}]}"#,
+            &fixed_shots(),
+            &planning_segments(2),
         )
         .unwrap_err();
         assert!(error.contains("未知"));
@@ -638,8 +904,9 @@ mod tests {
     #[test]
     fn rejects_unknown_alternative_id() {
         let error = parse_and_validate_shots(
-            r#"{"shots":[{"text":"镜头一","segmentId":"segment-001","alternativeSegmentIds":["segment-999"]},{"text":"镜头二","segmentId":"segment-002","alternativeSegmentIds":[]}]}"#,
-            &expected_ids(),
+            r#"{"matches":[{"shotIndex":1,"segmentId":"segment-001","alternativeSegmentIds":["segment-999"]},{"shotIndex":2,"segmentId":"segment-002","alternativeSegmentIds":[]}]}"#,
+            &fixed_shots(),
+            &planning_segments(2),
         )
         .unwrap_err();
         assert!(error.contains("未知备选"));
@@ -647,16 +914,10 @@ mod tests {
 
     #[test]
     fn rejects_too_many_alternatives() {
-        let expected = vec![
-            "segment-001".to_string(),
-            "segment-002".to_string(),
-            "segment-003".to_string(),
-            "segment-004".to_string(),
-            "segment-005".to_string(),
-        ];
         let error = parse_and_validate_shots(
-            r#"{"shots":[{"text":"镜头一","segmentId":"segment-001","alternativeSegmentIds":["segment-002","segment-003","segment-004","segment-005"]},{"text":"镜头二","segmentId":"segment-002","alternativeSegmentIds":[]}]}"#,
-            &expected,
+            r#"{"matches":[{"shotIndex":1,"segmentId":"segment-001","alternativeSegmentIds":["segment-003","segment-004","segment-005","segment-006"]},{"shotIndex":2,"segmentId":"segment-002","alternativeSegmentIds":[]}]}"#,
+            &fixed_shots(),
+            &planning_segments(6),
         )
         .unwrap_err();
         assert!(error.contains("超过 3 个"));
@@ -664,7 +925,52 @@ mod tests {
 
     #[test]
     fn rejects_non_json_content() {
-        let error = parse_and_validate_shots("```json", &expected_ids()).unwrap_err();
+        let error =
+            parse_and_validate_shots("```json", &fixed_shots(), &planning_segments(2)).unwrap_err();
         assert!(error.contains("严格返回"));
+    }
+
+    #[test]
+    fn removes_alternative_that_is_used_as_another_primary() {
+        let result = parse_and_validate_shots(
+            r#"{"matches":[{"shotIndex":1,"segmentId":"segment-001","alternativeSegmentIds":["segment-002"]},{"shotIndex":2,"segmentId":"segment-002","alternativeSegmentIds":[]}]}"#,
+            &fixed_shots(),
+            &planning_segments(2),
+        )
+        .unwrap();
+
+        assert!(result[0].alternative_segment_ids.is_empty());
+    }
+
+    #[test]
+    fn locally_splits_long_script_without_losing_text() {
+        let script = "夏天拍照总想显瘦的姐妹看这件冰丝上衣！垂感超好不会皱，宽松版型遮住手臂拜拜肉，搭配短裤，半身裙，西装裤都行。";
+        let shots = split_script_into_shots(script).unwrap();
+
+        assert!(shots.len() >= 2);
+        assert_eq!(shots.concat(), script);
+        assert!(shots
+            .iter()
+            .all(|shot| super::count_effective_characters(shot) <= MAX_SHOT_TEXT_CHARACTERS));
+    }
+
+    #[test]
+    fn locally_splits_unpunctuated_long_script() {
+        let shots =
+            split_script_into_shots("这是一段没有任何标点但是仍然需要自动拆成多个短分镜的测试文案")
+                .unwrap();
+
+        assert!(shots.len() >= 2);
+        assert!(shots
+            .iter()
+            .all(|shot| super::count_effective_characters(shot) <= MAX_SHOT_TEXT_CHARACTERS));
+    }
+
+    #[test]
+    fn locally_splits_short_script_into_two_shots() {
+        let shots = split_script_into_shots("轻薄显瘦很好穿").unwrap();
+
+        assert_eq!(shots.len(), 2);
+        assert_eq!(shots.concat(), "轻薄显瘦很好穿");
     }
 }

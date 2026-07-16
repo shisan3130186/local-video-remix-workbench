@@ -4,7 +4,11 @@ import type {
   PipPosition,
   RotationMode,
 } from "../../services/videoMixService";
-import type { TtsSynthesisResult } from "../../features/tts";
+import type {
+  NarratedSubtitlePosition,
+  NarratedSubtitleSize,
+  TtsSynthesisResult,
+} from "../../features/tts";
 import type { ToolKey } from "../../types/workbench";
 
 export interface ToolSettingModalProps {
@@ -63,6 +67,9 @@ export interface ToolSettingModalProps {
   ttsVideoEnabled: boolean;
   ttsKeepOriginalAudio: boolean;
   ttsOriginalAudioVolume: number;
+  ttsSubtitleEnabled: boolean;
+  ttsSubtitlePosition: NarratedSubtitlePosition;
+  ttsSubtitleSize: NarratedSubtitleSize;
   ttsResult: TtsSynthesisResult | null;
   ttsAudioUrl: string | null;
 }
@@ -111,4 +118,7 @@ export type ToolSettingModalEmits = {
   "update:ttsVideoEnabled": [value: boolean];
   "update:ttsKeepOriginalAudio": [value: boolean];
   "update:ttsOriginalAudioVolume": [value: number];
+  "update:ttsSubtitleEnabled": [value: boolean];
+  "update:ttsSubtitlePosition": [value: NarratedSubtitlePosition];
+  "update:ttsSubtitleSize": [value: NarratedSubtitleSize];
 };

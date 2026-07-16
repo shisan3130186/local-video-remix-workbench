@@ -1,4 +1,7 @@
 use crate::video_engine::mix::{concat_narrated_prepared_segments, MixVideoResult, RemixSettings};
+use crate::video_engine::subtitle::{
+    ensure_ass_filter_available, prepare_ass_subtitle, NarratedSubtitleSettings,
+};
 use crate::video_engine::tool_paths::{ffmpeg_program, ffprobe_program};
 use serde::Deserialize;
 use std::env;
@@ -11,7 +14,18 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub struct NarratedSegmentInput {
     video_path: String,
+    video_duration_seconds: f64,
     narration_path: String,
+    subtitle_text: String,
+    #[serde(default)]
+    alternative_videos: Vec<NarratedVideoCandidateInput>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NarratedVideoCandidateInput {
+    video_path: String,
+    duration_seconds: f64,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -21,11 +35,27 @@ pub struct NarratedAudioSettings {
     original_audio_volume: f64,
 }
 
+#[derive(Debug)]
+struct SelectedNarratedVideo {
+    path: String,
+    duration_seconds: f64,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct NarratedVideoTiming {
+    playback_rate: f64,
+    freeze_duration_seconds: f64,
+}
+
+const MIN_NARRATED_VIDEO_PLAYBACK_RATE: f64 = 0.92;
+const MAX_NARRATED_FREEZE_SECONDS: f64 = 0.8;
+
 pub fn concat_narrated_segments(
     segments: Vec<NarratedSegmentInput>,
     output_directory: String,
     settings: RemixSettings,
     audio_settings: NarratedAudioSettings,
+    subtitle_settings: NarratedSubtitleSettings,
 ) -> Result<MixVideoResult, String> {
     if segments.len() < 2 {
         return Err("至少需要 2 个带配音分镜才能生成视频。".to_string());
@@ -37,14 +67,26 @@ pub fn concat_narrated_segments(
     }
 
     let audio_settings = normalize_narrated_audio_settings(audio_settings)?;
+    if subtitle_settings.enabled {
+        ensure_ass_filter_available()?;
+    }
 
     for segment in &segments {
         if !Path::new(&segment.video_path).is_file() {
             return Err(format!("分镜视频不存在：{}", segment.video_path));
         }
 
+        validate_duration(segment.video_duration_seconds, "分镜视频")?;
+
         if !Path::new(&segment.narration_path).is_file() {
             return Err("分镜配音文件不存在，请重新生成配音。".to_string());
+        }
+
+        for alternative in &segment.alternative_videos {
+            validate_duration(alternative.duration_seconds, "备选分镜视频")?;
+            if !Path::new(&alternative.video_path).is_file() {
+                return Err(format!("备选分镜视频不存在：{}", alternative.video_path));
+            }
         }
     }
 
@@ -58,6 +100,7 @@ pub fn concat_narrated_segments(
         output_directory,
         settings,
         audio_settings,
+        subtitle_settings,
     );
     let _ = fs::remove_dir_all(session_dir);
     result
@@ -69,12 +112,14 @@ fn prepare_and_concat_narrated_segments(
     output_directory: String,
     settings: RemixSettings,
     audio_settings: NarratedAudioSettings,
+    subtitle_settings: NarratedSubtitleSettings,
 ) -> Result<MixVideoResult, String> {
     let mut prepared_paths = Vec::with_capacity(segments.len());
 
     for (index, segment) in segments.iter().enumerate() {
         let output_path = session_dir.join(format!("narrated_{index:03}.mp4"));
-        create_narrated_segment(segment, &output_path, audio_settings)?;
+        create_narrated_segment(segment, &output_path, audio_settings, subtitle_settings)
+            .map_err(|error| format!("第 {} 个分镜处理失败：{error}", index + 1))?;
         prepared_paths.push(output_path.to_string_lossy().to_string());
     }
 
@@ -85,14 +130,33 @@ fn create_narrated_segment(
     segment: &NarratedSegmentInput,
     output_path: &Path,
     audio_settings: NarratedAudioSettings,
+    subtitle_settings: NarratedSubtitleSettings,
 ) -> Result<(), String> {
-    let video_duration = probe_media_duration(&segment.video_path, "分镜视频")?;
     let narration_duration = probe_media_duration(&segment.narration_path, "分镜配音")?;
-    let video_filter = build_narrated_video_filter(video_duration, narration_duration)?;
+    let selected_video = select_narrated_video(segment, narration_duration)?;
+    let timing =
+        calculate_narrated_video_timing(selected_video.duration_seconds, narration_duration)?;
+    let mut video_filter =
+        build_narrated_video_filter(selected_video.duration_seconds, narration_duration, timing)?;
+    let subtitle_path = output_path.with_extension("ass");
+    if let Some(subtitle_filter) = prepare_ass_subtitle(
+        &subtitle_path,
+        &segment.subtitle_text,
+        narration_duration,
+        subtitle_settings,
+    )? {
+        video_filter.push(',');
+        video_filter.push_str(&subtitle_filter);
+    }
     let has_original_audio = audio_settings.keep_original_audio
-        && probe_media_has_audio(&segment.video_path, "分镜视频")?;
-    let audio_filter =
-        build_narrated_audio_filter(narration_duration, audio_settings, has_original_audio)?;
+        && probe_media_has_audio(&selected_video.path, "分镜视频")?;
+    let audio_filter = build_narrated_audio_filter(
+        selected_video.duration_seconds,
+        narration_duration,
+        timing.playback_rate,
+        audio_settings,
+        has_original_audio,
+    )?;
     let filter_complex = format!("[0:v]{video_filter}[v];{audio_filter}");
     let output_path_text = output_path
         .to_str()
@@ -101,7 +165,7 @@ fn create_narrated_segment(
         .args([
             "-y",
             "-i",
-            &segment.video_path,
+            &selected_video.path,
             "-i",
             &segment.narration_path,
             "-filter_complex",
@@ -154,11 +218,19 @@ fn normalize_narrated_audio_settings(
 }
 
 fn build_narrated_audio_filter(
+    video_duration: f64,
     narration_duration: f64,
+    video_playback_rate: f64,
     settings: NarratedAudioSettings,
     has_original_audio: bool,
 ) -> Result<String, String> {
+    validate_duration(video_duration, "分镜视频")?;
     validate_duration(narration_duration, "分镜配音")?;
+    if !video_playback_rate.is_finite()
+        || !(MIN_NARRATED_VIDEO_PLAYBACK_RATE..=1.0).contains(&video_playback_rate)
+    {
+        return Err("分镜画面减速比例无效。".to_string());
+    }
     let settings = normalize_narrated_audio_settings(settings)?;
     let narration_filter =
         format!("[1:a]atrim=duration={narration_duration:.3},asetpts=PTS-STARTPTS");
@@ -168,7 +240,7 @@ fn build_narrated_audio_filter(
     }
 
     Ok(format!(
-        "[0:a]atrim=duration={narration_duration:.3},asetpts=PTS-STARTPTS,volume={:.3},apad,atrim=duration={narration_duration:.3}[original];\
+        "[0:a]atrim=duration={video_duration:.3},asetpts=PTS-STARTPTS,atempo={video_playback_rate:.6},volume={:.3},apad,atrim=duration={narration_duration:.3}[original];\
          {narration_filter}[narration];\
          [original][narration]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.950[a]",
         settings.original_audio_volume
@@ -178,20 +250,127 @@ fn build_narrated_audio_filter(
 fn build_narrated_video_filter(
     video_duration: f64,
     narration_duration: f64,
+    timing: NarratedVideoTiming,
 ) -> Result<String, String> {
     validate_duration(video_duration, "分镜视频")?;
     validate_duration(narration_duration, "分镜配音")?;
 
-    if video_duration + 0.001 >= narration_duration {
+    if video_duration + 0.001 >= narration_duration && timing.playback_rate >= 0.999 {
         return Ok(format!(
             "trim=duration={narration_duration:.3},setpts=PTS-STARTPTS,format=yuv420p"
         ));
     }
 
-    let freeze_duration = narration_duration - video_duration;
-    Ok(format!(
-        "trim=duration={video_duration:.3},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={freeze_duration:.3},trim=duration={narration_duration:.3},format=yuv420p"
+    let mut filter = format!(
+        "trim=duration={video_duration:.3},setpts=(PTS-STARTPTS)/{:.6}",
+        timing.playback_rate
+    );
+    if timing.freeze_duration_seconds > 0.001 {
+        filter.push_str(&format!(
+            ",tpad=stop_mode=clone:stop_duration={:.3}",
+            timing.freeze_duration_seconds
+        ));
+    }
+    filter.push_str(&format!(
+        ",trim=duration={narration_duration:.3},format=yuv420p"
+    ));
+    Ok(filter)
+}
+
+fn calculate_narrated_video_timing(
+    video_duration: f64,
+    narration_duration: f64,
+) -> Result<NarratedVideoTiming, String> {
+    validate_duration(video_duration, "分镜视频")?;
+    validate_duration(narration_duration, "分镜配音")?;
+
+    if video_duration + 0.001 >= narration_duration {
+        return Ok(NarratedVideoTiming {
+            playback_rate: 1.0,
+            freeze_duration_seconds: 0.0,
+        });
+    }
+
+    let maximum_slowed_duration = video_duration / MIN_NARRATED_VIDEO_PLAYBACK_RATE;
+    let slowed_duration = narration_duration.min(maximum_slowed_duration);
+    let playback_rate = video_duration / slowed_duration;
+    let freeze_duration_seconds = (narration_duration - slowed_duration).max(0.0);
+
+    if freeze_duration_seconds > MAX_NARRATED_FREEZE_SECONDS + 0.001 {
+        return Err(format!(
+            "配音时长为 {narration_duration:.1} 秒，但可用画面最长只能安全适配到 {:.1} 秒。请缩短这句文案，或为它换一个更长的片段。",
+            maximum_slowed_duration + MAX_NARRATED_FREEZE_SECONDS
+        ));
+    }
+
+    Ok(NarratedVideoTiming {
+        playback_rate,
+        freeze_duration_seconds,
+    })
+}
+
+fn select_narrated_video(
+    segment: &NarratedSegmentInput,
+    narration_duration: f64,
+) -> Result<SelectedNarratedVideo, String> {
+    let primary_duration = probe_media_duration(&segment.video_path, "分镜视频")?;
+    let mut candidates = Vec::with_capacity(segment.alternative_videos.len() + 1);
+    candidates.push(SelectedNarratedVideo {
+        path: segment.video_path.clone(),
+        duration_seconds: primary_duration,
+    });
+    for alternative in &segment.alternative_videos {
+        let duration = probe_media_duration(&alternative.video_path, "备选分镜视频")?;
+        candidates.push(SelectedNarratedVideo {
+            path: alternative.video_path.clone(),
+            duration_seconds: duration,
+        });
+    }
+
+    let candidate_durations = candidates
+        .iter()
+        .map(|candidate| candidate.duration_seconds)
+        .collect::<Vec<_>>();
+    if let Some(candidate_index) =
+        select_best_candidate_index(&candidate_durations, narration_duration)
+    {
+        return Ok(candidates.swap_remove(candidate_index));
+    }
+
+    let longest_duration = segment
+        .alternative_videos
+        .iter()
+        .map(|candidate| candidate.duration_seconds)
+        .chain(std::iter::once(segment.video_duration_seconds))
+        .fold(0.0_f64, f64::max);
+    Err(format!(
+        "这句配音约 {narration_duration:.1} 秒，主画面和备选画面都不够长（最长约 {longest_duration:.1} 秒）。请缩短该句文案或重新生成分镜。"
     ))
+}
+
+fn select_best_candidate_index(
+    candidate_durations: &[f64],
+    narration_duration: f64,
+) -> Option<usize> {
+    if candidate_durations.first().is_some_and(|duration| {
+        calculate_narrated_video_timing(*duration, narration_duration).is_ok()
+    }) {
+        return Some(0);
+    }
+
+    candidate_durations
+        .iter()
+        .enumerate()
+        .skip(1)
+        .filter(|(_, duration)| {
+            calculate_narrated_video_timing(**duration, narration_duration).is_ok()
+        })
+        .min_by(|(_, left), (_, right)| {
+            let left_distance = (**left - narration_duration).abs();
+            let right_distance = (**right - narration_duration).abs();
+            left_distance.total_cmp(&right_distance)
+        })
+        .map(|(index, _)| index)
 }
 
 fn probe_media_duration(path: &str, label: &str) -> Result<f64, String> {
@@ -274,24 +453,41 @@ mod tests {
 
     #[test]
     fn trims_video_when_narration_is_shorter() {
-        let filter = build_narrated_video_filter(5.0, 3.0).unwrap();
+        let timing = calculate_narrated_video_timing(5.0, 3.0).unwrap();
+        let filter = build_narrated_video_filter(5.0, 3.0, timing).unwrap();
 
         assert!(filter.contains("trim=duration=3.000"));
         assert!(!filter.contains("tpad="));
     }
 
     #[test]
-    fn freezes_last_frame_when_narration_is_longer() {
-        let filter = build_narrated_video_filter(2.0, 4.5).unwrap();
+    fn gently_slows_video_before_using_a_short_freeze() {
+        let timing = calculate_narrated_video_timing(3.0, 4.0).unwrap();
+        let filter = build_narrated_video_filter(3.0, 4.0, timing).unwrap();
 
-        assert!(filter.contains("tpad=stop_mode=clone:stop_duration=2.500"));
-        assert!(filter.contains("trim=duration=4.500"));
+        assert!(filter.contains("setpts=(PTS-STARTPTS)/0.920000"));
+        assert!(filter.contains("tpad=stop_mode=clone:stop_duration=0.739"));
+        assert!(filter.contains("trim=duration=4.000"));
+    }
+
+    #[test]
+    fn rejects_multi_second_last_frame_freeze() {
+        let error = calculate_narrated_video_timing(2.0, 4.5).unwrap_err();
+
+        assert!(error.contains("请缩短这句文案"));
+    }
+
+    #[test]
+    fn selects_a_longer_alternative_when_primary_video_is_too_short() {
+        let selected = select_best_candidate_index(&[2.0, 4.0, 3.5], 4.2);
+
+        assert_eq!(selected, Some(1));
     }
 
     #[test]
     fn rejects_invalid_narration_duration() {
         assert_eq!(
-            build_narrated_video_filter(2.0, 0.0).unwrap_err(),
+            calculate_narrated_video_timing(2.0, 0.0).unwrap_err(),
             "分镜配音时长无效。"
         );
     }
@@ -300,6 +496,8 @@ mod tests {
     fn keeps_only_narration_when_original_audio_is_disabled() {
         let filter = build_narrated_audio_filter(
             3.0,
+            3.0,
+            1.0,
             NarratedAudioSettings {
                 keep_original_audio: false,
                 original_audio_volume: 0.15,
@@ -315,6 +513,8 @@ mod tests {
     fn mixes_original_audio_at_selected_volume() {
         let filter = build_narrated_audio_filter(
             3.0,
+            3.0,
+            0.95,
             NarratedAudioSettings {
                 keep_original_audio: true,
                 original_audio_volume: 0.15,
@@ -324,6 +524,7 @@ mod tests {
         .unwrap();
 
         assert!(filter.contains("[0:a]atrim=duration=3.000"));
+        assert!(filter.contains("atempo=0.950000"));
         assert!(filter.contains("volume=0.150"));
         assert!(filter.contains("amix=inputs=2"));
         assert!(filter.contains("alimiter=limit=0.950"));
@@ -333,6 +534,8 @@ mod tests {
     fn falls_back_to_narration_when_video_has_no_audio() {
         let filter = build_narrated_audio_filter(
             3.0,
+            3.0,
+            1.0,
             NarratedAudioSettings {
                 keep_original_audio: true,
                 original_audio_volume: 0.15,

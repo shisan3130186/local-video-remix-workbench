@@ -13,6 +13,9 @@ import type {
   NarratedAudioSettings,
   NarratedSegmentInput,
   NarratedShotSource,
+  NarratedSubtitlePosition,
+  NarratedSubtitleSettings,
+  NarratedSubtitleSize,
   TtsConfigStatus,
   TtsSynthesisResult,
 } from "./types";
@@ -50,6 +53,9 @@ export function useTts(options: UseTtsOptions) {
   const ttsVideoEnabled = ref(false);
   const ttsKeepOriginalAudio = ref(false);
   const ttsOriginalAudioVolume = ref(0.15);
+  const ttsSubtitleEnabled = ref(true);
+  const ttsSubtitlePosition = ref<NarratedSubtitlePosition>("bottom");
+  const ttsSubtitleSize = ref<NarratedSubtitleSize>("medium");
 
   const ttsAudioUrl = computed(() =>
     ttsResult.value ? convertFileSrc(ttsResult.value.outputPath) : null,
@@ -178,7 +184,10 @@ export function useTts(options: UseTtsOptions) {
         );
         narratedSegments.push({
           videoPath: shot.segmentPath,
+          videoDurationSeconds: shot.segmentDurationSeconds,
           narrationPath: result.outputPath,
+          subtitleText: shot.text,
+          alternativeVideos: shot.alternativeSegments,
         });
         options.appendLog(`第 ${index + 1}/${shots.length} 句配音生成完成。`, "success");
       }
@@ -192,6 +201,11 @@ export function useTts(options: UseTtsOptions) {
         buildNarratedAudioSettings(
           ttsKeepOriginalAudio.value,
           ttsOriginalAudioVolume.value,
+        ),
+        buildNarratedSubtitleSettings(
+          ttsSubtitleEnabled.value,
+          ttsSubtitlePosition.value,
+          ttsSubtitleSize.value,
         ),
       );
       options.onGenerated(result);
@@ -222,6 +236,9 @@ export function useTts(options: UseTtsOptions) {
     ttsVideoEnabled.value = false;
     ttsKeepOriginalAudio.value = false;
     ttsOriginalAudioVolume.value = 0.15;
+    ttsSubtitleEnabled.value = true;
+    ttsSubtitlePosition.value = "bottom";
+    ttsSubtitleSize.value = "medium";
   }
 
   return {
@@ -241,8 +258,23 @@ export function useTts(options: UseTtsOptions) {
     ttsResult,
     ttsKeepOriginalAudio,
     ttsOriginalAudioVolume,
+    ttsSubtitleEnabled,
+    ttsSubtitlePosition,
+    ttsSubtitleSize,
     ttsSpeaker: speaker,
     ttsVideoEnabled,
+  };
+}
+
+function buildNarratedSubtitleSettings(
+  enabled: boolean,
+  position: NarratedSubtitlePosition,
+  size: NarratedSubtitleSize,
+): NarratedSubtitleSettings {
+  return {
+    enabled,
+    position,
+    size,
   };
 }
 

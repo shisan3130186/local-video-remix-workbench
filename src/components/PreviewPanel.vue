@@ -23,6 +23,7 @@ defineProps<{
   isBatchMixing: boolean;
   isExporting: boolean;
   splitSegmentCount: number | null;
+  splitError: string | null;
   randomSelectedCount: number;
   batchMixResultCount: number;
   mixError: string | null;
@@ -161,6 +162,8 @@ const aiScript = defineModel<string>("aiScript", { required: true });
         <span>
           <strong>{{ isSplitting || isPreparingAiSegments ? "正在准备全部素材片段" : "第二步：把全部素材切成片段" }}</strong>
           <small>{{ isSplitting || isPreparingAiSegments ? "会依次切片所有已导入视频，并生成预览图和时长。" : `当前已导入 ${importedVideoCount} 个视频，AI 会在它们的全部片段中匹配画面。` }}</small>
+          <small v-if="splitError" class="workflow-inline-error" role="alert">{{ splitError }}</small>
+          <small v-if="aiPreparationError" class="workflow-inline-error" role="alert">{{ aiPreparationError }}</small>
         </span>
         <button
           class="primary-button"
