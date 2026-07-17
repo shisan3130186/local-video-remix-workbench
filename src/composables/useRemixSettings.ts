@@ -10,8 +10,10 @@ import type {
   SubtitleSettings,
   VideoEffectSettings,
 } from "../services/videoMixService";
+import { useOutputSettings } from "../features/output-settings";
 
 export function useRemixSettings() {
+  const output = useOutputSettings();
   const applyHorizontalMirror = ref(false);
   const playbackSpeed = ref(1.0);
   const smoothRemixEnabled = ref(false);
@@ -91,6 +93,7 @@ export function useRemixSettings() {
       pictureInPictureSettings: pictureInPictureSettings.value,
       bgmSettings: bgmSettings.value,
       subtitleSettings: disabledSubtitleSettings.value,
+      outputSettings: output.outputSettings.value,
     }),
   );
 
@@ -118,9 +121,11 @@ export function useRemixSettings() {
     bgmVolume.value = settings.bgmSettings.bgmVolume;
     bgmFadeInSeconds.value = settings.bgmSettings.fadeInSeconds;
     bgmFadeOutSeconds.value = settings.bgmSettings.fadeOutSeconds;
+    output.restoreOutputSettings(settings.outputSettings);
   }
 
   return {
+    ...output,
     applyHorizontalMirror,
     applyVerticalMirror,
     bgmAudioFilePath,

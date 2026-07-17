@@ -1,7 +1,7 @@
 import type { MixVideoResult, RemixExportSettings } from "../../services/videoMixService";
 
 export function formatRemixCanvasLog(result: MixVideoResult) {
-  return `混剪画布：输出比例 ${result.outputAspectRatio}，输出分辨率 ${result.outputResolution}，背景方式 ${result.backgroundMode}，已应用到混剪导出：${
+  return `混剪输出：比例 ${result.outputAspectRatio}，分辨率 ${result.outputResolution}，${result.outputFrameRate}，${result.outputQuality}，${result.outputEncoder}，约 ${result.outputVideoBitrateKbps} kbps，背景方式 ${result.backgroundMode}，已应用到混剪导出：${
     result.appliedToRemixExport ? "是" : "否"
   }。`;
 }

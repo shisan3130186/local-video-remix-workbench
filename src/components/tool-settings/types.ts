@@ -10,6 +10,13 @@ import type {
   TtsSynthesisResult,
 } from "../../features/tts";
 import type { ToolKey } from "../../types/workbench";
+import type {
+  EncoderCapabilities,
+  OutputFrameRate,
+  OutputQuality,
+  OutputResolution,
+  VideoEncoder,
+} from "../../types/outputSettings";
 
 export interface ToolSettingModalProps {
   activeTool: ToolKey | null;
@@ -72,6 +79,13 @@ export interface ToolSettingModalProps {
   ttsSubtitleSize: NarratedSubtitleSize;
   ttsResult: TtsSynthesisResult | null;
   ttsAudioUrl: string | null;
+  outputResolution: OutputResolution;
+  outputFrameRate: OutputFrameRate;
+  outputQuality: OutputQuality;
+  outputEncoder: VideoEncoder;
+  encoderCapabilities: EncoderCapabilities | null;
+  encoderDetectionError: string | null;
+  isDetectingEncoders: boolean;
 }
 
 export type ToolSettingModalEmits = {
@@ -89,6 +103,7 @@ export type ToolSettingModalEmits = {
   selectBgmAudioFile: [];
   generateCoverFrame: [];
   generateTts: [];
+  detectEncoders: [];
   "update:segmentDurationSeconds": [value: number];
   "update:randomPickCount": [value: number];
   "update:batchGenerateCount": [value: number];
@@ -122,4 +137,8 @@ export type ToolSettingModalEmits = {
   "update:ttsSubtitleEnabled": [value: boolean];
   "update:ttsSubtitlePosition": [value: NarratedSubtitlePosition];
   "update:ttsSubtitleSize": [value: NarratedSubtitleSize];
+  "update:outputResolution": [value: OutputResolution];
+  "update:outputFrameRate": [value: OutputFrameRate];
+  "update:outputQuality": [value: OutputQuality];
+  "update:outputEncoder": [value: VideoEncoder];
 };

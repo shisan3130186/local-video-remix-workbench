@@ -32,12 +32,16 @@ impl CanvasAspectRatio {
     }
 }
 
-pub fn build_canvas_filter(
+pub fn build_canvas_filter_with_dimensions(
     aspect_ratio: CanvasAspectRatio,
     background_mode: CanvasBackgroundMode,
     video_filters: &[String],
+    dimensions: Option<(u32, u32)>,
 ) -> Option<CanvasFilter> {
-    let (width, height) = aspect_ratio.dimensions()?;
+    if aspect_ratio == CanvasAspectRatio::Original {
+        return build_plain_video_filter(video_filters);
+    }
+    let (width, height) = dimensions.or_else(|| aspect_ratio.dimensions())?;
 
     if background_mode == CanvasBackgroundMode::Blur {
         let background_filters = build_blur_background_filters(video_filters, width, height);

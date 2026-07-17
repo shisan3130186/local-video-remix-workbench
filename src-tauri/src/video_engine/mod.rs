@@ -2,6 +2,7 @@ pub mod canvas;
 pub mod import;
 pub mod mix;
 pub mod narrated_mix;
+pub mod output;
 pub mod probe;
 pub mod render;
 pub mod split;

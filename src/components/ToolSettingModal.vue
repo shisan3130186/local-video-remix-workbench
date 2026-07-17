@@ -197,9 +197,22 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           :output-directory="outputDirectory"
           :output-directory-error="outputDirectoryError"
           :is-exporting="isExporting"
+          :is-processing="isExporting || isMixing || isBatchMixing"
+          :output-resolution="outputResolution"
+          :output-frame-rate="outputFrameRate"
+          :output-quality="outputQuality"
+          :output-encoder="outputEncoder"
+          :encoder-capabilities="encoderCapabilities"
+          :encoder-detection-error="encoderDetectionError"
+          :is-detecting-encoders="isDetectingEncoders"
           @select-output-directory="emit('selectOutputDirectory')"
           @open-output-directory="emit('openOutputDirectory')"
           @export-selected-video="emit('exportSelectedVideo')"
+          @detect-encoders="emit('detectEncoders')"
+          @update:output-resolution="emit('update:outputResolution', $event)"
+          @update:output-frame-rate="emit('update:outputFrameRate', $event)"
+          @update:output-quality="emit('update:outputQuality', $event)"
+          @update:output-encoder="emit('update:outputEncoder', $event)"
         />
 
         <p v-else class="empty-text">这个入口先定版 UI 位置，本次不开发真实功能。</p>

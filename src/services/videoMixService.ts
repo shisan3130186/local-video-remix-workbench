@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { TaskProgressContext } from "../features/task-center";
+import type { OutputSettings } from "../types/outputSettings";
 
 export interface MixVideoResult {
   outputPath: string;
@@ -11,6 +12,10 @@ export interface MixVideoResult {
   appliedToRemixExport: boolean;
   smoothRemixEnabled: boolean;
   skippedShortSegmentCount: number;
+  outputEncoder: string;
+  outputFrameRate: string;
+  outputQuality: string;
+  outputVideoBitrateKbps: number;
 }
 
 export type RotationMode = "none" | "clockwise90" | "counterclockwise90" | "rotate180";
@@ -65,6 +70,7 @@ export interface RemixExportSettings {
   pictureInPictureSettings: PictureInPictureSettings;
   bgmSettings: BgmSettings;
   subtitleSettings: SubtitleSettings;
+  outputSettings: OutputSettings;
 }
 
 export type CanvasAspectRatio =

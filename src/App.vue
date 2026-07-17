@@ -98,8 +98,17 @@ const {
   canvasAspectRatio,
   canvasBackgroundMode,
   contrast,
+  detectEncoders,
+  encoderCapabilities,
+  encoderDetectionError,
   effectScale,
+  isDetectingEncoders,
   originalVolume,
+  outputEncoder,
+  outputFrameRate,
+  outputQuality,
+  outputResolution,
+  outputSettings,
   pipEnabled,
   pipMargin,
   pipOpacity,
@@ -178,6 +187,7 @@ const {
   outputDirectory,
   canvasAspectRatio,
   canvasBackgroundMode,
+  outputSettings,
   segmentPaths: splitSegmentPaths,
   segmentCategories,
   categoryOptions: segmentCategoryOptions,
@@ -836,6 +846,14 @@ function resetToolSettings(tool: ToolKey) {
     return;
   }
 
+  if (tool === "export") {
+    outputResolution.value = "followCanvas";
+    outputFrameRate.value = "source";
+    outputQuality.value = "standard";
+    outputEncoder.value = "auto";
+    return;
+  }
+
   if (tool === "tts") {
     resetTtsSettings();
   }
@@ -1025,6 +1043,7 @@ function formatFileName(filePath: string) {
 onMounted(() => {
   void runEnvironmentCheck();
   void loadTtsConfig();
+  void detectEncoders(false);
   void cleanupTaskTempFiles(true);
 });
 </script>
@@ -1244,6 +1263,13 @@ onMounted(() => {
       :tts-subtitle-size="ttsSubtitleSize"
       :tts-result="ttsResult"
       :tts-audio-url="ttsAudioUrl"
+      :output-resolution="outputResolution"
+      :output-frame-rate="outputFrameRate"
+      :output-quality="outputQuality"
+      :output-encoder="outputEncoder"
+      :encoder-capabilities="encoderCapabilities"
+      :encoder-detection-error="encoderDetectionError"
+      :is-detecting-encoders="isDetectingEncoders"
       @close="activeTool = null"
       @reset="resetToolSettings"
       @split-selected-video="splitSelectedVideo"
@@ -1258,6 +1284,7 @@ onMounted(() => {
       @generate-cover-frame="generateCoverFrame"
       @generate-tts="generateTts"
       @api-config-changed="loadTtsConfig"
+      @detect-encoders="detectEncoders"
       @update:segment-duration-seconds="segmentDurationSeconds = $event"
       @update:random-pick-count="randomPickCount = $event"
       @update:batch-generate-count="batchGenerateCount = $event"
@@ -1291,6 +1318,10 @@ onMounted(() => {
       @update:tts-subtitle-enabled="ttsSubtitleEnabled = $event"
       @update:tts-subtitle-position="ttsSubtitlePosition = $event"
       @update:tts-subtitle-size="ttsSubtitleSize = $event"
+      @update:output-resolution="outputResolution = $event"
+      @update:output-frame-rate="outputFrameRate = $event"
+      @update:output-quality="outputQuality = $event"
+      @update:output-encoder="outputEncoder = $event"
     />
 
     <TaskLogDrawer

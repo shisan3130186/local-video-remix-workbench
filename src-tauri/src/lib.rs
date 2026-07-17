@@ -41,6 +41,9 @@ use video_engine::mix::{concat_video_segments, MixVideoResult, RemixSettings};
 use video_engine::narrated_mix::{
     concat_narrated_segments as create_narrated_video, NarratedAudioSettings, NarratedSegmentInput,
 };
+use video_engine::output::{
+    detect_video_encoder_capabilities, EncoderCapabilities, OutputSettings,
+};
 use video_engine::probe::{
     check_environment, probe_video_metadata, FfmpegEnvironmentResult, VideoMetadata,
 };
@@ -52,6 +55,11 @@ use video_engine::thumbnail::{generate_video_thumbnail, ThumbnailFitMode, VideoT
 #[tauri::command]
 fn check_ffmpeg_environment() -> FfmpegEnvironmentResult {
     check_environment()
+}
+
+#[tauri::command]
+fn get_video_encoder_capabilities(force_refresh: bool) -> EncoderCapabilities {
+    detect_video_encoder_capabilities(force_refresh)
 }
 
 #[tauri::command]
@@ -149,6 +157,7 @@ fn export_current_video(
     canvas_background_mode: CanvasBackgroundMode,
     duration_seconds: Option<f64>,
     task_context: Option<TaskProgressContext>,
+    output_settings: OutputSettings,
 ) -> Result<RenderVideoResult, String> {
     export_basic_video(
         input_file_path,
@@ -157,6 +166,7 @@ fn export_current_video(
         canvas_background_mode,
         duration_seconds,
         task_context,
+        output_settings,
     )
 }
 
@@ -324,6 +334,7 @@ pub fn run() {
             finish_task,
             generate_thumbnail,
             get_task_progress,
+            get_video_encoder_capabilities,
             get_tts_config_status,
             get_api_config_status,
             is_existing_directory,

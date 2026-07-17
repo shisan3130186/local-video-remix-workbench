@@ -22,6 +22,7 @@ const primaryTools: Array<{ key: ToolKey; title: string; note: string; symbol: s
   { key: "pip", title: "画中画", note: "叠加视频或图片素材", symbol: "▤" },
   { key: "bgm", title: "背景音乐", note: "本地音乐、音量和淡入淡出", symbol: "♫" },
   { key: "tts", title: "AI配音", note: "逐句配音、试听和生成视频", symbol: "声" },
+  { key: "export", title: "导出设置", note: "分辨率、帧率、质量和编码方式", symbol: "出" },
 ];
 
 const advancedTools: Array<{ key: ToolKey; title: string; note: string }> = [

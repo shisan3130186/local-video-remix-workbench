@@ -5,6 +5,7 @@ import type { ImportedVideo } from "../../types/videoProbe";
 import type { TaskLogLevel } from "../../types/workbench";
 import { isTaskCancelledError } from "../task-center";
 import type { TaskRunHandle } from "../task-center";
+import type { OutputSettings } from "../../types/outputSettings";
 import { exportCurrentVideo } from "./services/remixExportService";
 
 interface UseBasicExportOptions {
@@ -12,6 +13,7 @@ interface UseBasicExportOptions {
   outputDirectory: Readonly<Ref<string | null>>;
   canvasAspectRatio: Readonly<Ref<CanvasAspectRatio>>;
   canvasBackgroundMode: Readonly<Ref<CanvasBackgroundMode>>;
+  outputSettings: Readonly<Ref<OutputSettings>>;
   appendExportLog: (message: string, level: TaskLogLevel) => void;
   clearExportLogs: () => void;
   addExportResult: (type: "基础导出", path: string) => void;
@@ -52,12 +54,17 @@ export function useBasicExport(options: UseBasicExportOptions) {
           options.canvasAspectRatio.value,
           options.canvasBackgroundMode.value,
           options.selectedVideo.value?.durationSeconds ?? null,
+          options.outputSettings.value,
           task.progress(0, 100, "正在导出当前视频"),
         ),
       );
       exportResultPath.value = result.outputPath;
       options.addExportResult("基础导出", result.outputPath);
       options.appendExportLog(`导出成功：${result.outputPath}`, "success");
+      options.appendExportLog(
+        `输出设置：${result.outputResolution}，${result.outputFrameRate}，${result.outputQuality}，${result.outputEncoder}，约 ${result.outputVideoBitrateKbps} kbps。`,
+        "info",
+      );
     } catch (error) {
       if (isTaskCancelledError(error)) {
         exportError.value = "导出任务已取消，可以重新开始。";

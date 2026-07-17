@@ -6,10 +6,16 @@ import type {
   SegmentCategoryOption,
 } from "../../../services/videoMixService";
 import type { TaskProgressContext } from "../../task-center";
+import type { OutputSettings } from "../../../types/outputSettings";
 
 export interface RenderVideoResult {
   outputPath: string;
   message: string;
+  outputResolution: string;
+  outputEncoder: string;
+  outputFrameRate: string;
+  outputQuality: string;
+  outputVideoBitrateKbps: number;
 }
 
 export interface CategorizedPickedSegment {
@@ -29,6 +35,7 @@ export function exportCurrentVideo(
   canvasAspectRatio: CanvasAspectRatio,
   canvasBackgroundMode: CanvasBackgroundMode,
   durationSeconds: number | null,
+  outputSettings: OutputSettings,
   taskContext?: TaskProgressContext,
 ): Promise<RenderVideoResult> {
   return invoke<RenderVideoResult>("export_current_video", {
@@ -37,6 +44,7 @@ export function exportCurrentVideo(
     canvasAspectRatio,
     canvasBackgroundMode,
     durationSeconds,
+    outputSettings,
     taskContext: taskContext ?? null,
   });
 }

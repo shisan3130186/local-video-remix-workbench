@@ -1,7 +1,11 @@
 use crate::task_runtime::{run_ffmpeg, TaskProgressContext};
 use crate::temp_storage::TaskTempDirectory;
 use crate::video_engine::canvas::{
-    build_canvas_filter, build_plain_video_filter, CanvasAspectRatio, CanvasBackgroundMode,
+    build_canvas_filter_with_dimensions, build_plain_video_filter, CanvasAspectRatio,
+    CanvasBackgroundMode,
+};
+use crate::video_engine::output::{
+    append_final_output_args, build_output_video_filters, output_canvas_dimensions, OutputSettings,
 };
 use crate::video_engine::tool_paths::ffprobe_program;
 use serde::{Deserialize, Serialize};
@@ -22,6 +26,10 @@ pub struct MixVideoResult {
     applied_to_remix_export: bool,
     smooth_remix_enabled: bool,
     skipped_short_segment_count: usize,
+    output_encoder: String,
+    output_frame_rate: String,
+    output_quality: String,
+    output_video_bitrate_kbps: u32,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -84,6 +92,8 @@ pub struct RemixSettings {
     picture_in_picture_settings: PictureInPictureSettings,
     bgm_settings: BgmSettings,
     subtitle_settings: SubtitleSettings,
+    #[serde(default)]
+    output_settings: OutputSettings,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -148,6 +158,7 @@ fn concat_video_segments_with_options(
         picture_in_picture_settings,
         bgm_settings,
         subtitle_settings,
+        output_settings,
     } = settings;
 
     if subtitle_settings.enabled {
@@ -214,7 +225,7 @@ fn concat_video_segments_with_options(
     )?;
 
     let concat_list_content = build_concat_list_content(&prepared_segments.segment_paths);
-    let output_dimensions = canvas_aspect_ratio.dimensions();
+    let output_dimensions = output_canvas_dimensions(output_settings, canvas_aspect_ratio);
 
     fs::write(&list_path, concat_list_content).map_err(|error| {
         format!(
@@ -260,9 +271,18 @@ fn concat_video_segments_with_options(
         video_filters.push(format!("setpts=PTS/{normalized_playback_speed:.3}"));
     }
 
-    let video_filter =
-        build_canvas_filter(canvas_aspect_ratio, canvas_background_mode, &video_filters)
-            .or_else(|| build_plain_video_filter(&video_filters));
+    video_filters.extend(build_output_video_filters(
+        output_settings,
+        canvas_aspect_ratio,
+    ));
+
+    let video_filter = build_canvas_filter_with_dimensions(
+        canvas_aspect_ratio,
+        canvas_background_mode,
+        &video_filters,
+        output_dimensions,
+    )
+    .or_else(|| build_plain_video_filter(&video_filters));
 
     let bgm_input_index = if normalized_pip_settings.is_some() {
         2
@@ -346,19 +366,9 @@ fn concat_video_segments_with_options(
         ffmpeg_args.push("-shortest".to_string());
     }
 
-    ffmpeg_args.extend([
-        "-c:v".to_string(),
-        "libx264".to_string(),
-        "-preset".to_string(),
-        "veryfast".to_string(),
-        "-pix_fmt".to_string(),
-        "yuv420p".to_string(),
-        "-c:a".to_string(),
-        "aac".to_string(),
-        "-movflags".to_string(),
-        "+faststart".to_string(),
-        output_path_text.to_string(),
-    ]);
+    let applied_output_settings =
+        append_final_output_args(&mut ffmpeg_args, output_settings, canvas_aspect_ratio)?;
+    ffmpeg_args.push(output_path_text.to_string());
 
     let final_context = task_context.as_ref().map(|context| {
         context.child(
@@ -386,13 +396,15 @@ fn concat_video_segments_with_options(
         input_count: prepared_segments.segment_paths.len(),
         message: "片段拼接完成。".to_string(),
         output_aspect_ratio: canvas_aspect_ratio_label(canvas_aspect_ratio).to_string(),
-        output_resolution: output_dimensions
-            .map(|(width, height)| format!("{width}x{height}"))
-            .unwrap_or_else(|| "原画".to_string()),
+        output_resolution: applied_output_settings.resolution_label,
         background_mode: canvas_background_mode_label(canvas_background_mode).to_string(),
         applied_to_remix_export: true,
         smooth_remix_enabled,
         skipped_short_segment_count: prepared_segments.skipped_short_segment_count,
+        output_encoder: applied_output_settings.encoder_label,
+        output_frame_rate: applied_output_settings.frame_rate_label,
+        output_quality: applied_output_settings.quality_label,
+        output_video_bitrate_kbps: applied_output_settings.video_bitrate_kbps,
     })
 }
 
