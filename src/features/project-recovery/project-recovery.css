@@ -1,0 +1,155 @@
+.project-save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid #2d3834;
+  border-radius: 6px;
+  color: #9eaca7;
+  background: #191d1c;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.project-save-status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #6e7a76;
+}
+
+.project-save-status--saving i,
+.project-save-status--loading i {
+  background: #d6a844;
+}
+
+.project-save-status--saved {
+  color: #9ad7c9;
+  border-color: #24584e;
+}
+
+.project-save-status--saved i,
+.project-save-status--idle i {
+  background: #2be0bb;
+}
+
+.project-save-status--error {
+  color: #f0aaa0;
+  border-color: #69423c;
+}
+
+.project-save-status--error i {
+  background: #e47768;
+}
+
+.project-recovery-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  padding: 0;
+  border: 1px solid #33423d;
+  border-radius: 10px;
+  color: #e7f1ee;
+  background: #181c1b;
+  box-shadow: 0 18px 60px rgb(0 0 0 / 45%);
+}
+
+.project-recovery-dialog::backdrop {
+  background: rgb(5 8 7 / 76%);
+}
+
+.project-recovery-card {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  overflow: auto;
+}
+
+.project-recovery-card header {
+  display: grid;
+  gap: 4px;
+}
+
+.project-recovery-card h2,
+.project-recovery-card p {
+  margin: 0;
+}
+
+.project-recovery-copy {
+  color: #aab8b3;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.project-recovery-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.project-recovery-summary span {
+  padding: 9px 10px;
+  border: 1px solid #2d3834;
+  border-radius: 7px;
+  color: #c8d7d2;
+  background: #151918;
+  font-size: 12px;
+}
+
+.project-recovery-warning,
+.project-recovery-error {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid #5b4c2e;
+  border-radius: 8px;
+  color: #e2c98d;
+  background: #282317;
+}
+
+.project-recovery-error {
+  border-color: #68413b;
+  color: #efb0a7;
+  background: #291b19;
+}
+
+.project-recovery-warning p,
+.project-recovery-error p,
+.project-recovery-warning small {
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.project-recovery-warning ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+.project-recovery-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.project-recovery-actions button {
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+@media (max-width: 640px) {
+  .project-recovery-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .project-recovery-actions {
+    flex-direction: column-reverse;
+  }
+
+  .project-recovery-actions button {
+    width: 100%;
+  }
+}

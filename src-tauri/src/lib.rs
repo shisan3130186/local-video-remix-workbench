@@ -1,5 +1,6 @@
 mod ai_remix;
 mod api_config;
+mod project_snapshot;
 mod tts;
 mod video_engine;
 
@@ -13,6 +14,11 @@ use api_config::{
     delete_api_credential as remove_api_credential,
     get_api_config_status as read_api_config_status, save_api_config as store_api_config,
     ApiConfigInput, ApiConfigStatus, ApiCredentialKind,
+};
+use project_snapshot::{
+    delete_project_snapshot as remove_project_snapshot,
+    load_project_snapshot as read_project_snapshot,
+    save_project_snapshot as store_project_snapshot, ProjectSnapshot, ProjectSnapshotLoadResult,
 };
 use std::path::Path;
 use std::process::Command;
@@ -174,6 +180,21 @@ fn delete_api_credential(kind: ApiCredentialKind) -> Result<ApiConfigStatus, Str
 }
 
 #[tauri::command]
+fn load_project_snapshot() -> Result<ProjectSnapshotLoadResult, String> {
+    read_project_snapshot()
+}
+
+#[tauri::command]
+fn save_project_snapshot(snapshot: ProjectSnapshot) -> Result<(), String> {
+    store_project_snapshot(snapshot)
+}
+
+#[tauri::command]
+fn delete_project_snapshot() -> Result<(), String> {
+    remove_project_snapshot()
+}
+
+#[tauri::command]
 async fn synthesize_tts(
     text: String,
     output_directory: String,
@@ -234,16 +255,19 @@ pub fn run() {
             concat_narrated_segments,
             concat_selected_segments,
             delete_api_credential,
+            delete_project_snapshot,
             export_current_video,
             generate_thumbnail,
             get_tts_config_status,
             get_api_config_status,
             is_existing_directory,
             list_video_files_in_folder,
+            load_project_snapshot,
             open_path_in_file_manager,
             plan_ai_remix,
             read_video_metadata,
             save_api_config,
+            save_project_snapshot,
             split_current_video,
             synthesize_tts,
             synthesize_tts_shot

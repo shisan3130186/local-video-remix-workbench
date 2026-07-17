@@ -5,6 +5,7 @@ import type { Ref } from "vue";
 import type { SegmentCategory } from "../../services/videoMixService";
 import type { ImportedVideo } from "../../types/videoProbe";
 import type { TaskLogLevel } from "../../types/workbench";
+import type { ProjectMaterialsSnapshot } from "../project-recovery/types";
 import { listVideoFilesInFolder } from "./services/materialService";
 import { loadImportedVideos, splitImportedVideos } from "./services/materialWorkflow";
 import { useMaterialCovers } from "./useMaterialCovers";
@@ -206,6 +207,31 @@ export function useMaterials(options: UseMaterialsOptions) {
     segmentCategories.value = { ...segmentCategories.value, [segmentPath]: category };
   }
 
+  function restoreMaterials(snapshot: ProjectMaterialsSnapshot) {
+    importError.value = null;
+    splitError.value = null;
+    importedVideos.value = snapshot.importedVideos;
+    selectedVideo.value =
+      snapshot.importedVideos.find(
+        (video) => video.filePath === snapshot.selectedVideoPath,
+      ) ?? snapshot.importedVideos[0] ?? null;
+    segmentDurationSeconds.value = snapshot.segmentDurationSeconds;
+    splitOutputDirectory.value = snapshot.splitOutputDirectory;
+    splitSegmentPaths.value = snapshot.splitSegmentPaths;
+    splitSegmentCount.value = snapshot.splitSegmentPaths.length || null;
+    segmentCategories.value = snapshot.segmentCategories;
+    segmentThumbnailPaths.value = snapshot.segmentThumbnailPaths;
+    selectedSegmentPath.value = snapshot.selectedSegmentPath;
+    covers.videoCoverPaths.value = snapshot.videoCoverPaths;
+    covers.selectedCoverPath.value = snapshot.selectedCoverPath;
+    covers.coverFrameSeconds.value = snapshot.coverFrameSeconds;
+    covers.coverError.value = null;
+
+    if (selectedVideo.value) {
+      covers.selectVideoCover(selectedVideo.value);
+    }
+  }
+
   return {
     ...covers,
     importError,
@@ -215,6 +241,7 @@ export function useMaterials(options: UseMaterialsOptions) {
     isImporting,
     isSplitting,
     mergeSegmentThumbnailPaths,
+    restoreMaterials,
     segmentCategories,
     segmentDurationSeconds,
     segmentThumbnailPaths,

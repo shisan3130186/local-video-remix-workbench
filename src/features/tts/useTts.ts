@@ -21,6 +21,7 @@ import type {
   TtsConfigStatus,
   TtsSynthesisResult,
 } from "./types";
+import type { ProjectTtsSnapshot } from "../project-recovery/types";
 
 interface UseTtsOptions {
   text: Ref<string>;
@@ -335,6 +336,23 @@ export function useTts(options: UseTtsOptions) {
     ttsSubtitleSize.value = "medium";
   }
 
+  function restoreTtsSettings(snapshot: ProjectTtsSnapshot) {
+    speaker.value = snapshot.speaker.trim() || config.value.speaker || FALLBACK_SPEAKER;
+    ttsVideoEnabled.value = snapshot.videoEnabled;
+    ttsKeepOriginalAudio.value = snapshot.keepOriginalAudio;
+    ttsOriginalAudioVolume.value = snapshot.originalAudioVolume;
+    ttsSubtitleEnabled.value = snapshot.subtitleEnabled;
+    ttsSubtitlePosition.value = snapshot.subtitlePosition;
+    ttsSubtitleSize.value = snapshot.subtitleSize;
+    ttsError.value = null;
+    narratedVideoError.value = null;
+    narrationProgressText.value = null;
+    narratedVideoSummaryText.value = null;
+    narratedVideoResults.value = [];
+    narratedVideoFailures.value = [];
+    ttsResult.value = null;
+  }
+
   return {
     generateTts,
     generateNarratedVideo,
@@ -349,6 +367,7 @@ export function useTts(options: UseTtsOptions) {
     narratedVideoSummaryText,
     narrationProgressText,
     resetTtsSettings,
+    restoreTtsSettings,
     ttsAudioUrl,
     ttsConfig: config,
     ttsConfigError,

@@ -17,6 +17,7 @@ import type {
   AiRemixSegment,
   AiRemixVariant,
 } from "./types";
+import type { ProjectAiSnapshot } from "../project-recovery/types";
 
 interface UseAiRemixOptions {
   outputDirectory: Readonly<Ref<string | null>>;
@@ -381,6 +382,28 @@ export function useAiRemix(options: UseAiRemixOptions) {
     await generateAiRemixVideos();
   }
 
+  function restoreAiRemixState(
+    snapshot: ProjectAiSnapshot,
+    preparedSegments: AiRemixSegment[],
+    plannedShots: AiRemixPlannedShot[],
+  ) {
+    aiScript.value = snapshot.script;
+    aiGenerateCount.value = Math.min(10, Math.max(1, Math.floor(snapshot.generateCount || 3)));
+    aiPreparedSegments.value = preparedSegments;
+    aiPlannedShots.value = plannedShots;
+    isPreparingAiSegments.value = false;
+    isPlanningAiRemix.value = false;
+    isGeneratingAiRemix.value = false;
+    aiPreparationError.value = null;
+    aiPlanError.value = null;
+    aiGenerateError.value = null;
+    aiPlanningProgressText.value = null;
+    aiGenerationProgressText.value = null;
+    aiGenerationSummaryText.value = null;
+    aiGeneratedResults.value = [];
+    aiGenerationFailures.value = [];
+  }
+
   return {
     aiGenerateError,
     aiGenerateCount,
@@ -406,5 +429,6 @@ export function useAiRemix(options: UseAiRemixOptions) {
     replaceAiRemixShotSegment,
     requestAiRemixPlan,
     resetAiRemixState,
+    restoreAiRemixState,
   };
 }

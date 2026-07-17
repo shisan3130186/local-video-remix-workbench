@@ -24,6 +24,13 @@ import {
   formatSmoothRemixLog,
   useRemixExport,
 } from "./features/remix-export";
+import {
+  ProjectRecoveryDialog,
+  ProjectSaveStatus,
+  sanitizeProjectSnapshot,
+  useProjectRecovery,
+} from "./features/project-recovery";
+import type { ProjectStateSnapshot } from "./features/project-recovery";
 import { useTts } from "./features/tts";
 import type {
   CanvasAspectRatio,
@@ -90,6 +97,7 @@ const {
   playbackSpeed,
   remixExportSettings,
   rotationMode,
+  restoreRemixSettings,
   saturation,
   smoothRemixEnabled,
 } = useRemixSettings();
@@ -106,11 +114,14 @@ const {
   isImporting,
   isSplitting,
   mergeSegmentThumbnailPaths,
+  restoreMaterials,
   segmentCategories,
   segmentDurationSeconds,
+  segmentThumbnailPaths,
   segmentThumbnailUrls,
   selectSegment,
   selectedCoverUrl,
+  selectedCoverPath,
   selectedSegmentPath,
   selectedVideo,
   selectVideo: selectMaterialVideo,
@@ -121,6 +132,7 @@ const {
   splitSegmentPaths,
   updateSegmentCategory,
   videoCoverUrls,
+  videoCoverPaths,
 } = useMaterials({
   outputDirectory,
   appendSplitLog,
@@ -191,6 +203,7 @@ const {
   replaceAiRemixShotSegment,
   requestAiRemixPlan,
   resetAiRemixState,
+  restoreAiRemixState,
 } = useAiRemix({
   outputDirectory,
   remixExportSettings,
@@ -226,6 +239,7 @@ const {
   narratedVideoSummaryText,
   narrationProgressText,
   resetTtsSettings,
+  restoreTtsSettings,
   ttsAudioUrl,
   ttsConfig,
   ttsConfigError,
@@ -254,6 +268,103 @@ const {
   },
   formatCanvasLog: formatRemixCanvasLog,
   formatSmoothLog: formatSmoothRemixLog,
+});
+
+const projectState = computed(
+  (): ProjectStateSnapshot => ({
+    outputDirectory: outputDirectory.value,
+    materials: {
+      importedVideos: importedVideos.value,
+      selectedVideoPath: selectedVideo.value?.filePath ?? null,
+      segmentDurationSeconds: segmentDurationSeconds.value,
+      splitOutputDirectory: splitOutputDirectory.value,
+      splitSegmentPaths: splitSegmentPaths.value,
+      segmentCategories: segmentCategories.value,
+      segmentThumbnailPaths: segmentThumbnailPaths.value,
+      selectedSegmentPath: selectedSegmentPath.value,
+      videoCoverPaths: videoCoverPaths.value,
+      selectedCoverPath: selectedCoverPath.value,
+      coverFrameSeconds: coverFrameSeconds.value,
+    },
+    ai: {
+      script: aiScript.value,
+      generateCount: aiGenerateCount.value,
+      preparedSegments: aiPreparedSegments.value.map(
+        ({ thumbnailUrl: _thumbnailUrl, ...segment }) => segment,
+      ),
+      plannedShots: aiPlannedShots.value.map((shot) => ({
+        shotId: shot.shotId,
+        text: shot.text,
+        segmentId: shot.segment.segmentId,
+        alternativeSegmentIds: shot.alternativeSegments.map(
+          (segment) => segment.segmentId,
+        ),
+      })),
+    },
+    remixSettings: remixExportSettings.value,
+    tts: {
+      speaker: ttsSpeaker.value,
+      videoEnabled: ttsVideoEnabled.value,
+      keepOriginalAudio: ttsKeepOriginalAudio.value,
+      originalAudioVolume: ttsOriginalAudioVolume.value,
+      subtitleEnabled: ttsSubtitleEnabled.value,
+      subtitlePosition: ttsSubtitlePosition.value,
+      subtitleSize: ttsSubtitleSize.value,
+    },
+  }),
+);
+
+const {
+  discardPendingSnapshot,
+  isRestoring: isRestoringProject,
+  loadError: projectRecoveryLoadError,
+  pendingResult: pendingProjectSnapshot,
+  restoreError: projectRecoveryError,
+  restorePendingSnapshot,
+  saveError: projectSaveError,
+  status: projectSaveStatus,
+  statusText: projectSaveStatusText,
+} = useProjectRecovery({
+  projectState,
+  hasMeaningfulState() {
+    return (
+      importedVideos.value.length > 0 ||
+      splitSegmentPaths.value.length > 0 ||
+      aiScript.value.trim().length > 0 ||
+      Boolean(outputDirectory.value)
+    );
+  },
+  applySnapshot(result) {
+    if (!result.snapshot) {
+      throw new Error("没有可恢复的项目记录。");
+    }
+
+    const sanitized = sanitizeProjectSnapshot(
+      result.snapshot.project,
+      result.missingFilePaths,
+      result.missingDirectoryPaths,
+    );
+    outputDirectory.value = sanitized.project.outputDirectory;
+    outputDirectoryError.value = result.missingDirectoryPaths.includes(
+      result.snapshot.project.outputDirectory ?? "",
+    )
+      ? "原来的输出目录已经不存在，请重新选择一个文件夹。"
+      : null;
+    restoreMaterials(sanitized.project.materials);
+    restoreAiRemixState(
+      sanitized.project.ai,
+      sanitized.preparedSegments,
+      sanitized.plannedShots,
+    );
+    restoreRemixSettings(sanitized.project.remixSettings);
+    restoreTtsSettings(sanitized.project.tts);
+    resetRandomPickState();
+    isWorkspaceVisible.value = true;
+
+    appendSplitLog("已恢复上次项目进度。", "success");
+    sanitized.notices.forEach((notice) => appendSplitLog(notice, "error"));
+    return sanitized.notices;
+  },
 });
 
 const isGeneratingCurrentAiVideo = computed(
@@ -868,6 +979,11 @@ onMounted(() => {
         <span class="health-pill" :class="{ 'health-pill--ok': environment?.available }">
           {{ environment?.available ? "FFmpeg 就绪" : "FFmpeg 未就绪" }}
         </span>
+        <ProjectSaveStatus
+          :status="projectSaveStatus"
+          :text="projectSaveStatusText"
+          :error="projectSaveError"
+        />
         <button class="title-icon" type="button" aria-label="用户中心">人</button>
         <button class="title-icon" type="button" aria-label="菜单">≡</button>
         <div class="window-controls" aria-label="窗口控制区">
@@ -1109,6 +1225,15 @@ onMounted(() => {
       :open="activeDrawer === 'logs'"
       :task-logs="taskLogs"
       @close="activeDrawer = null"
+    />
+
+    <ProjectRecoveryDialog
+      :result="pendingProjectSnapshot"
+      :load-error="projectRecoveryLoadError"
+      :restore-error="projectRecoveryError"
+      :is-restoring="isRestoringProject"
+      @restore="restorePendingSnapshot"
+      @discard="discardPendingSnapshot"
     />
     <ExportResultDrawer
       :open="activeDrawer === 'exports'"

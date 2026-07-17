@@ -94,6 +94,32 @@ export function useRemixSettings() {
     }),
   );
 
+  function restoreRemixSettings(settings: RemixExportSettings) {
+    applyHorizontalMirror.value = settings.applyHorizontalMirror;
+    playbackSpeed.value = settings.playbackSpeed;
+    smoothRemixEnabled.value = settings.smoothRemixEnabled;
+    canvasAspectRatio.value = settings.canvasAspectRatio;
+    canvasBackgroundMode.value = settings.canvasBackgroundMode;
+    applyVerticalMirror.value = settings.videoEffectSettings.verticalMirror;
+    rotationMode.value = settings.videoEffectSettings.rotation;
+    brightness.value = settings.videoEffectSettings.brightness;
+    contrast.value = settings.videoEffectSettings.contrast;
+    saturation.value = settings.videoEffectSettings.saturation;
+    effectScale.value = settings.videoEffectSettings.scale;
+    pipEnabled.value = settings.pictureInPictureSettings.enabled;
+    pipOverlayFilePath.value = settings.pictureInPictureSettings.overlayFilePath;
+    pipPosition.value = settings.pictureInPictureSettings.position;
+    pipSizeRatio.value = settings.pictureInPictureSettings.sizeRatio;
+    pipOpacity.value = settings.pictureInPictureSettings.opacity;
+    pipMargin.value = settings.pictureInPictureSettings.margin;
+    bgmEnabled.value = settings.bgmSettings.enabled;
+    bgmAudioFilePath.value = settings.bgmSettings.audioFilePath;
+    originalVolume.value = settings.bgmSettings.originalVolume;
+    bgmVolume.value = settings.bgmSettings.bgmVolume;
+    bgmFadeInSeconds.value = settings.bgmSettings.fadeInSeconds;
+    bgmFadeOutSeconds.value = settings.bgmSettings.fadeOutSeconds;
+  }
+
   return {
     applyHorizontalMirror,
     applyVerticalMirror,
@@ -120,6 +146,7 @@ export function useRemixSettings() {
     playbackSpeed,
     remixExportSettings,
     rotationMode,
+    restoreRemixSettings,
     saturation,
     smoothRemixEnabled,
     videoEffectSettings,
