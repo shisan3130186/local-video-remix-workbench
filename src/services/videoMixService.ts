@@ -87,7 +87,9 @@ export type SegmentCategory =
   | "usage"
   | "detail"
   | "result"
-  | "ending";
+  | "ending"
+  | "talking"
+  | "environment";
 
 export interface SegmentCategoryOption {
   key: SegmentCategory;

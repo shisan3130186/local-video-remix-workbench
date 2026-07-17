@@ -217,6 +217,8 @@ const {
 });
 
 const {
+  aiContentAnalysisError,
+  aiContentAnalysisProgressText,
   aiGenerateError,
   aiGenerateCount,
   aiGeneratedResults,
@@ -229,8 +231,10 @@ const {
   aiPreparationError,
   aiPreparedSegments,
   aiScript,
+  analyzePreparedSegmentContent,
   generateAiRemixVideos,
   isGeneratingAiRemix,
+  isAnalyzingAiContent,
   isPlanningAiRemix,
   isPreparingAiSegments,
   moveAiRemixShot,
@@ -243,6 +247,7 @@ const {
   restoreAiPreparedSegments,
   retryFailedAiRemixVideos,
   restoreAiRemixState,
+  updateAiSegmentContentAnalysis,
 } = useAiRemix({
   outputDirectory,
   remixExportSettings,
@@ -251,6 +256,9 @@ const {
   clearAiRemixLogs,
   onSegmentThumbnailsPrepared(entries) {
     mergeSegmentThumbnailPaths(entries);
+  },
+  onSegmentCategorySuggested(segmentPath, category) {
+    updateSegmentCategory(segmentPath, category);
   },
   validateExportSettings() {
     return (
@@ -632,6 +640,7 @@ const isAnyProcessing = computed(
     isGeneratingTts.value ||
     isGeneratingNarratedVideo.value ||
     isPlanningAiRemix.value ||
+    isAnalyzingAiContent.value ||
     isGeneratingAiRemix.value,
 );
 
@@ -1176,6 +1185,10 @@ onMounted(() => {
         :random-selected-segments="randomSelectedSegments"
         :segment-categories="segmentCategories"
         :segment-category-options="segmentCategoryOptions"
+        :prepared-segments="aiPreparedSegments"
+        :is-analyzing-ai-content="isAnalyzingAiContent"
+        :ai-content-analysis-progress-text="aiContentAnalysisProgressText"
+        :ai-content-analysis-error="aiContentAnalysisError"
         :video-cover-urls="videoCoverUrls"
         :segment-thumbnail-urls="segmentThumbnailUrls"
         :material-library-status-text="materialLibraryStatusText"
@@ -1195,6 +1208,8 @@ onMounted(() => {
         @select-output-directory="selectOutputDirectory"
         @open-output-directory="openOutputDirectory"
         @update-segment-category="updateSegmentCategory"
+        @analyze-ai-content="analyzePreparedSegmentContent"
+        @update-segment-content-analysis="updateAiSegmentContentAnalysis"
         @relink-missing-material="relinkMissingMaterial"
         @load-material-library="loadAvailableLibrary"
       />

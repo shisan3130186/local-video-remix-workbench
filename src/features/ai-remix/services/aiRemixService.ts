@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AiRemixPlanResult,
   AiRemixSegmentAnalysisResult,
+  AiRemixSegmentContentAnalysisResult,
   AiRemixSegmentInput,
   AiRemixVariantPlanResult,
   AiRemixVariantShotInput,
@@ -14,6 +15,15 @@ export function analyzeAiRemixSegments(
   return invoke<AiRemixSegmentAnalysisResult>("analyze_ai_remix_segments", {
     segments,
   });
+}
+
+export function extractAiRemixSegmentContent(
+  segments: AiRemixSegmentInput[],
+): Promise<AiRemixSegmentContentAnalysisResult> {
+  return invoke<AiRemixSegmentContentAnalysisResult>(
+    "extract_ai_remix_segment_content",
+    { segments },
+  );
 }
 
 export function planAiRemix(

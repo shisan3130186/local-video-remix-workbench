@@ -199,6 +199,7 @@ export function useMaterials(options: UseMaterialsOptions) {
         splitOutputDirectory.value = options.outputDirectory.value;
         splitSegmentCount.value = segmentPaths.length;
         splitSegmentPaths.value = segmentPaths;
+        selectedSegmentPath.value = segmentPaths[0] ?? null;
         segmentCategories.value = buildEmptySegmentCategoryMap(segmentPaths);
         await prepareSegmentAssets(segmentPaths, task);
         task.throwIfCancelled();

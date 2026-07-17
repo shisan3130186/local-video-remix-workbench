@@ -2,21 +2,25 @@ import { ref } from "vue";
 import type { Ref } from "vue";
 import { concatSelectedSegments } from "../../services/videoMixService";
 import type { MixVideoResult, RemixExportSettings } from "../../services/videoMixService";
+import type { SegmentCategory } from "../../services/videoMixService";
 import type { TaskLogLevel } from "../../types/workbench";
 import { runRetryableRequest } from "../../services/retryableRequest";
 import { planAiRemix } from "./services/aiRemixService";
 import {
+  analyzeAiRemixContent,
   analyzeAiRemixSegmentDescriptions,
   createAiRemixVariants,
   createAiRemixPlannedShots,
   prepareAiRemixSegments,
 } from "./services/aiRemixWorkflow";
 import type {
+  AiRemixContentAnalysis,
   AiRemixGenerationFailure,
   AiRemixPlannedShot,
   AiRemixSegment,
   AiRemixVariant,
 } from "./types";
+import { sanitizeAiRemixContentAnalysis } from "./analysisCache";
 import type { ProjectAiSnapshot } from "../project-recovery/types";
 import { isTaskCancelledError } from "../task-center";
 import type { TaskRunHandle } from "../task-center";
@@ -28,6 +32,7 @@ interface UseAiRemixOptions {
   appendSplitLog: (message: string, level: TaskLogLevel) => void;
   clearAiRemixLogs: () => void;
   onSegmentThumbnailsPrepared: (entries: Record<string, string>) => void;
+  onSegmentCategorySuggested: (segmentPath: string, category: SegmentCategory) => void;
   validateExportSettings: () => string | null;
   setMixing: (isMixing: boolean) => void;
   onGenerated: (result: MixVideoResult) => void;
@@ -53,6 +58,9 @@ export function useAiRemix(options: UseAiRemixOptions) {
   const aiGeneratedResults = ref<string[]>([]);
   const aiGenerationFailures = ref<AiRemixGenerationFailure[]>([]);
   const failedAiVariants = ref<AiRemixVariant[]>([]);
+  const isAnalyzingAiContent = ref(false);
+  const aiContentAnalysisError = ref<string | null>(null);
+  const aiContentAnalysisProgressText = ref<string | null>(null);
 
   function resetAiRemixState(clearScript: boolean) {
     if (clearScript) {
@@ -74,6 +82,9 @@ export function useAiRemix(options: UseAiRemixOptions) {
     aiGeneratedResults.value = [];
     aiGenerationFailures.value = [];
     failedAiVariants.value = [];
+    isAnalyzingAiContent.value = false;
+    aiContentAnalysisError.value = null;
+    aiContentAnalysisProgressText.value = null;
     options.clearAiRemixLogs();
   }
 
@@ -134,16 +145,72 @@ export function useAiRemix(options: UseAiRemixOptions) {
     }
   }
 
-  async function ensureAiSegmentDescriptions() {
+  async function ensureAiSegmentDescriptions(updateProgress: (message: string) => void) {
     aiPreparedSegments.value = await analyzeAiRemixSegmentDescriptions(
       aiPreparedSegments.value,
       {
         appendLog: options.appendAiRemixLog,
-        updateProgress(message) {
-          aiPlanningProgressText.value = message;
-        },
+        updateProgress,
       },
     );
+  }
+
+  async function analyzePreparedSegmentContent() {
+    aiContentAnalysisError.value = null;
+    aiContentAnalysisProgressText.value = null;
+    if (aiPreparedSegments.value.length === 0) {
+      aiContentAnalysisError.value = "请先完成视频切片。";
+      return;
+    }
+
+    isAnalyzingAiContent.value = true;
+    try {
+      await ensureAiSegmentDescriptions((message) => {
+        aiContentAnalysisProgressText.value = message;
+      });
+      const missingDescriptionCount = aiPreparedSegments.value.filter(
+        (segment) => !segment.description?.trim(),
+      ).length;
+      if (missingDescriptionCount > 0) {
+        throw new Error(
+          `仍有 ${missingDescriptionCount} 个片段缺少画面描述，请再次运行；已成功结果会继续保留。`,
+        );
+      }
+
+      const result = await analyzeAiRemixContent(aiPreparedSegments.value, {
+        appendLog: options.appendAiRemixLog,
+        updateProgress(message) {
+          aiContentAnalysisProgressText.value = message;
+        },
+      });
+      aiPreparedSegments.value = result.segments;
+      result.categoriesBySegmentId.forEach((category, segmentId) => {
+        const segment = aiPreparedSegments.value.find((item) => item.segmentId === segmentId);
+        if (segment) options.onSegmentCategorySuggested(segment.path, category);
+      });
+      if (result.failedCount > 0) {
+        aiContentAnalysisError.value = `${result.failedCount} 个片段提炼失败，再次运行会只补失败片段。`;
+      }
+    } catch (error) {
+      aiContentAnalysisError.value =
+        error instanceof Error ? error.message : String(error ?? "内容提炼失败。");
+      options.appendAiRemixLog(`内容提炼失败：${aiContentAnalysisError.value}`, "error");
+    } finally {
+      isAnalyzingAiContent.value = false;
+      aiContentAnalysisProgressText.value = null;
+    }
+  }
+
+  function updateAiSegmentContentAnalysis(
+    segmentPath: string,
+    contentAnalysis: AiRemixContentAnalysis,
+  ) {
+    const sanitized = sanitizeAiRemixContentAnalysis(contentAnalysis);
+    if (!sanitized) return;
+    aiPreparedSegments.value = aiPreparedSegments.value.map((segment) =>
+      segment.path === segmentPath ? { ...segment, contentAnalysis: sanitized } : segment,
+    );
+    options.appendAiRemixLog(`已保存 ${formatFileName(segmentPath)} 的人工提炼修改。`, "success");
   }
 
   async function requestAiRemixPlan() {
@@ -167,7 +234,9 @@ export function useAiRemix(options: UseAiRemixOptions) {
     );
 
     try {
-      await ensureAiSegmentDescriptions();
+      await ensureAiSegmentDescriptions((message) => {
+        aiPlanningProgressText.value = message;
+      });
       const segmentsWithDescriptions = aiPreparedSegments.value.filter(
         (segment) => segment.description?.trim(),
       );
@@ -450,6 +519,9 @@ export function useAiRemix(options: UseAiRemixOptions) {
     aiGeneratedResults.value = [];
     aiGenerationFailures.value = [];
     failedAiVariants.value = [];
+    isAnalyzingAiContent.value = false;
+    aiContentAnalysisError.value = null;
+    aiContentAnalysisProgressText.value = null;
   }
 
   function restoreAiPreparedSegments(preparedSegments: AiRemixSegment[]) {
@@ -461,6 +533,8 @@ export function useAiRemix(options: UseAiRemixOptions) {
   }
 
   return {
+    aiContentAnalysisError,
+    aiContentAnalysisProgressText,
     aiGenerateError,
     aiGenerateCount,
     aiGeneratedResults,
@@ -473,9 +547,11 @@ export function useAiRemix(options: UseAiRemixOptions) {
     aiPreparationError,
     aiPreparedSegments,
     aiScript,
+    analyzePreparedSegmentContent,
     generateAiRemixVideo,
     generateAiRemixVideos,
     isGeneratingAiRemix,
+    isAnalyzingAiContent,
     isPlanningAiRemix,
     isPreparingAiSegments,
     moveAiRemixShot,
@@ -488,5 +564,10 @@ export function useAiRemix(options: UseAiRemixOptions) {
     resetAiRemixState,
     restoreAiPreparedSegments,
     restoreAiRemixState,
+    updateAiSegmentContentAnalysis,
   };
+}
+
+function formatFileName(filePath: string) {
+  return filePath.split(/[\\/]/).pop() ?? filePath;
 }

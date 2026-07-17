@@ -9,8 +9,10 @@ mod video_engine;
 
 use ai_remix::{
     analyze_ai_remix_segments as create_ai_remix_segment_analysis,
-    build_ai_remix_variants as create_ai_remix_variants, plan_ai_remix as create_ai_remix_plan,
-    AiRemixPlanResult, AiRemixSegmentAnalysisResult, AiRemixSegmentInput, AiRemixVariantPlanResult,
+    build_ai_remix_variants as create_ai_remix_variants,
+    extract_ai_remix_segment_content as create_ai_remix_segment_content_analysis,
+    plan_ai_remix as create_ai_remix_plan, AiRemixPlanResult, AiRemixSegmentAnalysisResult,
+    AiRemixSegmentContentAnalysisResult, AiRemixSegmentInput, AiRemixVariantPlanResult,
     AiRemixVariantShotInput, AiRemixVisualSegmentInput,
 };
 use api_config::{
@@ -241,6 +243,13 @@ async fn analyze_ai_remix_segments(
 }
 
 #[tauri::command]
+async fn extract_ai_remix_segment_content(
+    segments: Vec<AiRemixSegmentInput>,
+) -> Result<AiRemixSegmentContentAnalysisResult, String> {
+    create_ai_remix_segment_content_analysis(segments).await
+}
+
+#[tauri::command]
 async fn plan_ai_remix(
     script: String,
     segments: Vec<AiRemixSegmentInput>,
@@ -369,6 +378,7 @@ pub fn run() {
             create_task,
             delete_api_credential,
             delete_project_snapshot,
+            extract_ai_remix_segment_content,
             export_current_video,
             finish_task,
             generate_thumbnail,

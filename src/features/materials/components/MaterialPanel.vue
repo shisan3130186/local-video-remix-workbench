@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import type { SegmentCategory, SegmentCategoryOption } from "../../../services/videoMixService";
 import type { MaterialLibraryMaterial } from "../../material-library";
 import type { ImportedVideo } from "../../../types/videoProbe";
+import type { AiRemixContentAnalysis, AiRemixSegment } from "../../ai-remix/types";
+import SegmentContentAnalysisPanel from "./SegmentContentAnalysisPanel.vue";
 
 const props = defineProps<{
   isAdvancedMode: boolean;
@@ -17,6 +19,10 @@ const props = defineProps<{
   randomSelectedSegments: string[];
   segmentCategories: Record<string, SegmentCategory | "">;
   segmentCategoryOptions: SegmentCategoryOption[];
+  preparedSegments: AiRemixSegment[];
+  isAnalyzingAiContent: boolean;
+  aiContentAnalysisProgressText: string | null;
+  aiContentAnalysisError: string | null;
   videoCoverUrls: Record<string, string>;
   segmentThumbnailUrls: Record<string, string>;
   materialLibraryStatusText: string;
@@ -41,9 +47,18 @@ const emit = defineEmits<{
   updateSegmentCategory: [segmentPath: string, category: SegmentCategory | ""];
   relinkMissingMaterial: [filePath: string];
   loadMaterialLibrary: [];
+  analyzeAiContent: [];
+  updateSegmentContentAnalysis: [segmentPath: string, analysis: AiRemixContentAnalysis];
 }>();
 
 const activeTab = ref<"materials" | "segments">("materials");
+const selectedPreparedSegment = computed(
+  () =>
+    props.preparedSegments.find((segment) => segment.path === props.selectedSegmentPath) ?? null,
+);
+const analyzedSegmentCount = computed(
+  () => props.preparedSegments.filter((segment) => segment.contentAnalysis).length,
+);
 
 watch(
   () => props.splitSegmentPaths.length,
@@ -60,6 +75,20 @@ function updateCategory(event: Event, segmentPath: string) {
     segmentPath,
     (event.target as HTMLSelectElement).value as SegmentCategory | "",
   );
+}
+
+function updateContentAnalysis(
+  segmentPath: string,
+  analysis: AiRemixContentAnalysis,
+) {
+  emit("updateSegmentContentAnalysis", segmentPath, analysis);
+}
+
+function updateContentCategory(
+  segmentPath: string,
+  category: SegmentCategory | "",
+) {
+  emit("updateSegmentCategory", segmentPath, category);
 }
 </script>
 
@@ -187,7 +216,22 @@ function updateCategory(event: Event, segmentPath: string) {
           <p>选择一个视频并完成切片后，片段会自动出现在这里。</p>
         </div>
 
-        <ol v-else class="segment-library-list">
+        <template v-else>
+          <SegmentContentAnalysisPanel
+            :selected-segment="selectedPreparedSegment"
+            :selected-category="selectedSegmentPath ? segmentCategories[selectedSegmentPath] ?? '' : ''"
+            :category-options="segmentCategoryOptions"
+            :analyzed-count="analyzedSegmentCount"
+            :total-count="preparedSegments.length"
+            :is-analyzing="isAnalyzingAiContent"
+            :progress-text="aiContentAnalysisProgressText"
+            :error="aiContentAnalysisError"
+            @analyze-all="$emit('analyzeAiContent')"
+            @update-analysis="updateContentAnalysis"
+            @update-category="updateContentCategory"
+          />
+
+        <ol class="segment-library-list">
           <li v-for="segmentPath in splitSegmentPaths" :key="segmentPath">
             <button
               class="segment-library-item"
@@ -220,6 +264,7 @@ function updateCategory(event: Event, segmentPath: string) {
             </select>
           </li>
         </ol>
+        </template>
       </div>
 
       <div class="material-summary">

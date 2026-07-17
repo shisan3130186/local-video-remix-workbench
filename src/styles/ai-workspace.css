@@ -277,9 +277,113 @@
 .segment-library-list {
   display: grid;
   gap: 6px;
-  margin: 0;
+  margin: 10px 0 0;
   padding: 0;
   list-style: none;
+}
+
+.segment-analysis {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid #2a3b36;
+  border-radius: 7px;
+  background: #151a18;
+}
+
+.segment-analysis__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.segment-analysis__heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.segment-analysis__heading strong {
+  color: #e5f4ef;
+  font-size: 12px;
+}
+
+.segment-analysis__heading small,
+.segment-analysis__status,
+.segment-analysis__empty,
+.segment-analysis__empty p {
+  margin: 0;
+  color: #82938d;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.segment-analysis__run {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.segment-analysis__empty {
+  padding: 8px;
+  border-radius: 5px;
+  background: #111513;
+}
+
+.segment-analysis__empty strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #b8c8c2;
+}
+
+.segment-analysis__form {
+  display: grid;
+  gap: 7px;
+}
+
+.segment-analysis__form label {
+  display: grid;
+  gap: 4px;
+  color: #9eaea8;
+  font-size: 10px;
+}
+
+.segment-analysis__form label span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.segment-analysis__form label small {
+  color: #66756f;
+  font-weight: 400;
+}
+
+.segment-analysis__form input,
+.segment-analysis__form textarea,
+.segment-analysis__form select {
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 1px solid #303a36;
+  border-radius: 6px;
+  color: #e6f2ee;
+  background: #101412;
+  font: inherit;
+}
+
+.segment-analysis__form textarea {
+  min-height: 52px;
+  resize: vertical;
+}
+
+.segment-analysis__form input:focus-visible,
+.segment-analysis__form textarea:focus-visible,
+.segment-analysis__form select:focus-visible {
+  border-color: #31c9a8;
+  outline: 2px solid rgba(49, 201, 168, 0.18);
+  outline-offset: 1px;
 }
 
 .segment-library-list li {

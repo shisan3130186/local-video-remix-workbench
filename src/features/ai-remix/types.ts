@@ -18,6 +18,14 @@ export interface AiRemixSegment {
   thumbnailUrl: string;
   analysisThumbnailPaths?: string[];
   description: string | null;
+  contentAnalysis: AiRemixContentAnalysis | null;
+}
+
+export interface AiRemixContentAnalysis {
+  theme: string;
+  sellingPoints: string[];
+  action: string;
+  tags: string[];
 }
 
 export interface AiRemixSegmentAnalysis {
@@ -27,6 +35,15 @@ export interface AiRemixSegmentAnalysis {
 
 export interface AiRemixSegmentAnalysisResult {
   segments: AiRemixSegmentAnalysis[];
+}
+
+export interface AiRemixSegmentContentAnalysis extends AiRemixContentAnalysis {
+  segmentId: string;
+  category: import("../../services/videoMixService").SegmentCategory;
+}
+
+export interface AiRemixSegmentContentAnalysisResult {
+  segments: AiRemixSegmentContentAnalysis[];
 }
 
 export interface AiRemixShotPlan {

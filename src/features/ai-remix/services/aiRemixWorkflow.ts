@@ -4,13 +4,18 @@ import { generateThumbnail } from "../../../services/videoThumbnailService";
 import { runRetryableRequest } from "../../../services/retryableRequest";
 import type { TaskLogLevel } from "../../../types/workbench";
 import type { TaskRunHandle } from "../../task-center";
-import { analyzeAiRemixSegments, buildAiRemixVariants } from "./aiRemixService";
+import {
+  analyzeAiRemixSegments,
+  buildAiRemixVariants,
+  extractAiRemixSegmentContent,
+} from "./aiRemixService";
 import type {
   AiRemixPlanResult,
   AiRemixPlannedShot,
   AiRemixSegment,
   AiRemixVariant,
 } from "../types";
+import type { SegmentCategory } from "../../../services/videoMixService";
 
 interface PrepareAiRemixSegmentsOptions {
   segmentPaths: string[];
@@ -73,6 +78,7 @@ export async function prepareAiRemixSegments({
         thumbnailUrl: convertFileSrc(representativeThumbnail.thumbnailPath),
         analysisThumbnailPaths: thumbnailResults.map((result) => result.thumbnailPath),
         description: null,
+        contentAnalysis: null,
       });
     } catch (error) {
       const errorMessage =
@@ -90,6 +96,106 @@ export async function prepareAiRemixSegments({
   }
 
   return { preparedSegments, thumbnailEntries, preparationErrors };
+}
+
+export async function analyzeAiRemixContent(
+  segments: AiRemixSegment[],
+  { appendLog, updateProgress }: AnalyzeAiRemixDescriptionsOptions,
+) {
+  const pendingSegments = segments.filter((segment) => !segment.contentAnalysis);
+  if (pendingSegments.length === 0) {
+    appendLog("复用素材库中已缓存的内容提炼与镜头分类。", "info");
+    return {
+      segments,
+      categoriesBySegmentId: new Map<string, SegmentCategory>(),
+      failedCount: 0,
+    };
+  }
+
+  let completedCount = segments.length - pendingSegments.length;
+  let updatedSegments = segments;
+  let failedCount = 0;
+  const categoriesBySegmentId = new Map<string, SegmentCategory>();
+  updateProgress(`正在提炼片段内容 ${completedCount}/${segments.length}`);
+  appendLog(
+    `开始提炼 ${pendingSegments.length} 个片段的主题、卖点、动作、标签和镜头类型。`,
+    "info",
+  );
+
+  for (let waveIndex = 0; waveIndex < pendingSegments.length; waveIndex += 2) {
+    const wave = pendingSegments.slice(waveIndex, waveIndex + 2);
+    const results = await Promise.allSettled(
+      wave.map((segment) =>
+        runRetryableRequest(
+          () =>
+            extractAiRemixSegmentContent([
+              {
+                segmentId: segment.segmentId,
+                durationSeconds: segment.durationSeconds,
+                description: segment.description?.trim() ?? "",
+              },
+            ]),
+          {
+            onRetry({ nextAttempt, maxAttempts, delayMs, message }) {
+              updateProgress(`内容提炼临时失败，正在重试 ${nextAttempt}/${maxAttempts}`);
+              appendLog(
+                `${segment.segmentId} 内容提炼遇到临时故障，${Math.ceil(delayMs / 1000)} 秒后进行第 ${nextAttempt}/${maxAttempts} 次尝试：${message}`,
+                "info",
+              );
+            },
+          },
+        ),
+      ),
+    );
+
+    const analyses = new Map<
+      string,
+      Awaited<ReturnType<typeof extractAiRemixSegmentContent>>["segments"][number]
+    >();
+    results.forEach((result, resultIndex) => {
+      if (result.status === "fulfilled") {
+        result.value.segments.forEach((analysis) => {
+          analyses.set(analysis.segmentId, analysis);
+          categoriesBySegmentId.set(analysis.segmentId, analysis.category);
+        });
+        completedCount += 1;
+      } else {
+        failedCount += 1;
+        const message =
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason ?? "内容提炼失败");
+        appendLog(`${wave[resultIndex].segmentId} 内容提炼失败：${message}`, "error");
+      }
+    });
+
+    if (analyses.size > 0) {
+      updatedSegments = updatedSegments.map((segment) => {
+        const analysis = analyses.get(segment.segmentId);
+        return analysis
+          ? {
+              ...segment,
+              contentAnalysis: {
+                theme: analysis.theme.trim(),
+                sellingPoints: analysis.sellingPoints.map((value) => value.trim()),
+                action: analysis.action.trim(),
+                tags: analysis.tags.map((value) => value.trim()),
+              },
+            }
+          : segment;
+      });
+    }
+
+    updateProgress(`正在提炼片段内容 ${completedCount}/${segments.length}`);
+  }
+
+  appendLog(
+    failedCount > 0
+      ? `内容提炼部分完成：成功 ${pendingSegments.length - failedCount} 个，失败 ${failedCount} 个；再次运行只补失败片段。`
+      : `内容提炼完成：${pendingSegments.length} 个片段已生成结构化结果并自动分类。`,
+    failedCount > 0 ? "error" : "success",
+  );
+  return { segments: updatedSegments, categoriesBySegmentId, failedCount };
 }
 
 export async function analyzeAiRemixSegmentDescriptions(

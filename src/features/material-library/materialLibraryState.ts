@@ -2,6 +2,10 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import type { SegmentCategory } from "../../services/videoMixService";
 import type { ImportedVideo } from "../../types/videoProbe";
 import type { AiRemixSegment } from "../ai-remix/types";
+import {
+  deserializeSegmentAnalysisCache,
+  serializeSegmentAnalysisCache,
+} from "../ai-remix/analysisCache";
 import type { ProjectMaterialsSnapshot } from "../project-recovery/types";
 import type { MaterialLibrarySnapshot, MaterialLibraryState } from "./types";
 
@@ -51,7 +55,7 @@ export function buildMaterialLibraryState(
           input.segmentThumbnailPaths[path] ?? prepared?.thumbnailPath ?? null,
         segmentId: prepared?.segmentId ?? null,
         durationSeconds: prepared?.durationSeconds ?? null,
-        description: prepared?.description ?? null,
+        description: prepared ? serializeSegmentAnalysisCache(prepared) : null,
       };
     }),
   };
@@ -111,15 +115,19 @@ export function sanitizeMaterialLibrarySnapshot(
           typeof segment.durationSeconds === "number" &&
           segment.durationSeconds > 0,
       )
-      .map((segment) => ({
-        segmentId: segment.segmentId as string,
-        path: segment.path,
-        durationSeconds: segment.durationSeconds as number,
-        thumbnailPath: segment.thumbnailPath as string,
-        thumbnailUrl: convertFileSrc(segment.thumbnailPath as string),
-        analysisThumbnailPaths: [segment.thumbnailPath as string],
-        description: segment.description,
-      })),
+      .map((segment) => {
+        const cachedAnalysis = deserializeSegmentAnalysisCache(segment.description);
+        return {
+          segmentId: segment.segmentId as string,
+          path: segment.path,
+          durationSeconds: segment.durationSeconds as number,
+          thumbnailPath: segment.thumbnailPath as string,
+          thumbnailUrl: convertFileSrc(segment.thumbnailPath as string),
+          analysisThumbnailPaths: [segment.thumbnailPath as string],
+          description: cachedAnalysis.description,
+          contentAnalysis: cachedAnalysis.contentAnalysis,
+        };
+      }),
     restoredMaterials: validMaterials.length,
     restoredSegments: validSegments.length,
   };

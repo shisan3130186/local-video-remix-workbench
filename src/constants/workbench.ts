@@ -40,9 +40,9 @@ export const WORKBENCH_MODULE_CARDS: ModuleCard[] = [
   {
     title: "视频内容提炼",
     category: "自动化",
-    description: "后续用于从素材中提取片段价值和内容标签。",
+    description: "自动提取片段主题、可见卖点、动作、标签和镜头类型。",
     tags: ["内容提炼", "素材标签"],
-    available: false,
+    available: true,
   },
 ];
 
@@ -53,4 +53,6 @@ export const SEGMENT_CATEGORY_OPTIONS: SegmentCategoryOption[] = [
   { key: "detail", label: "细节特写" },
   { key: "result", label: "效果展示" },
   { key: "ending", label: "结尾引导" },
+  { key: "talking", label: "人物口播" },
+  { key: "environment", label: "环境镜头" },
 ];

@@ -1,5 +1,6 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { AiRemixPlannedShot, AiRemixSegment } from "../ai-remix/types";
+import { sanitizeAiRemixContentAnalysis } from "../ai-remix/analysisCache";
 import type { ProjectStateSnapshot } from "./types";
 
 export interface SanitizedProjectSnapshot {
@@ -52,6 +53,7 @@ export function sanitizeProjectSnapshot(
     )
     .map((segment) => ({
       ...segment,
+      contentAnalysis: sanitizeAiRemixContentAnalysis(segment.contentAnalysis),
       analysisThumbnailPaths:
         segment.analysisThumbnailPaths?.filter((path) => !missingFiles.has(path)) ?? [segment.thumbnailPath],
       thumbnailUrl: convertFileSrc(segment.thumbnailPath),

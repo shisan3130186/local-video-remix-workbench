@@ -48,6 +48,24 @@ pub struct AiRemixSegmentAnalysisResult {
     segments: Vec<AiRemixSegmentAnalysis>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AiRemixSegmentContentAnalysis {
+    segment_id: String,
+    theme: String,
+    #[serde(default)]
+    selling_points: Vec<String>,
+    action: String,
+    tags: Vec<String>,
+    category: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRemixSegmentContentAnalysisResult {
+    segments: Vec<AiRemixSegmentContentAnalysis>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiRemixPlanResult {
@@ -101,6 +119,7 @@ struct ChatCompletionMessage {
 #[derive(Clone, Copy)]
 enum AiRequestStage {
     VisualAnalysis,
+    ContentExtraction,
     RemixPlanning,
 }
 
@@ -108,6 +127,7 @@ impl AiRequestStage {
     fn label(self) -> &'static str {
         match self {
             Self::VisualAnalysis => "片段画面理解",
+            Self::ContentExtraction => "视频内容提炼",
             Self::RemixPlanning => "固定短句画面匹配",
         }
     }
@@ -115,6 +135,7 @@ impl AiRequestStage {
     fn timeout(self) -> Duration {
         match self {
             Self::VisualAnalysis => Duration::from_secs(180),
+            Self::ContentExtraction => Duration::from_secs(60),
             Self::RemixPlanning => Duration::from_secs(45),
         }
     }
@@ -147,6 +168,48 @@ pub async fn analyze_ai_remix_segments(
 
     Ok(AiRemixSegmentAnalysisResult {
         segments: parse_and_validate_analyses(&response_content, &expected_ids)?,
+    })
+}
+
+pub async fn extract_ai_remix_segment_content(
+    segments: Vec<AiRemixSegmentInput>,
+) -> Result<AiRemixSegmentContentAnalysisResult, String> {
+    validate_content_extraction_inputs(&segments)?;
+    let expected_ids = segments
+        .iter()
+        .map(|segment| segment.segment_id.clone())
+        .collect::<Vec<_>>();
+    let content = serde_json::to_string(
+        &segments
+            .iter()
+            .map(|segment| {
+                json!({
+                    "segmentId": segment.segment_id,
+                    "durationSeconds": segment.duration_seconds,
+                    "visualDescription": segment.description.trim(),
+                })
+            })
+            .collect::<Vec<_>>(),
+    )
+    .map_err(|error| format!("无法整理内容提炼输入：{error}"))?;
+    let response_content = request_ai_completion(
+        json!([
+            {
+                "role": "system",
+                "content": "你是短视频素材内容提炼助手。输入是已经由多帧画面得到的客观描述，请只依据描述提取结构化信息，不能猜测看不见的品牌、功效、参数或结果。theme概括片段主题；sellingPoints只填写画面能证明的可见卖点，没有则返回空数组；action概括主体动作，没有明显动作写‘无明显动作’；tags返回1到5个简短标签；category只能是hook、product、usage、detail、result、ending、talking、environment之一。只允许返回JSON对象，不要返回Markdown、解释或其他字段。格式必须是：{\"segments\":[{\"segmentId\":\"segment-001\",\"theme\":\"主题\",\"sellingPoints\":[\"可见卖点\"],\"action\":\"主体动作\",\"tags\":[\"标签\"],\"category\":\"product\"}]}"
+            },
+            {
+                "role": "user",
+                "content": content
+            }
+        ]),
+        1200,
+        AiRequestStage::ContentExtraction,
+    )
+    .await?;
+
+    Ok(AiRemixSegmentContentAnalysisResult {
+        segments: parse_and_validate_content_analyses(&response_content, &expected_ids)?,
     })
 }
 
@@ -558,6 +621,30 @@ fn validate_planning_inputs(
     Ok(())
 }
 
+fn validate_content_extraction_inputs(segments: &[AiRemixSegmentInput]) -> Result<(), String> {
+    if segments.is_empty() || segments.len() > 20 {
+        return Err("每次内容提炼需要提供 1 到 20 个片段。".to_string());
+    }
+
+    let mut segment_ids = HashSet::new();
+    for segment in segments {
+        validate_segment_identity(
+            &segment.segment_id,
+            segment.duration_seconds,
+            &mut segment_ids,
+        )?;
+        let description = segment.description.trim();
+        if description.is_empty() {
+            return Err(format!("片段 {} 缺少画面描述。", segment.segment_id));
+        }
+        if description.chars().count() > 500 {
+            return Err(format!("片段 {} 的画面描述异常过长。", segment.segment_id));
+        }
+    }
+
+    Ok(())
+}
+
 fn validate_segment_identity<'a>(
     segment_id: &'a str,
     duration_seconds: f64,
@@ -695,6 +782,80 @@ fn parse_and_validate_analyses(
 
         if analysis.description.trim().is_empty() {
             return Err(format!("片段 {} 的画面描述为空。", analysis.segment_id));
+        }
+    }
+
+    Ok(parsed.segments)
+}
+
+fn parse_and_validate_content_analyses(
+    content: &str,
+    expected_ids: &[String],
+) -> Result<Vec<AiRemixSegmentContentAnalysis>, String> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase", deny_unknown_fields)]
+    struct ContentAnalysisResponse {
+        segments: Vec<AiRemixSegmentContentAnalysis>,
+    }
+
+    let parsed = serde_json::from_str::<ContentAnalysisResponse>(content)
+        .map_err(|_| "AI 必须严格返回只包含 segments 的内容提炼 JSON 对象。".to_string())?;
+    if parsed.segments.len() != expected_ids.len() {
+        return Err(format!(
+            "AI 返回了 {} 个提炼结果，但本批次需要 {} 个。",
+            parsed.segments.len(),
+            expected_ids.len()
+        ));
+    }
+
+    let expected = expected_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let allowed_categories = [
+        "hook",
+        "product",
+        "usage",
+        "detail",
+        "result",
+        "ending",
+        "talking",
+        "environment",
+    ];
+    let mut returned_ids = HashSet::new();
+
+    for analysis in &parsed.segments {
+        if !expected.contains(analysis.segment_id.as_str()) {
+            return Err(format!("AI 返回了未知片段编号：{}。", analysis.segment_id));
+        }
+        if !returned_ids.insert(analysis.segment_id.as_str()) {
+            return Err(format!("AI 重复返回片段编号：{}。", analysis.segment_id));
+        }
+        if analysis.theme.trim().is_empty() || analysis.theme.chars().count() > 80 {
+            return Err(format!("片段 {} 的主题无效。", analysis.segment_id));
+        }
+        if analysis.action.trim().is_empty() || analysis.action.chars().count() > 100 {
+            return Err(format!("片段 {} 的动作描述无效。", analysis.segment_id));
+        }
+        if analysis.selling_points.len() > 3
+            || analysis
+                .selling_points
+                .iter()
+                .any(|value| value.trim().is_empty() || value.chars().count() > 60)
+        {
+            return Err(format!("片段 {} 的可见卖点无效。", analysis.segment_id));
+        }
+        if analysis.tags.is_empty()
+            || analysis.tags.len() > 5
+            || analysis
+                .tags
+                .iter()
+                .any(|value| value.trim().is_empty() || value.chars().count() > 24)
+        {
+            return Err(format!("片段 {} 的标签无效。", analysis.segment_id));
+        }
+        if !allowed_categories.contains(&analysis.category.as_str()) {
+            return Err(format!("片段 {} 的镜头类型无效。", analysis.segment_id));
         }
     }
 
@@ -971,8 +1132,9 @@ mod tests {
     use super::{
         build_ai_client, build_ai_remix_variants, build_ai_request_body,
         build_chat_completions_url, is_retryable_service_response, parse_ai_http_error_detail,
-        parse_and_validate_analyses, parse_and_validate_shots, split_script_into_shots,
-        AiRemixSegmentInput, AiRemixVariantShotInput, AiRequestStage, MAX_SHOT_TEXT_CHARACTERS,
+        parse_and_validate_analyses, parse_and_validate_content_analyses, parse_and_validate_shots,
+        split_script_into_shots, AiRemixSegmentInput, AiRemixVariantShotInput, AiRequestStage,
+        MAX_SHOT_TEXT_CHARACTERS,
     };
     use serde_json::json;
     use std::{collections::HashSet, time::Duration};
@@ -1177,6 +1339,30 @@ mod tests {
         .unwrap();
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].segment_id, "segment-001");
+    }
+
+    #[test]
+    fn accepts_structured_content_analysis() {
+        let analyses = parse_and_validate_content_analyses(
+            r#"{"segments":[{"segmentId":"segment-001","theme":"清洁工具展示","sellingPoints":["刷头贴合缝隙"],"action":"手持工具刷洗水槽","tags":["清洁","水槽"],"category":"usage"},{"segmentId":"segment-002","theme":"清洁结果展示","sellingPoints":[],"action":"镜头展示整洁台面","tags":["清洁结果"],"category":"result"}]}"#,
+            &expected_ids(),
+        )
+        .unwrap();
+
+        assert_eq!(analyses.len(), 2);
+        assert_eq!(analyses[0].category, "usage");
+        assert_eq!(analyses[1].selling_points, Vec::<String>::new());
+    }
+
+    #[test]
+    fn rejects_unknown_content_category() {
+        let error = parse_and_validate_content_analyses(
+            r#"{"segments":[{"segmentId":"segment-001","theme":"清洁工具展示","sellingPoints":[],"action":"展示工具","tags":["清洁"],"category":"unknown"},{"segmentId":"segment-002","theme":"清洁结果","sellingPoints":[],"action":"展示台面","tags":["结果"],"category":"result"}]}"#,
+            &expected_ids(),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("镜头类型无效"));
     }
 
     #[test]
