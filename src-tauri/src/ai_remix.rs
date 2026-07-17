@@ -17,6 +17,7 @@ const ESTIMATED_SPEECH_CHARACTERS_PER_SECOND: f64 = 4.2;
 const ESTIMATED_SPEECH_TAIL_SECONDS: f64 = 0.35;
 const SAFE_VIDEO_MIN_PLAYBACK_RATE: f64 = 0.92;
 const SAFE_VIDEO_MAX_FREEZE_SECONDS: f64 = 0.8;
+const RETRYABLE_ERROR_PREFIX: &str = "__RETRYABLE_SERVICE_ERROR__:";
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -348,14 +349,24 @@ async fn request_ai_completion(
         .json(&build_ai_request_body(config.model, messages, max_tokens))
         .send()
         .await
-        .map_err(|error| format_ai_request_error(error, stage))?;
+        .map_err(|error| retryable_service_error(format_ai_request_error(error, stage)))?;
 
-    if !response.status().is_success() {
-        return Err(format!(
-            "{}请求失败（HTTP {}）。请检查 AI_BASE_URL、AI_MODEL、API Key 和账户额度。",
+    let status = response.status();
+    if !status.is_success() {
+        let response_body = response.text().await.unwrap_or_default();
+        let detail = parse_ai_http_error_detail(&response_body);
+        let message = format!(
+            "{}请求失败（HTTP {}）：{}",
             stage.label(),
-            response.status()
-        ));
+            status.as_u16(),
+            detail
+        );
+
+        return if is_retryable_service_response(status.as_u16(), &detail) {
+            Err(retryable_service_error(message))
+        } else {
+            Err(message)
+        };
     }
 
     let response_body = response
@@ -369,6 +380,56 @@ async fn request_ai_completion(
         .map(|choice| choice.message.content.trim().to_string())
         .filter(|content| !content.is_empty())
         .ok_or_else(|| "AI 没有返回有效结果。".to_string())
+}
+
+fn retryable_service_error(message: String) -> String {
+    format!("{RETRYABLE_ERROR_PREFIX}{message}")
+}
+
+fn is_retryable_service_response(status: u16, detail: &str) -> bool {
+    matches!(status, 408 | 425 | 429 | 500 | 502 | 503 | 504) && !indicates_exhausted_quota(detail)
+}
+
+fn indicates_exhausted_quota(detail: &str) -> bool {
+    let normalized = detail.to_ascii_lowercase();
+    [
+        "insufficient quota",
+        "quota exhausted",
+        "quota exceeded",
+        "insufficient balance",
+        "余额不足",
+        "额度不足",
+        "额度耗尽",
+    ]
+    .iter()
+    .any(|keyword| normalized.contains(keyword))
+}
+
+fn compact_ai_error_detail(value: &str) -> String {
+    let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return "请检查模型配置、API Key、账户额度和服务状态。".to_string();
+    }
+
+    normalized.chars().take(240).collect()
+}
+
+fn parse_ai_http_error_detail(body: &str) -> String {
+    serde_json::from_str::<Value>(body)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("error")
+                .and_then(|error| {
+                    error
+                        .get("message")
+                        .and_then(Value::as_str)
+                        .or_else(|| error.as_str())
+                })
+                .or_else(|| value.get("message").and_then(Value::as_str))
+                .map(compact_ai_error_detail)
+        })
+        .unwrap_or_else(|| "请检查模型配置、API Key、账户额度和服务状态。".to_string())
 }
 
 fn build_ai_request_body(model: String, messages: Value, max_tokens: u32) -> Value {
@@ -897,9 +958,9 @@ fn estimate_narration_duration(text: &str) -> f64 {
 mod tests {
     use super::{
         build_ai_client, build_ai_remix_variants, build_ai_request_body,
-        build_chat_completions_url, parse_and_validate_analyses, parse_and_validate_shots,
-        split_script_into_shots, AiRemixSegmentInput, AiRemixVariantShotInput, AiRequestStage,
-        MAX_SHOT_TEXT_CHARACTERS,
+        build_chat_completions_url, is_retryable_service_response, parse_ai_http_error_detail,
+        parse_and_validate_analyses, parse_and_validate_shots, split_script_into_shots,
+        AiRemixSegmentInput, AiRemixVariantShotInput, AiRequestStage, MAX_SHOT_TEXT_CHARACTERS,
     };
     use serde_json::json;
     use std::{collections::HashSet, time::Duration};
@@ -1057,6 +1118,29 @@ mod tests {
             AiRequestStage::RemixPlanning.timeout(),
             Duration::from_secs(45)
         );
+    }
+
+    #[test]
+    fn marks_temporary_ai_failures_as_retryable() {
+        assert!(is_retryable_service_response(429, "rate limit exceeded"));
+        assert!(is_retryable_service_response(503, "service unavailable"));
+        assert!(!is_retryable_service_response(401, "invalid api key"));
+    }
+
+    #[test]
+    fn does_not_retry_exhausted_ai_quota() {
+        assert!(!is_retryable_service_response(429, "insufficient quota"));
+        assert!(!is_retryable_service_response(429, "账户额度不足"));
+    }
+
+    #[test]
+    fn extracts_safe_ai_http_error_detail() {
+        let detail = parse_ai_http_error_detail(
+            r#"{"error":{"message":"rate limit exceeded"},"request":{"apiKey":"secret"}}"#,
+        );
+
+        assert_eq!(detail, "rate limit exceeded");
+        assert!(!detail.contains("secret"));
     }
 
     #[test]

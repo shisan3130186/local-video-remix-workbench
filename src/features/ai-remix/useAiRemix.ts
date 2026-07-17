@@ -3,6 +3,7 @@ import type { Ref } from "vue";
 import { concatSelectedSegments } from "../../services/videoMixService";
 import type { MixVideoResult, RemixExportSettings } from "../../services/videoMixService";
 import type { TaskLogLevel } from "../../types/workbench";
+import { runRetryableRequest } from "../../services/retryableRequest";
 import { planAiRemix } from "./services/aiRemixService";
 import {
   analyzeAiRemixSegmentDescriptions,
@@ -165,18 +166,30 @@ export function useAiRemix(options: UseAiRemixOptions) {
       );
 
       if (segmentsWithDescriptions.length !== aiPreparedSegments.value.length) {
-        throw new Error("仍有片段缺少画面描述，请重试。已成功识别的片段会继续保留。 ");
+        throw new Error("仍有片段在自动重试后缺少画面描述，请再次生成分镜；已成功识别的片段会继续保留。");
       }
 
       aiPlanningProgressText.value = "正在为软件自动断好的短句匹配画面...";
       options.appendAiRemixLog("片段画面理解完成，开始为固定短句匹配画面。", "info");
-      const result = await planAiRemix(
-        aiScript.value,
-        segmentsWithDescriptions.map((segment) => ({
-          segmentId: segment.segmentId,
-          durationSeconds: segment.durationSeconds,
-          description: segment.description as string,
-        })),
+      const result = await runRetryableRequest(
+        () =>
+          planAiRemix(
+            aiScript.value,
+            segmentsWithDescriptions.map((segment) => ({
+              segmentId: segment.segmentId,
+              durationSeconds: segment.durationSeconds,
+              description: segment.description as string,
+            })),
+          ),
+        {
+          onRetry({ nextAttempt, maxAttempts, delayMs, message }) {
+            aiPlanningProgressText.value = `AI 分镜临时失败，正在准备第 ${nextAttempt}/${maxAttempts} 次尝试...`;
+            options.appendAiRemixLog(
+              `固定短句画面匹配遇到临时故障，${Math.ceil(delayMs / 1000)} 秒后进行第 ${nextAttempt}/${maxAttempts} 次尝试：${message}`,
+              "info",
+            );
+          },
+        },
       );
       const plannedShots = createAiRemixPlannedShots(result, aiPreparedSegments.value);
 

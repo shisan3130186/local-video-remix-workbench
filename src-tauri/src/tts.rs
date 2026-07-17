@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 const TTS_ENDPOINT: &str = "https://openspeech.bytedance.com/api/v3/tts/unidirectional";
 const TTS_SUCCESS_CODE: i64 = 20_000_000;
+const RETRYABLE_ERROR_PREFIX: &str = "__RETRYABLE_SERVICE_ERROR__:";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -146,7 +147,7 @@ async fn request_tts_audio(
         .json(&build_tts_request_body(normalized_text, &config.speaker))
         .send()
         .await
-        .map_err(format_tts_request_error)?;
+        .map_err(|error| retryable_service_error(format_tts_request_error(error)))?;
 
     let status = response.status();
     let response_body = response
@@ -155,11 +156,18 @@ async fn request_tts_audio(
         .map_err(|error| format!("读取火山语音响应失败：{error}"))?;
 
     if !status.is_success() {
-        return Err(format!(
+        let detail = parse_http_error_detail(&response_body);
+        let message = format!(
             "火山语音服务请求失败（HTTP {}）：{}",
             status.as_u16(),
-            parse_http_error_detail(&response_body)
-        ));
+            detail
+        );
+
+        return if is_retryable_service_response(status.as_u16(), &detail) {
+            Err(retryable_service_error(message))
+        } else {
+            Err(message)
+        };
     }
 
     let parsed = parse_tts_response(&response_body)?;
@@ -168,6 +176,29 @@ async fn request_tts_audio(
     }
 
     Ok(parsed)
+}
+
+fn retryable_service_error(message: String) -> String {
+    format!("{RETRYABLE_ERROR_PREFIX}{message}")
+}
+
+fn is_retryable_service_response(status: u16, detail: &str) -> bool {
+    matches!(status, 408 | 425 | 429 | 500 | 502 | 503 | 504) && !indicates_exhausted_quota(detail)
+}
+
+fn indicates_exhausted_quota(detail: &str) -> bool {
+    let normalized = detail.to_ascii_lowercase();
+    [
+        "insufficient quota",
+        "quota exhausted",
+        "quota exceeded",
+        "insufficient balance",
+        "余额不足",
+        "额度不足",
+        "额度耗尽",
+    ]
+    .iter()
+    .any(|keyword| normalized.contains(keyword))
 }
 
 fn save_tts_result(
@@ -409,6 +440,19 @@ mod tests {
 
         assert_eq!(detail, "invalid api key");
         assert!(!detail.contains("private script"));
+    }
+
+    #[test]
+    fn marks_temporary_tts_failures_as_retryable() {
+        assert!(is_retryable_service_response(429, "rate limit exceeded"));
+        assert!(is_retryable_service_response(503, "service unavailable"));
+        assert!(!is_retryable_service_response(403, "invalid api key"));
+    }
+
+    #[test]
+    fn does_not_retry_exhausted_tts_quota() {
+        assert!(!is_retryable_service_response(429, "quota exhausted"));
+        assert!(!is_retryable_service_response(429, "余额不足"));
     }
 
     #[test]

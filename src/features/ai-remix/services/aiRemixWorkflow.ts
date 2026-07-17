@@ -1,6 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { readVideoMetadata } from "../../../services/videoProbeService";
 import { generateThumbnail } from "../../../services/videoThumbnailService";
+import { runRetryableRequest } from "../../../services/retryableRequest";
 import type { TaskLogLevel } from "../../../types/workbench";
 import { analyzeAiRemixSegments, buildAiRemixVariants } from "./aiRemixService";
 import type {
@@ -84,6 +85,7 @@ export async function analyzeAiRemixSegmentDescriptions(
   const batches = pendingSegments.map((segment) => [segment]);
   let completedCount = segments.length - pendingSegments.length;
   let updatedSegments = segments;
+  const failedAnalyses: string[] = [];
   updateProgress(`正在理解片段画面 ${completedCount}/${segments.length}`);
   appendLog(
     `开始分批理解 ${pendingSegments.length} 个片段画面：每次只发送 1 张预览图，最多同时处理 2 张。`,
@@ -98,15 +100,28 @@ export async function analyzeAiRemixSegmentDescriptions(
       "info",
     );
     const results = await Promise.allSettled(
-      wave.map((batch) =>
-        analyzeAiRemixSegments(
-          batch.map((segment) => ({
-            segmentId: segment.segmentId,
-            durationSeconds: segment.durationSeconds,
-            thumbnailPath: segment.thumbnailPath,
-          })),
-        ),
-      ),
+      wave.map((batch) => {
+        const batchLabel = batch.map((segment) => segment.segmentId).join("、");
+        return runRetryableRequest(
+          () =>
+            analyzeAiRemixSegments(
+              batch.map((segment) => ({
+                segmentId: segment.segmentId,
+                durationSeconds: segment.durationSeconds,
+                thumbnailPath: segment.thumbnailPath,
+              })),
+            ),
+          {
+            onRetry({ nextAttempt, maxAttempts, delayMs, message }) {
+              updateProgress(`正在重试片段画面理解 ${nextAttempt}/${maxAttempts}`);
+              appendLog(
+                `${batchLabel} 画面理解遇到临时故障，${Math.ceil(delayMs / 1000)} 秒后进行第 ${nextAttempt}/${maxAttempts} 次尝试：${message}`,
+                "info",
+              );
+            },
+          },
+        );
+      }),
     );
     const descriptions = new Map<string, string>();
     const errors: string[] = [];
@@ -142,8 +157,15 @@ export async function analyzeAiRemixSegmentDescriptions(
     );
 
     if (errors.length > 0) {
-      throw new Error(`部分片段理解失败：${errors[0]}`);
+      failedAnalyses.push(...errors);
     }
+  }
+
+  if (failedAnalyses.length > 0) {
+    appendLog(
+      `本轮有 ${failedAnalyses.length} 个片段在自动重试后仍未完成，已保留其他成功结果；再次生成分镜时只会补失败片段。`,
+      "error",
+    );
   }
 
   return updatedSegments;

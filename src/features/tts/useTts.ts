@@ -2,6 +2,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { computed, ref } from "vue";
 import type { Ref } from "vue";
 import type { MixVideoResult, RemixExportSettings } from "../../services/videoMixService";
+import { runRetryableRequest } from "../../services/retryableRequest";
 import {
   cleanupTtsSession,
   concatNarratedSegments,
@@ -110,10 +111,21 @@ export function useTts(options: UseTtsOptions) {
     options.appendLog(`正在生成TTS配音，共 ${normalizedText.length} 个字符。`, "info");
 
     try {
-      const result = await synthesizeTts(
-        normalizedText,
-        options.outputDirectory.value,
-        normalizedSpeaker,
+      const result = await runRetryableRequest(
+        () =>
+          synthesizeTts(
+            normalizedText,
+            options.outputDirectory.value as string,
+            normalizedSpeaker,
+          ),
+        {
+          onRetry({ nextAttempt, maxAttempts, delayMs, message }) {
+            options.appendLog(
+              `TTS 遇到临时故障，${Math.ceil(delayMs / 1000)} 秒后进行第 ${nextAttempt}/${maxAttempts} 次尝试：${message}`,
+              "info",
+            );
+          },
+        },
       );
       ttsResult.value = result;
       speaker.value = result.speaker;
@@ -206,11 +218,23 @@ export function useTts(options: UseTtsOptions) {
     try {
       for (const [index, shot] of shots.entries()) {
         narrationProgressText.value = `正在生成第 ${index + 1}/${shots.length} 句配音...`;
-        const result = await synthesizeTtsShot(
-          shot.text,
-          normalizedSpeaker,
-          sessionId,
-          index + 1,
+        const result = await runRetryableRequest(
+          () =>
+            synthesizeTtsShot(
+              shot.text,
+              normalizedSpeaker,
+              sessionId,
+              index + 1,
+            ),
+          {
+            onRetry({ nextAttempt, maxAttempts, delayMs, message }) {
+              narrationProgressText.value = `第 ${index + 1}/${shots.length} 句配音临时失败，正在准备第 ${nextAttempt}/${maxAttempts} 次尝试...`;
+              options.appendLog(
+                `第 ${index + 1}/${shots.length} 句配音遇到临时故障，${Math.ceil(delayMs / 1000)} 秒后进行第 ${nextAttempt}/${maxAttempts} 次尝试：${message}`,
+                "info",
+              );
+            },
+          },
         );
         narrationPaths.push(result.outputPath);
         options.appendLog(`第 ${index + 1}/${shots.length} 句配音生成完成。`, "success");
