@@ -1,5 +1,6 @@
 mod ai_remix;
 mod api_config;
+mod material_library;
 mod project_snapshot;
 mod task_runtime;
 mod temp_storage;
@@ -16,6 +17,11 @@ use api_config::{
     delete_api_credential as remove_api_credential,
     get_api_config_status as read_api_config_status, save_api_config as store_api_config,
     ApiConfigInput, ApiConfigStatus, ApiCredentialKind,
+};
+use material_library::{
+    load_material_library as read_material_library,
+    save_material_library as store_material_library, MaterialLibraryLoadResult,
+    MaterialLibrarySnapshot,
 };
 use project_snapshot::{
     delete_project_snapshot as remove_project_snapshot,
@@ -263,6 +269,16 @@ fn delete_project_snapshot() -> Result<(), String> {
 }
 
 #[tauri::command]
+fn load_material_library() -> Result<MaterialLibraryLoadResult, String> {
+    read_material_library()
+}
+
+#[tauri::command]
+fn save_material_library(snapshot: MaterialLibrarySnapshot) -> Result<(), String> {
+    store_material_library(snapshot)
+}
+
+#[tauri::command]
 async fn synthesize_tts(
     text: String,
     output_directory: String,
@@ -339,11 +355,13 @@ pub fn run() {
             get_api_config_status,
             is_existing_directory,
             list_video_files_in_folder,
+            load_material_library,
             load_project_snapshot,
             open_path_in_file_manager,
             plan_ai_remix,
             read_video_metadata,
             save_api_config,
+            save_material_library,
             save_project_snapshot,
             split_current_video,
             synthesize_tts,

@@ -81,6 +81,15 @@
   line-height: 1.7;
 }
 
+.project-recovery-discard-note {
+  padding: 10px 12px;
+  border-left: 3px solid #4e645d;
+  color: #9eaca7;
+  background: #151918;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
 .project-recovery-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

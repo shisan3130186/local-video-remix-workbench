@@ -79,6 +79,9 @@ function formatFileName(path: string) {
         <p class="project-recovery-copy">
           软件在 {{ formatSavedAt(snapshot.savedAt) }} 自动保存了工作进度。恢复不会复制素材，也不会读取或保存API密钥。
         </p>
+        <p class="project-recovery-discard-note">
+          选择“新建空白项目”后不会自动载入本机素材库；素材库仍会保留，可稍后从左侧手动载入，也不会删除电脑中的原视频。
+        </p>
 
         <div class="project-recovery-summary" aria-label="上次项目摘要">
           <span v-for="item in summaryItems" :key="item">{{ item }}</span>
@@ -100,7 +103,7 @@ function formatFileName(path: string) {
 
       <footer class="project-recovery-actions">
         <button type="button" class="secondary-button" :disabled="isRestoring" @click="emit('discard')">
-          {{ loadError ? "清除记录并继续" : "放弃上次记录" }}
+          {{ loadError ? "清除记录并新建" : "新建空白项目" }}
         </button>
         <button
           v-if="!loadError"

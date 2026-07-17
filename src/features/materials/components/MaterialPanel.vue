@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import type { SegmentCategory, SegmentCategoryOption } from "../../../services/videoMixService";
+import type { MaterialLibraryMaterial } from "../../material-library";
 import type { ImportedVideo } from "../../../types/videoProbe";
 
 const props = defineProps<{
@@ -18,6 +19,13 @@ const props = defineProps<{
   segmentCategoryOptions: SegmentCategoryOption[];
   videoCoverUrls: Record<string, string>;
   segmentThumbnailUrls: Record<string, string>;
+  materialLibraryStatusText: string;
+  materialLibraryError: string | null;
+  hasAvailableMaterialLibrary: boolean;
+  isLoadingMaterialLibrary: boolean;
+  missingMaterials: MaterialLibraryMaterial[];
+  missingSegmentCount: number;
+  relinkingMaterialPath: string | null;
   formatDuration: (durationSeconds: number | null) => string;
   formatResolution: (video: ImportedVideo) => string;
   formatFileName: (path: string) => string;
@@ -31,6 +39,8 @@ const emit = defineEmits<{
   selectOutputDirectory: [];
   openOutputDirectory: [];
   updateSegmentCategory: [segmentPath: string, category: SegmentCategory | ""];
+  relinkMissingMaterial: [filePath: string];
+  loadMaterialLibrary: [];
 }>();
 
 const activeTab = ref<"materials" | "segments">("materials");
@@ -62,6 +72,51 @@ function updateCategory(event: Event, segmentPath: string) {
           <h2>素材库</h2>
         </div>
         <span class="count-badge">{{ importedVideos.length }} 个视频</span>
+      </div>
+
+      <div class="material-library-meta">
+        <div class="material-library-persistence" role="status">
+          <span aria-hidden="true">◉</span>
+          <p>{{ materialLibraryStatusText }}</p>
+          <button
+            v-if="hasAvailableMaterialLibrary && importedVideos.length === 0 && splitSegmentPaths.length === 0"
+            class="panel-toggle"
+            type="button"
+            :disabled="isLoadingMaterialLibrary"
+            @click="$emit('loadMaterialLibrary')"
+          >
+            {{ isLoadingMaterialLibrary ? "正在读取..." : "载入素材库" }}
+          </button>
+        </div>
+        <p v-if="materialLibraryError" class="error-text">{{ materialLibraryError }}</p>
+
+        <details
+          v-if="missingMaterials.length > 0 || missingSegmentCount > 0"
+          class="missing-materials"
+        >
+          <summary>
+            {{ missingMaterials.length }} 个原视频失效
+            <span v-if="missingSegmentCount > 0">，{{ missingSegmentCount }} 个切片失效</span>
+          </summary>
+          <p>文件可能被移动或删除。重新选择对应视频后，素材库会记住新位置。</p>
+          <ul v-if="missingMaterials.length > 0">
+            <li v-for="material in missingMaterials" :key="material.video.filePath">
+              <span>
+                <strong>{{ material.video.fileName }}</strong>
+                <small>{{ material.video.filePath }}</small>
+              </span>
+              <button
+                class="panel-toggle"
+                type="button"
+                :disabled="Boolean(relinkingMaterialPath)"
+                @click="$emit('relinkMissingMaterial', material.video.filePath)"
+              >
+                {{ relinkingMaterialPath === material.video.filePath ? "正在读取..." : "重新定位" }}
+              </button>
+            </li>
+          </ul>
+          <p v-if="missingSegmentCount > 0">失效切片不会载入，需要时重新执行切片即可。</p>
+        </details>
       </div>
 
       <div class="library-tabs" role="tablist" aria-label="素材类型">
@@ -98,8 +153,10 @@ function updateCategory(event: Event, segmentPath: string) {
         <p v-if="importError" class="error-text">{{ importError }}</p>
         <div v-else-if="importedVideos.length === 0" class="empty-state material-empty-state">
           <span class="empty-state__icon" aria-hidden="true">＋</span>
-          <strong>先添加用于混剪的视频</strong>
-          <p>支持一次导入多个视频或整个素材文件夹。</p>
+          <strong>{{ hasAvailableMaterialLibrary ? "当前是空白项目" : "先添加用于混剪的视频" }}</strong>
+          <p>
+            {{ hasAvailableMaterialLibrary ? "可载入本机素材库，或导入一批新视频。" : "支持一次导入多个视频或整个素材文件夹。" }}
+          </p>
         </div>
 
         <div v-else class="asset-tree">

@@ -452,6 +452,14 @@ export function useAiRemix(options: UseAiRemixOptions) {
     failedAiVariants.value = [];
   }
 
+  function restoreAiPreparedSegments(preparedSegments: AiRemixSegment[]) {
+    aiPreparedSegments.value = preparedSegments;
+    aiPlannedShots.value = [];
+    aiPreparationError.value = null;
+    aiPlanError.value = null;
+    aiPlanningProgressText.value = null;
+  }
+
   return {
     aiGenerateError,
     aiGenerateCount,
@@ -478,6 +486,7 @@ export function useAiRemix(options: UseAiRemixOptions) {
     requestAiRemixPlan,
     retryFailedAiRemixVideos,
     resetAiRemixState,
+    restoreAiPreparedSegments,
     restoreAiRemixState,
   };
 }

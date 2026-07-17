@@ -247,8 +247,26 @@ export function useMaterials(options: UseMaterialsOptions) {
     }
   }
 
+  function addRelinkedMaterial(video: ImportedVideo, coverPath: string | null) {
+    importedVideos.value = [
+      ...importedVideos.value.filter((item) => item.filePath !== video.filePath),
+      video,
+    ];
+    if (coverPath) {
+      covers.videoCoverPaths.value = {
+        ...covers.videoCoverPaths.value,
+        [video.id]: coverPath,
+      };
+    }
+    if (!selectedVideo.value) {
+      selectedVideo.value = video;
+      covers.selectVideoCover(video);
+    }
+  }
+
   return {
     ...covers,
+    addRelinkedMaterial,
     importError,
     importedVideos,
     importVideoFolder,

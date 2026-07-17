@@ -17,6 +17,12 @@ import {
 import { useRemixSettings } from "./composables/useRemixSettings";
 import { useTaskLogs } from "./composables/useTaskLogs";
 import { useAiRemix } from "./features/ai-remix";
+import {
+  buildMaterialLibraryState,
+  sanitizeMaterialLibrarySnapshot,
+  useMaterialLibrary,
+} from "./features/material-library";
+import type { MaterialLibraryState } from "./features/material-library";
 import { MaterialPanel, useMaterials } from "./features/materials";
 import {
   BatchResultDrawer,
@@ -124,6 +130,7 @@ const {
 } = useRemixSettings();
 
 const {
+  addRelinkedMaterial,
   coverError,
   coverFrameSeconds,
   generateCoverFrame,
@@ -229,6 +236,7 @@ const {
   replaceAiRemixShotSegment,
   requestAiRemixPlan,
   resetAiRemixState,
+  restoreAiPreparedSegments,
   retryFailedAiRemixVideos,
   restoreAiRemixState,
 } = useAiRemix({
@@ -298,6 +306,57 @@ const {
   formatCanvasLog: formatRemixCanvasLog,
   formatSmoothLog: formatSmoothRemixLog,
   runTask,
+});
+
+const materialLibraryState = computed(
+  (): MaterialLibraryState =>
+    buildMaterialLibraryState({
+      importedVideos: importedVideos.value,
+      selectedVideoPath: selectedVideo.value?.filePath ?? null,
+      segmentDurationSeconds: segmentDurationSeconds.value,
+      splitOutputDirectory: splitOutputDirectory.value,
+      selectedSegmentPath: selectedSegmentPath.value,
+      coverFrameSeconds: coverFrameSeconds.value,
+      videoCoverPaths: videoCoverPaths.value,
+      splitSegmentPaths: splitSegmentPaths.value,
+      segmentCategories: segmentCategories.value,
+      segmentThumbnailPaths: segmentThumbnailPaths.value,
+      preparedSegments: aiPreparedSegments.value,
+    }),
+);
+
+const {
+  activateWithCurrentState: activateMaterialLibrary,
+  hasAvailableLibrary,
+  inspectLibrary: inspectMaterialLibrary,
+  isLoadingLibrary: isLoadingMaterialLibrary,
+  loadAvailableLibrary,
+  loadError: materialLibraryLoadError,
+  missingMaterials,
+  missingSegmentCount,
+  relinkingPath: relinkingMaterialPath,
+  relinkMissingMaterial,
+  saveError: materialLibrarySaveError,
+  statusText: materialLibraryStatusText,
+} = useMaterialLibrary({
+  currentState: materialLibraryState,
+  applySnapshot(snapshot, missingFilePaths) {
+    const sanitized = sanitizeMaterialLibrarySnapshot(snapshot, missingFilePaths);
+    restoreMaterials(sanitized.materials);
+    restoreAiPreparedSegments(sanitized.preparedSegments);
+    appendSplitLog(
+      `本地素材库已载入：${sanitized.restoredMaterials} 个视频、${sanitized.restoredSegments} 个片段。`,
+      "success",
+    );
+    return {
+      restoredMaterials: sanitized.restoredMaterials,
+      restoredSegments: sanitized.restoredSegments,
+    };
+  },
+  onMaterialRelinked(_missingMaterial, replacement) {
+    addRelinkedMaterial(replacement.video, replacement.coverPath);
+    appendSplitLog(`失效素材已重新定位：${replacement.video.fileName}`, "success");
+  },
 });
 
 const projectState = computed(
@@ -388,6 +447,7 @@ const {
     );
     restoreRemixSettings(sanitized.project.remixSettings);
     restoreTtsSettings(sanitized.project.tts);
+    activateMaterialLibrary();
     resetRandomPickState();
     isWorkspaceVisible.value = true;
 
@@ -395,7 +455,15 @@ const {
     sanitized.notices.forEach((notice) => appendSplitLog(notice, "error"));
     return sanitized.notices;
   },
+  onNoSnapshot: inspectMaterialLibrary,
 });
+
+async function discardProjectSnapshotAndStartBlank() {
+  await discardPendingSnapshot();
+  if (!pendingProjectSnapshot.value) {
+    await inspectMaterialLibrary();
+  }
+}
 
 const isGeneratingCurrentAiVideo = computed(
   () =>
@@ -1102,6 +1170,13 @@ onMounted(() => {
         :segment-category-options="segmentCategoryOptions"
         :video-cover-urls="videoCoverUrls"
         :segment-thumbnail-urls="segmentThumbnailUrls"
+        :material-library-status-text="materialLibraryStatusText"
+        :material-library-error="materialLibraryLoadError ?? materialLibrarySaveError"
+        :has-available-material-library="hasAvailableLibrary"
+        :is-loading-material-library="isLoadingMaterialLibrary"
+        :missing-materials="missingMaterials"
+        :missing-segment-count="missingSegmentCount"
+        :relinking-material-path="relinkingMaterialPath"
         :format-duration="formatDuration"
         :format-resolution="formatResolution"
         :format-file-name="formatFileName"
@@ -1112,6 +1187,8 @@ onMounted(() => {
         @select-output-directory="selectOutputDirectory"
         @open-output-directory="openOutputDirectory"
         @update-segment-category="updateSegmentCategory"
+        @relink-missing-material="relinkMissingMaterial"
+        @load-material-library="loadAvailableLibrary"
       />
 
       <PreviewPanel
@@ -1336,7 +1413,7 @@ onMounted(() => {
       :restore-error="projectRecoveryError"
       :is-restoring="isRestoringProject"
       @restore="restorePendingSnapshot"
-      @discard="discardPendingSnapshot"
+      @discard="discardProjectSnapshotAndStartBlank"
     />
     <ExportResultDrawer
       :open="activeDrawer === 'exports'"

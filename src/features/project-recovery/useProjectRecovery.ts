@@ -20,6 +20,7 @@ interface UseProjectRecoveryOptions {
   projectState: Readonly<Ref<ProjectStateSnapshot>>;
   hasMeaningfulState: () => boolean;
   applySnapshot: (result: ProjectSnapshotLoadResult) => string[];
+  onNoSnapshot?: () => Promise<void>;
 }
 
 const AUTO_SAVE_DELAY_MS = 1200;
@@ -75,6 +76,7 @@ export function useProjectRecovery(options: UseProjectRecoveryOptions) {
         return;
       }
 
+      await options.onNoSnapshot?.();
       enableAutoSave();
     } catch (error) {
       loadError.value = formatError(error, "读取上次项目失败。");
