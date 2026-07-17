@@ -1,5 +1,6 @@
 import { readVideoMetadata } from "../../../services/videoProbeService";
 import type { ImportedVideo } from "../../../types/videoProbe";
+import type { TaskRunHandle } from "../../task-center";
 import { splitCurrentVideo } from "./materialService";
 
 interface SplitImportedVideosOptions {
@@ -7,6 +8,7 @@ interface SplitImportedVideosOptions {
   outputDirectory: string;
   segmentDurationSeconds: number;
   appendLog: (message: string, level: "info" | "success" | "error") => void;
+  task: TaskRunHandle;
 }
 
 export interface SplitImportedVideosResult {
@@ -32,11 +34,13 @@ export async function splitImportedVideos({
   outputDirectory,
   segmentDurationSeconds,
   appendLog,
+  task,
 }: SplitImportedVideosOptions): Promise<SplitImportedVideosResult> {
   const segmentPaths: string[] = [];
   const failedVideoNames: string[] = [];
 
   for (const [index, video] of videos.entries()) {
+    task.throwIfCancelled();
     appendLog(`正在切片 ${index + 1}/${videos.length}：${video.fileName}`, "info");
 
     try {
@@ -44,6 +48,12 @@ export async function splitImportedVideos({
         video.filePath,
         outputDirectory,
         segmentDurationSeconds,
+        video.durationSeconds,
+        task.progress(
+          (index / videos.length) * 70,
+          ((index + 1) / videos.length) * 70,
+          `正在切片 ${index + 1}/${videos.length}：${video.fileName}`,
+        ),
       );
       segmentPaths.push(...result.segmentPaths);
       appendLog(`${video.fileName} 切片完成：${result.segmentCount} 个片段。`, "success");

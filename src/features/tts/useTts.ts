@@ -22,6 +22,8 @@ import type {
   TtsSynthesisResult,
 } from "./types";
 import type { ProjectTtsSnapshot } from "../project-recovery/types";
+import { isTaskCancelledError } from "../task-center";
+import type { TaskRunHandle } from "../task-center";
 
 interface UseTtsOptions {
   text: Ref<string>;
@@ -33,6 +35,7 @@ interface UseTtsOptions {
   onGenerated: (result: MixVideoResult) => void;
   formatCanvasLog: (result: MixVideoResult) => string;
   formatSmoothLog: (result: MixVideoResult) => string;
+  runTask: <T>(label: string, runner: (task: TaskRunHandle) => Promise<T>) => Promise<T>;
 }
 
 const FALLBACK_RESOURCE_ID = "seed-tts-2.0";
@@ -55,6 +58,7 @@ export function useTts(options: UseTtsOptions) {
   const narratedVideoSummaryText = ref<string | null>(null);
   const narratedVideoResults = ref<string[]>([]);
   const narratedVideoFailures = ref<NarratedVideoFailure[]>([]);
+  const failedNarratedVariants = ref<NarratedShotSource[][]>([]);
   const ttsResult = ref<TtsSynthesisResult | null>(null);
   const ttsVideoEnabled = ref(false);
   const ttsKeepOriginalAudio = ref(false);
@@ -152,13 +156,17 @@ export function useTts(options: UseTtsOptions) {
   async function generateNarratedVideos(
     variants: NarratedShotSource[][],
     settings: RemixExportSettings,
+    preserveSuccessfulResults = false,
   ) {
     options.clearLogs();
     narratedVideoError.value = null;
     narrationProgressText.value = null;
     narratedVideoSummaryText.value = null;
-    narratedVideoResults.value = [];
+    if (!preserveSuccessfulResults) {
+      narratedVideoResults.value = [];
+    }
     narratedVideoFailures.value = [];
+    failedNarratedVariants.value = [];
 
     const shots = variants[0] ?? [];
 
@@ -217,7 +225,11 @@ export function useTts(options: UseTtsOptions) {
     );
 
     try {
+      await options.runTask(
+        preserveSuccessfulResults ? "重试失败的AI配音视频" : "生成AI配音视频",
+        async (task) => {
       for (const [index, shot] of shots.entries()) {
+        task.throwIfCancelled();
         narrationProgressText.value = `正在生成第 ${index + 1}/${shots.length} 句配音...`;
         const result = await runRetryableRequest(
           () =>
@@ -229,6 +241,7 @@ export function useTts(options: UseTtsOptions) {
             ),
           {
             onRetry({ nextAttempt, maxAttempts, delayMs, message }) {
+              task.throwIfCancelled();
               narrationProgressText.value = `第 ${index + 1}/${shots.length} 句配音临时失败，正在准备第 ${nextAttempt}/${maxAttempts} 次尝试...`;
               options.appendLog(
                 `第 ${index + 1}/${shots.length} 句配音遇到临时故障，${Math.ceil(delayMs / 1000)} 秒后进行第 ${nextAttempt}/${maxAttempts} 次尝试：${message}`,
@@ -239,6 +252,10 @@ export function useTts(options: UseTtsOptions) {
         );
         narrationPaths.push(result.outputPath);
         options.appendLog(`第 ${index + 1}/${shots.length} 句配音生成完成。`, "success");
+        await task.update(
+          ((index + 1) / shots.length) * 30,
+          `正在生成配音 ${index + 1}/${shots.length}`,
+        );
       }
 
       options.appendLog(
@@ -247,6 +264,7 @@ export function useTts(options: UseTtsOptions) {
       );
 
       for (const [variantIndex, variant] of variants.entries()) {
+        task.throwIfCancelled();
         narrationProgressText.value = `正在生成第 ${variantIndex + 1}/${variants.length} 条带配音视频...`;
         const narratedSegments: NarratedSegmentInput[] = variant.map((shot, shotIndex) => ({
           videoPath: shot.segmentPath,
@@ -259,7 +277,7 @@ export function useTts(options: UseTtsOptions) {
         try {
           const result = await concatNarratedSegments(
             narratedSegments,
-            options.outputDirectory.value,
+            options.outputDirectory.value as string,
             settings,
             buildNarratedAudioSettings(
               ttsKeepOriginalAudio.value,
@@ -269,6 +287,11 @@ export function useTts(options: UseTtsOptions) {
               ttsSubtitleEnabled.value,
               ttsSubtitlePosition.value,
               ttsSubtitleSize.value,
+            ),
+            task.progress(
+              30 + (variantIndex / variants.length) * 70,
+              30 + ((variantIndex + 1) / variants.length) * 70,
+              `正在生成AI配音视频 ${variantIndex + 1}/${variants.length}`,
             ),
           );
           narratedVideoResults.value.push(result.outputPath);
@@ -280,17 +303,21 @@ export function useTts(options: UseTtsOptions) {
             "success",
           );
         } catch (error) {
+          if (isTaskCancelledError(error)) throw error;
           const message = formatError(error, "生成带 AI 配音视频失败。");
           narratedVideoFailures.value.push({
             version: variantIndex + 1,
             message,
           });
+          failedNarratedVariants.value.push(variant);
           options.appendLog(
             `第 ${variantIndex + 1}/${variants.length} 条带 AI 配音视频生成失败，继续生成下一条：${message}`,
             "error",
           );
         }
       }
+        },
+      );
 
       const successCount = narratedVideoResults.value.length;
       const failureCount = narratedVideoFailures.value.length;
@@ -305,8 +332,13 @@ export function useTts(options: UseTtsOptions) {
         failureCount > 0 ? "error" : "success",
       );
     } catch (error) {
-      narratedVideoError.value = formatError(error, "生成带AI配音视频失败。");
-      options.appendLog(narratedVideoError.value, "error");
+      if (isTaskCancelledError(error)) {
+        narratedVideoError.value = "AI配音视频任务已取消，已完成的结果会保留。";
+        options.appendLog(narratedVideoError.value, "info");
+      } else {
+        narratedVideoError.value = formatError(error, "生成带AI配音视频失败。");
+        options.appendLog(narratedVideoError.value, "error");
+      }
     } finally {
       try {
         await cleanupTtsSession(sessionId);
@@ -319,6 +351,16 @@ export function useTts(options: UseTtsOptions) {
     }
   }
 
+  async function retryFailedNarratedVideos(settings: RemixExportSettings) {
+    if (failedNarratedVariants.value.length === 0) return;
+    const variants = failedNarratedVariants.value.map((variant) => [...variant]);
+    options.appendLog(
+      `开始重试 ${variants.length} 条失败的AI配音视频，成功结果不会重复生成。`,
+      "info",
+    );
+    await generateNarratedVideos(variants, settings, true);
+  }
+
   function resetTtsSettings() {
     speaker.value = config.value.speaker || FALLBACK_SPEAKER;
     ttsError.value = null;
@@ -327,6 +369,7 @@ export function useTts(options: UseTtsOptions) {
     narratedVideoSummaryText.value = null;
     narratedVideoResults.value = [];
     narratedVideoFailures.value = [];
+    failedNarratedVariants.value = [];
     ttsResult.value = null;
     ttsVideoEnabled.value = false;
     ttsKeepOriginalAudio.value = false;
@@ -350,6 +393,7 @@ export function useTts(options: UseTtsOptions) {
     narratedVideoSummaryText.value = null;
     narratedVideoResults.value = [];
     narratedVideoFailures.value = [];
+    failedNarratedVariants.value = [];
     ttsResult.value = null;
   }
 
@@ -357,6 +401,7 @@ export function useTts(options: UseTtsOptions) {
     generateTts,
     generateNarratedVideo,
     generateNarratedVideos,
+    retryFailedNarratedVideos,
     isGeneratingNarratedVideo,
     isGeneratingTts,
     isLoadingTtsConfig: isLoadingConfig,

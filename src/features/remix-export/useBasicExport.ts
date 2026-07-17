@@ -3,6 +3,8 @@ import type { Ref } from "vue";
 import type { CanvasAspectRatio, CanvasBackgroundMode } from "../../services/videoMixService";
 import type { ImportedVideo } from "../../types/videoProbe";
 import type { TaskLogLevel } from "../../types/workbench";
+import { isTaskCancelledError } from "../task-center";
+import type { TaskRunHandle } from "../task-center";
 import { exportCurrentVideo } from "./services/remixExportService";
 
 interface UseBasicExportOptions {
@@ -13,6 +15,7 @@ interface UseBasicExportOptions {
   appendExportLog: (message: string, level: TaskLogLevel) => void;
   clearExportLogs: () => void;
   addExportResult: (type: "基础导出", path: string) => void;
+  runTask: <T>(label: string, runner: (task: TaskRunHandle) => Promise<T>) => Promise<T>;
 }
 
 export function useBasicExport(options: UseBasicExportOptions) {
@@ -42,16 +45,25 @@ export function useBasicExport(options: UseBasicExportOptions) {
     isExporting.value = true;
 
     try {
-      const result = await exportCurrentVideo(
-        options.selectedVideo.value.filePath,
-        options.outputDirectory.value,
-        options.canvasAspectRatio.value,
-        options.canvasBackgroundMode.value,
+      const result = await options.runTask("导出当前视频", (task) =>
+        exportCurrentVideo(
+          options.selectedVideo.value?.filePath as string,
+          options.outputDirectory.value as string,
+          options.canvasAspectRatio.value,
+          options.canvasBackgroundMode.value,
+          options.selectedVideo.value?.durationSeconds ?? null,
+          task.progress(0, 100, "正在导出当前视频"),
+        ),
       );
       exportResultPath.value = result.outputPath;
       options.addExportResult("基础导出", result.outputPath);
       options.appendExportLog(`导出成功：${result.outputPath}`, "success");
     } catch (error) {
+      if (isTaskCancelledError(error)) {
+        exportError.value = "导出任务已取消，可以重新开始。";
+        options.appendExportLog(exportError.value, "info");
+        return;
+      }
       exportError.value =
         error instanceof Error ? error.message : String(error ?? "视频导出失败。");
       options.appendExportLog(`导出失败：${exportError.value}`, "error");

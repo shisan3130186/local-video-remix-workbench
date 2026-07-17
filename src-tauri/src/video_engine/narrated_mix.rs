@@ -1,14 +1,13 @@
+use crate::task_runtime::{run_ffmpeg, TaskProgressContext};
+use crate::temp_storage::TaskTempDirectory;
 use crate::video_engine::mix::{concat_narrated_prepared_segments, MixVideoResult, RemixSettings};
 use crate::video_engine::subtitle::{
     ensure_ass_filter_available, prepare_ass_subtitle, NarratedSubtitleSettings,
 };
-use crate::video_engine::tool_paths::{ffmpeg_program, ffprobe_program};
+use crate::video_engine::tool_paths::ffprobe_program;
 use serde::Deserialize;
-use std::env;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
-use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,6 +55,7 @@ pub fn concat_narrated_segments(
     settings: RemixSettings,
     audio_settings: NarratedAudioSettings,
     subtitle_settings: NarratedSubtitleSettings,
+    task_context: Option<TaskProgressContext>,
 ) -> Result<MixVideoResult, String> {
     if segments.len() < 2 {
         return Err("至少需要 2 个带配音分镜才能生成视频。".to_string());
@@ -90,20 +90,16 @@ pub fn concat_narrated_segments(
         }
     }
 
-    let session_dir = narrated_session_directory();
-    fs::create_dir_all(&session_dir)
-        .map_err(|error| format!("无法创建配音混剪临时目录：{error}"))?;
-
-    let result = prepare_and_concat_narrated_segments(
+    let session_dir = TaskTempDirectory::create("narrated")?;
+    prepare_and_concat_narrated_segments(
         &segments,
-        &session_dir,
+        session_dir.path(),
         output_directory,
         settings,
         audio_settings,
         subtitle_settings,
-    );
-    let _ = fs::remove_dir_all(session_dir);
-    result
+        task_context,
+    )
 }
 
 fn prepare_and_concat_narrated_segments(
@@ -113,17 +109,34 @@ fn prepare_and_concat_narrated_segments(
     settings: RemixSettings,
     audio_settings: NarratedAudioSettings,
     subtitle_settings: NarratedSubtitleSettings,
+    task_context: Option<TaskProgressContext>,
 ) -> Result<MixVideoResult, String> {
     let mut prepared_paths = Vec::with_capacity(segments.len());
 
     for (index, segment) in segments.iter().enumerate() {
         let output_path = session_dir.join(format!("narrated_{index:03}.mp4"));
-        create_narrated_segment(segment, &output_path, audio_settings, subtitle_settings)
-            .map_err(|error| format!("第 {} 个分镜处理失败：{error}", index + 1))?;
+        let segment_context = task_context.as_ref().map(|context| {
+            context.child(
+                0.7 * index as f64 / segments.len() as f64,
+                0.7 * (index + 1) as f64 / segments.len() as f64,
+                format!("正在处理配音分镜 {}/{}", index + 1, segments.len()),
+            )
+        });
+        create_narrated_segment(
+            segment,
+            &output_path,
+            audio_settings,
+            subtitle_settings,
+            segment_context.as_ref(),
+        )
+        .map_err(|error| format!("第 {} 个分镜处理失败：{error}", index + 1))?;
         prepared_paths.push(output_path.to_string_lossy().to_string());
     }
 
-    concat_narrated_prepared_segments(prepared_paths, output_directory, settings)
+    let final_context = task_context
+        .as_ref()
+        .map(|context| context.child(0.7, 1.0, "正在合成带配音视频"));
+    concat_narrated_prepared_segments(prepared_paths, output_directory, settings, final_context)
 }
 
 fn create_narrated_segment(
@@ -131,6 +144,7 @@ fn create_narrated_segment(
     output_path: &Path,
     audio_settings: NarratedAudioSettings,
     subtitle_settings: NarratedSubtitleSettings,
+    task_context: Option<&TaskProgressContext>,
 ) -> Result<(), String> {
     let narration_duration = probe_media_duration(&segment.narration_path, "分镜配音")?;
     let selected_video = select_narrated_video(segment, narration_duration)?;
@@ -161,8 +175,8 @@ fn create_narrated_segment(
     let output_path_text = output_path
         .to_str()
         .ok_or_else(|| "配音分镜临时路径包含无法识别的字符。".to_string())?;
-    let output = Command::new(ffmpeg_program())
-        .args([
+    run_ffmpeg(
+        [
             "-y",
             "-i",
             &selected_video.path,
@@ -184,18 +198,14 @@ fn create_narrated_segment(
             "aac",
             "-shortest",
             output_path_text,
-        ])
-        .output()
-        .map_err(|error| format!("无法调用 ffmpeg 生成配音分镜：{error}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "生成配音分镜失败。".to_string()
-        } else {
-            stderr
-        });
-    }
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect(),
+        task_context,
+        Some(narration_duration),
+        "生成配音分镜失败。",
+    )?;
 
     if !output_path.is_file() {
         return Err("配音分镜命令已结束，但没有找到临时视频。".to_string());
@@ -438,13 +448,6 @@ fn validate_duration(duration: f64, label: &str) -> Result<(), String> {
     }
 
     Ok(())
-}
-
-fn narrated_session_directory() -> PathBuf {
-    env::temp_dir()
-        .join("local-video-remix-workbench")
-        .join("narrated-remix")
-        .join(Uuid::new_v4().to_string())
 }
 
 #[cfg(test)]

@@ -32,6 +32,7 @@ import {
 } from "./features/project-recovery";
 import type { ProjectStateSnapshot } from "./features/project-recovery";
 import { useTts } from "./features/tts";
+import { useTaskCenter } from "./features/task-center";
 import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
@@ -73,6 +74,17 @@ const {
   exportResultItems,
   taskLogs,
 } = useTaskLogs();
+
+const {
+  activeTask,
+  cancelActiveTask,
+  cleanupError,
+  cleanupStaleTempFiles,
+  isCleaning,
+  isTaskRunning,
+  runTask,
+} = useTaskCenter();
+const tempCleanupFeedback = ref<string | null>(null);
 
 const {
   applyHorizontalMirror,
@@ -137,11 +149,13 @@ const {
   outputDirectory,
   appendSplitLog,
   clearSplitLogs,
+  runTask,
 });
 
 const {
   batchGenerateCount,
   batchMixError,
+  batchMixFailures,
   batchMixResults,
   concatCategorizedSegments,
   concatRandomSegments,
@@ -157,6 +171,7 @@ const {
   randomSelectedSegments,
   recordMixResult,
   resetRandomPickState,
+  retryFailedBatchMixes,
   setMixing,
 } = useRemixExport({
   selectedVideo,
@@ -177,6 +192,7 @@ const {
   clearMixLogs,
   clearBatchMixLogs,
   addExportResult,
+  runTask,
 });
 
 const {
@@ -203,6 +219,7 @@ const {
   replaceAiRemixShotSegment,
   requestAiRemixPlan,
   resetAiRemixState,
+  retryFailedAiRemixVideos,
   restoreAiRemixState,
 } = useAiRemix({
   outputDirectory,
@@ -224,6 +241,7 @@ const {
   },
   formatCanvasLog: formatRemixCanvasLog,
   formatSmoothLog: formatSmoothRemixLog,
+  runTask,
 });
 
 const {
@@ -239,6 +257,7 @@ const {
   narratedVideoSummaryText,
   narrationProgressText,
   resetTtsSettings,
+  retryFailedNarratedVideos,
   restoreTtsSettings,
   ttsAudioUrl,
   ttsConfig,
@@ -268,6 +287,7 @@ const {
   },
   formatCanvasLog: formatRemixCanvasLog,
   formatSmoothLog: formatSmoothRemixLog,
+  runTask,
 });
 
 const projectState = computed(
@@ -406,6 +426,49 @@ const currentAiGenerationFailureCount = computed(() =>
     : aiGenerationFailures.value.length,
 );
 
+const totalFailedTaskCount = computed(
+  () => currentAiGenerationFailureCount.value + batchMixFailures.value.length,
+);
+
+const canRetryFailures = computed(
+  () => !isTaskRunning.value && totalFailedTaskCount.value > 0,
+);
+
+async function retryFailedTasks() {
+  if (ttsVideoEnabled.value && narratedVideoFailures.value.length > 0) {
+    await retryFailedNarratedVideos(remixExportSettings.value);
+    return;
+  }
+  if (!ttsVideoEnabled.value && aiGenerationFailures.value.length > 0) {
+    await retryFailedAiRemixVideos();
+    return;
+  }
+  if (batchMixFailures.value.length > 0) {
+    await retryFailedBatchMixes();
+  }
+}
+
+async function cleanupTaskTempFiles(silentWhenEmpty = false) {
+  const result = await cleanupStaleTempFiles();
+  if (!result) {
+    if (!silentWhenEmpty) {
+      tempCleanupFeedback.value = cleanupError.value ?? "临时文件清理失败，请查看任务日志。";
+    }
+    return;
+  }
+  const releasedText =
+    result.releasedBytes > 0
+      ? ` 释放约 ${(result.releasedBytes / 1024 / 1024).toFixed(1)} MB。`
+      : "";
+  if (result && (!silentWhenEmpty || result.removedEntries > 0)) {
+    tempCleanupFeedback.value = `${result.message}${releasedText}`;
+    appendMixLog(
+      tempCleanupFeedback.value,
+      "success",
+    );
+  }
+}
+
 async function generateCurrentAiRemixVideo() {
   const variants = await prepareAiRemixVariants();
 
@@ -479,6 +542,7 @@ const shouldShowBlurBackground = computed(
 
 const isAnyProcessing = computed(
   () =>
+    isTaskRunning.value ||
     isExporting.value ||
     isMixing.value ||
     isBatchMixing.value ||
@@ -961,6 +1025,7 @@ function formatFileName(filePath: string) {
 onMounted(() => {
   void runEnvironmentCheck();
   void loadTtsConfig();
+  void cleanupTaskTempFiles(true);
 });
 </script>
 
@@ -1101,12 +1166,19 @@ onMounted(() => {
         :is-advanced-mode="isAdvancedMode"
         :total-videos="importedVideos.length"
         :completed-count="exportResultItems.length"
-        :failed-count="0"
+        :failed-count="totalFailedTaskCount"
         :output-directory="outputDirectory"
         :is-processing="isAnyProcessing"
         :primary-action-label="primaryTaskActionLabel"
         :primary-action-disabled="primaryTaskActionDisabled"
+        :active-task="activeTask"
+        :can-retry-failures="canRetryFailures"
+        :is-cleaning-temp-files="isCleaning"
+        :temp-cleanup-feedback="tempCleanupFeedback"
         @start-processing="runPrimaryTaskAction"
+        @cancel-task="cancelActiveTask"
+        @retry-failures="retryFailedTasks"
+        @cleanup-temp-files="cleanupTaskTempFiles"
         @open-drawer="activeDrawer = $event"
       />
     </section>

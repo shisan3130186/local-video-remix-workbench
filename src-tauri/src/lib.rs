@@ -1,6 +1,8 @@
 mod ai_remix;
 mod api_config;
 mod project_snapshot;
+mod task_runtime;
+mod temp_storage;
 mod tts;
 mod video_engine;
 
@@ -22,6 +24,12 @@ use project_snapshot::{
 };
 use std::path::Path;
 use std::process::Command;
+use task_runtime::{
+    cancel_task as request_task_cancellation, create_task as register_task,
+    finish_task as complete_task, get_task as read_task, update_task as report_task_progress,
+    TaskProgressContext, TaskSnapshot, TaskStatus,
+};
+use temp_storage::{cleanup_workspace_temp_files, TempCleanupResult};
 use tts::{
     cleanup_tts_session as remove_tts_session, get_tts_config_status as read_tts_config_status,
     synthesize_tts as create_tts_audio, synthesize_tts_shot as create_tts_shot_audio,
@@ -96,17 +104,59 @@ fn is_existing_directory(path: String) -> bool {
 }
 
 #[tauri::command]
+fn create_task(task_id: String, label: String) -> Result<TaskSnapshot, String> {
+    register_task(task_id, label)
+}
+
+#[tauri::command]
+fn get_task_progress(task_id: String) -> Result<TaskSnapshot, String> {
+    read_task(&task_id)
+}
+
+#[tauri::command]
+fn update_task_progress(
+    task_id: String,
+    progress_percent: f64,
+    stage: String,
+) -> Result<TaskSnapshot, String> {
+    report_task_progress(&task_id, progress_percent, stage)
+}
+
+#[tauri::command]
+fn cancel_task(task_id: String) -> Result<TaskSnapshot, String> {
+    request_task_cancellation(&task_id)
+}
+
+#[tauri::command]
+fn finish_task(
+    task_id: String,
+    status: TaskStatus,
+    message: Option<String>,
+) -> Result<TaskSnapshot, String> {
+    complete_task(&task_id, status, message)
+}
+
+#[tauri::command]
+fn cleanup_temp_files() -> Result<TempCleanupResult, String> {
+    cleanup_workspace_temp_files()
+}
+
+#[tauri::command]
 fn export_current_video(
     input_file_path: String,
     output_directory: String,
     canvas_aspect_ratio: CanvasAspectRatio,
     canvas_background_mode: CanvasBackgroundMode,
+    duration_seconds: Option<f64>,
+    task_context: Option<TaskProgressContext>,
 ) -> Result<RenderVideoResult, String> {
     export_basic_video(
         input_file_path,
         output_directory,
         canvas_aspect_ratio,
         canvas_background_mode,
+        duration_seconds,
+        task_context,
     )
 }
 
@@ -115,8 +165,16 @@ fn split_current_video(
     input_file_path: String,
     output_directory: String,
     segment_duration_seconds: f64,
+    input_duration_seconds: Option<f64>,
+    task_context: Option<TaskProgressContext>,
 ) -> Result<SplitVideoResult, String> {
-    split_video_by_duration(input_file_path, output_directory, segment_duration_seconds)
+    split_video_by_duration(
+        input_file_path,
+        output_directory,
+        segment_duration_seconds,
+        input_duration_seconds,
+        task_context,
+    )
 }
 
 #[tauri::command]
@@ -223,8 +281,9 @@ fn concat_selected_segments(
     segment_paths: Vec<String>,
     output_directory: String,
     settings: RemixSettings,
+    task_context: Option<TaskProgressContext>,
 ) -> Result<MixVideoResult, String> {
-    concat_video_segments(segment_paths, output_directory, settings)
+    concat_video_segments(segment_paths, output_directory, settings, task_context)
 }
 
 #[tauri::command]
@@ -234,6 +293,7 @@ fn concat_narrated_segments(
     settings: RemixSettings,
     audio_settings: NarratedAudioSettings,
     subtitle_settings: NarratedSubtitleSettings,
+    task_context: Option<TaskProgressContext>,
 ) -> Result<MixVideoResult, String> {
     create_narrated_video(
         segments,
@@ -241,6 +301,7 @@ fn concat_narrated_segments(
         settings,
         audio_settings,
         subtitle_settings,
+        task_context,
     )
 }
 
@@ -250,14 +311,19 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             analyze_ai_remix_segments,
             build_ai_remix_variants,
+            cancel_task,
             check_ffmpeg_environment,
+            cleanup_temp_files,
             cleanup_tts_session,
             concat_narrated_segments,
             concat_selected_segments,
+            create_task,
             delete_api_credential,
             delete_project_snapshot,
             export_current_video,
+            finish_task,
             generate_thumbnail,
+            get_task_progress,
             get_tts_config_status,
             get_api_config_status,
             is_existing_directory,
@@ -270,7 +336,8 @@ pub fn run() {
             save_project_snapshot,
             split_current_video,
             synthesize_tts,
-            synthesize_tts_shot
+            synthesize_tts_shot,
+            update_task_progress
         ])
         .run(tauri::generate_context!())
         .expect("failed to run tauri app");

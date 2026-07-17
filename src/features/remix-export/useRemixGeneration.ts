@@ -7,6 +7,8 @@ import type {
   SegmentCategoryOption,
 } from "../../services/videoMixService";
 import type { ExportResultType, TaskLogLevel } from "../../types/workbench";
+import { isTaskCancelledError } from "../task-center";
+import type { TaskRunHandle } from "../task-center";
 import { buildMixOptionSummary, formatRemixCanvasLog, formatSmoothRemixLog } from "./remixResultMessages";
 import { pickCategorizedSegments, pickRandomSegments } from "./services/remixExportService";
 
@@ -24,6 +26,16 @@ interface UseRemixGenerationOptions {
   clearMixLogs: () => void;
   clearBatchMixLogs: () => void;
   addExportResult: (type: ExportResultType, path: string) => void;
+  runTask: <T>(label: string, runner: (task: TaskRunHandle) => Promise<T>) => Promise<T>;
+}
+
+interface BatchMixEntry {
+  version: number;
+  segmentPaths: string[];
+}
+
+interface BatchMixFailure extends BatchMixEntry {
+  message: string;
 }
 
 export function useRemixGeneration(options: UseRemixGenerationOptions) {
@@ -37,6 +49,7 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
   const isBatchMixing = ref(false);
   const batchMixError = ref<string | null>(null);
   const batchMixResults = ref<string[]>([]);
+  const batchMixFailures = ref<BatchMixFailure[]>([]);
 
   function pickSegmentsRandomly() {
     randomPickError.value = null;
@@ -114,10 +127,13 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
   ) {
     isMixing.value = true;
     try {
-      const result = await concatSelectedSegments(
-        randomSelectedSegments.value,
-        options.outputDirectory.value as string,
-        options.remixExportSettings.value,
+      const result = await options.runTask(resultType, (task) =>
+        concatSelectedSegments(
+          randomSelectedSegments.value,
+          options.outputDirectory.value as string,
+          options.remixExportSettings.value,
+          task.progress(0, 100, `正在生成${resultType}`),
+        ),
       );
       recordMixResult(resultType, result.outputPath);
       options.appendMixLog(formatRemixCanvasLog(result), "info");
@@ -127,6 +143,11 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
         "success",
       );
     } catch (error) {
+      if (isTaskCancelledError(error)) {
+        mixError.value = `${resultType}已取消，可以重新开始。`;
+        options.appendMixLog(mixError.value, "info");
+        return;
+      }
       setMixError(failureLabel, error, resultType === "分类混剪" ? "分类混剪失败。" : "片段拼接失败。");
     } finally {
       isMixing.value = false;
@@ -136,6 +157,7 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
   async function generateBatchMixes() {
     batchMixError.value = null;
     batchMixResults.value = [];
+    batchMixFailures.value = [];
     options.clearBatchMixLogs();
 
     const baseError = options.validatePictureInPicture() ?? options.validateBgm();
@@ -150,39 +172,87 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
     const speedError = options.validatePlaybackSpeed();
     if (speedError) return setBatchError(speedError);
 
+    const entries = Array.from({ length: batchGenerateCount.value }, (_value, index) => ({
+      version: index + 1,
+      segmentPaths: pickRandomSegments(options.segmentPaths.value, randomPickCount.value),
+    }));
     options.appendBatchMixLog(
       `开始批量生成：计划生成 ${batchGenerateCount.value} 条，${buildRunningSettingsSummary()}`,
       "info",
     );
+    await runBatchMixEntries(entries, false);
+  }
+
+  async function retryFailedBatchMixes() {
+    if (batchMixFailures.value.length === 0) return;
+    const entries = batchMixFailures.value.map(({ version, segmentPaths }) => ({
+      version,
+      segmentPaths,
+    }));
+    options.appendBatchMixLog(`开始重试 ${entries.length} 条失败任务，成功结果不会重复生成。`, "info");
+    await runBatchMixEntries(entries, true);
+  }
+
+  async function runBatchMixEntries(entries: BatchMixEntry[], preserveResults: boolean) {
+    if (!preserveResults) {
+      batchMixResults.value = [];
+    }
+    batchMixFailures.value = [];
+    batchMixError.value = null;
     isBatchMixing.value = true;
 
     try {
-      for (let index = 0; index < batchGenerateCount.value; index += 1) {
-        const pickedSegments = pickRandomSegments(
-          options.segmentPaths.value,
-          randomPickCount.value,
-        );
-        options.appendBatchMixLog(
-          `正在生成第 ${index + 1} 条，使用 ${pickedSegments.length} 个随机片段。`,
-          "info",
-        );
-        const result = await concatSelectedSegments(
-          pickedSegments,
-          options.outputDirectory.value,
-          options.remixExportSettings.value,
-        );
-        batchMixResults.value.push(result.outputPath);
-        options.addExportResult("批量生成", result.outputPath);
-        options.appendBatchMixLog(formatRemixCanvasLog(result), "info");
-        options.appendBatchMixLog(formatSmoothRemixLog(result), "info");
-        options.appendBatchMixLog(
-          `第 ${index + 1} 条生成成功：${result.outputPath}${buildMixOptionSummary(options.remixExportSettings.value)}`,
-          "success",
-        );
-      }
-      options.appendBatchMixLog(`批量生成完成：共生成 ${batchMixResults.value.length} 条。`, "success");
+      await options.runTask(
+        preserveResults ? "重试失败的批量视频" : "随机批量生成",
+        async (task) => {
+          for (const [index, entry] of entries.entries()) {
+            task.throwIfCancelled();
+            options.appendBatchMixLog(
+              `正在生成第 ${entry.version} 条，使用 ${entry.segmentPaths.length} 个随机片段。`,
+              "info",
+            );
+            try {
+              const result = await concatSelectedSegments(
+                entry.segmentPaths,
+                options.outputDirectory.value as string,
+                options.remixExportSettings.value,
+                task.progress(
+                  (index / entries.length) * 100,
+                  ((index + 1) / entries.length) * 100,
+                  `正在生成批量视频 ${index + 1}/${entries.length}`,
+                ),
+              );
+              batchMixResults.value.push(result.outputPath);
+              options.addExportResult("批量生成", result.outputPath);
+              options.appendBatchMixLog(formatRemixCanvasLog(result), "info");
+              options.appendBatchMixLog(formatSmoothRemixLog(result), "info");
+              options.appendBatchMixLog(
+                `第 ${entry.version} 条生成成功：${result.outputPath}${buildMixOptionSummary(options.remixExportSettings.value)}`,
+                "success",
+              );
+            } catch (error) {
+              if (isTaskCancelledError(error)) throw error;
+              const message = error instanceof Error ? error.message : String(error ?? "批量生成失败。");
+              batchMixFailures.value.push({ ...entry, message });
+              options.appendBatchMixLog(`第 ${entry.version} 条生成失败，继续下一条：${message}`, "error");
+            }
+          }
+        },
+      );
+
+      const failureCount = batchMixFailures.value.length;
+      options.appendBatchMixLog(
+        `批量生成结束：成功 ${entries.length - failureCount} 条，失败 ${failureCount} 条。`,
+        failureCount > 0 ? "error" : "success",
+      );
+      batchMixError.value = failureCount > 0 ? `${failureCount} 条生成失败，可以单独重试失败项。` : null;
     } catch (error) {
-      setBatchError(error instanceof Error ? error.message : String(error ?? "批量生成失败。"));
+      if (isTaskCancelledError(error)) {
+        batchMixError.value = "批量任务已取消，已完成的结果会保留。";
+        options.appendBatchMixLog(batchMixError.value, "info");
+      } else {
+        setBatchError(error instanceof Error ? error.message : String(error ?? "批量生成失败。"));
+      }
     } finally {
       isBatchMixing.value = false;
     }
@@ -230,6 +300,7 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
     isBatchMixing.value = false;
     batchMixError.value = null;
     batchMixResults.value = [];
+    batchMixFailures.value = [];
     options.clearBatchMixLogs();
   }
 
@@ -255,6 +326,7 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
   return {
     batchGenerateCount,
     batchMixError,
+    batchMixFailures,
     batchMixResults,
     concatCategorizedSegments,
     concatRandomSegments,
@@ -269,6 +341,7 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
     randomSelectedSegments,
     recordMixResult,
     resetRandomPickState,
+    retryFailedBatchMixes,
     setMixing,
   };
 }

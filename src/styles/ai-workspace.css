@@ -611,7 +611,7 @@
 
 .task-control-main {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto auto 190px;
+  grid-template-columns: minmax(240px, 1fr) auto auto auto 190px;
   align-items: center;
   gap: 12px;
 }
@@ -641,6 +641,10 @@
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.task-control-summary .task-cleanup-feedback {
+  color: #73d9bf;
 }
 
 .task-state-dot {
@@ -673,4 +677,10 @@
 
 .task-primary-action {
   min-height: 36px;
+}
+
+.task-cancel-action,
+.task-retry-action {
+  min-height: 36px;
+  white-space: nowrap;
 }

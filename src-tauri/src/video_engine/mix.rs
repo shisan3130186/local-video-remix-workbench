@@ -1,7 +1,9 @@
+use crate::task_runtime::{run_ffmpeg, TaskProgressContext};
+use crate::temp_storage::TaskTempDirectory;
 use crate::video_engine::canvas::{
     build_canvas_filter, build_plain_video_filter, CanvasAspectRatio, CanvasBackgroundMode,
 };
-use crate::video_engine::tool_paths::{ffmpeg_program, ffprobe_program};
+use crate::video_engine::tool_paths::ffprobe_program;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -98,21 +100,35 @@ pub fn concat_video_segments(
     segment_paths: Vec<String>,
     output_directory: String,
     settings: RemixSettings,
+    task_context: Option<TaskProgressContext>,
 ) -> Result<MixVideoResult, String> {
-    concat_video_segments_with_options(segment_paths, output_directory, settings, true)
+    concat_video_segments_with_options(
+        segment_paths,
+        output_directory,
+        settings,
+        true,
+        task_context,
+    )
 }
 
 pub(crate) fn concat_narrated_prepared_segments(
     segment_paths: Vec<String>,
     output_directory: String,
     mut settings: RemixSettings,
+    task_context: Option<TaskProgressContext>,
 ) -> Result<MixVideoResult, String> {
     if should_apply_speed_filter(settings.playback_speed) {
         return Err("AI配音视频暂时只支持 1.0x 速度，请把视频变速恢复为 1.0x。".to_string());
     }
 
     settings.bgm_settings.original_volume = 1.0;
-    concat_video_segments_with_options(segment_paths, output_directory, settings, false)
+    concat_video_segments_with_options(
+        segment_paths,
+        output_directory,
+        settings,
+        false,
+        task_context,
+    )
 }
 
 fn concat_video_segments_with_options(
@@ -120,6 +136,7 @@ fn concat_video_segments_with_options(
     output_directory: String,
     settings: RemixSettings,
     filter_short_smooth_segments: bool,
+    task_context: Option<TaskProgressContext>,
 ) -> Result<MixVideoResult, String> {
     let RemixSettings {
         apply_horizontal_mirror,
@@ -159,14 +176,21 @@ fn concat_video_segments_with_options(
     }
 
     let timestamp = current_timestamp()?;
-    let list_path = output_dir.join(format!("concat_list_{timestamp}.txt"));
+    let temp_directory = TaskTempDirectory::create("mix")?;
+    let list_path = temp_directory
+        .path()
+        .join(format!("concat_list_{timestamp}.txt"));
     let output_path = output_dir.join(format!("remix_{timestamp}.mp4"));
+    let smooth_context = task_context
+        .as_ref()
+        .map(|context| context.child(0.0, 0.45, "正在处理平滑片段"));
     let prepared_segments = if smooth_remix_enabled {
         prepare_smooth_segments(
             &segment_paths,
-            output_dir,
+            temp_directory.path(),
             timestamp,
             filter_short_smooth_segments,
+            smooth_context.as_ref(),
         )?
     } else {
         PreparedSegments {
@@ -336,23 +360,21 @@ fn concat_video_segments_with_options(
         output_path_text.to_string(),
     ]);
 
-    let output = Command::new(ffmpeg_program())
-        .args(ffmpeg_args)
-        .output()
-        .map_err(|error| format!("无法调用 ffmpeg：{error}"));
-
-    let _ = fs::remove_file(&list_path);
-    cleanup_files(&prepared_segments.temporary_paths);
-
-    let output = output?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "片段拼接失败。".to_string()
-        } else {
-            stderr
-        });
+    let final_context = task_context.as_ref().map(|context| {
+        context.child(
+            if smooth_remix_enabled { 0.45 } else { 0.0 },
+            1.0,
+            "正在合成最终视频",
+        )
+    });
+    if let Err(error) = run_ffmpeg(
+        ffmpeg_args,
+        final_context.as_ref(),
+        Some(output_duration_seconds),
+        "片段拼接失败。",
+    ) {
+        let _ = fs::remove_file(&output_path);
+        return Err(error);
     }
 
     if !output_path.is_file() {
@@ -675,6 +697,7 @@ fn prepare_smooth_segments(
     output_dir: &Path,
     timestamp: u64,
     filter_short_segments: bool,
+    task_context: Option<&TaskProgressContext>,
 ) -> Result<PreparedSegments, String> {
     let mut prepared_paths = Vec::new();
     let mut temporary_paths = Vec::new();
@@ -689,7 +712,16 @@ fn prepare_smooth_segments(
         }
 
         let temp_path = output_dir.join(format!("smooth_segment_{timestamp}_{index}.mp4"));
-        create_smooth_segment(segment_path, &temp_path, &info)?;
+        let segment_context = task_context.map(|context| {
+            let start = index as f64 / segment_paths.len() as f64;
+            let end = (index + 1) as f64 / segment_paths.len() as f64;
+            context.child(
+                start,
+                end,
+                format!("正在处理平滑片段 {}/{}", index + 1, segment_paths.len()),
+            )
+        });
+        create_smooth_segment(segment_path, &temp_path, &info, segment_context.as_ref())?;
         prepared_paths.push(temp_path.to_string_lossy().to_string());
         temporary_paths.push(temp_path);
     }
@@ -758,6 +790,7 @@ fn create_smooth_segment(
     segment_path: &str,
     temp_path: &Path,
     info: &SegmentInfo,
+    task_context: Option<&TaskProgressContext>,
 ) -> Result<(), String> {
     let fade_duration = 0.2_f64.min((info.duration_seconds / 2.0).max(0.01));
     let fade_out_start = (info.duration_seconds - fade_duration).max(0.0);
@@ -798,19 +831,12 @@ fn create_smooth_segment(
 
     ffmpeg_args.push(temp_path_text.to_string());
 
-    let output = Command::new(ffmpeg_program())
-        .args(ffmpeg_args)
-        .output()
-        .map_err(|error| format!("无法调用 ffmpeg 生成平滑片段：{error}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "生成平滑片段失败。".to_string()
-        } else {
-            stderr
-        });
-    }
+    run_ffmpeg(
+        ffmpeg_args,
+        task_context,
+        Some(info.duration_seconds),
+        "生成平滑片段失败。",
+    )?;
 
     if !temp_path.is_file() {
         return Err("平滑片段命令已结束，但没有找到临时文件。".to_string());

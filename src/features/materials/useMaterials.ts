@@ -5,6 +5,8 @@ import type { Ref } from "vue";
 import type { SegmentCategory } from "../../services/videoMixService";
 import type { ImportedVideo } from "../../types/videoProbe";
 import type { TaskLogLevel } from "../../types/workbench";
+import { isTaskCancelledError } from "../task-center";
+import type { TaskRunHandle } from "../task-center";
 import type { ProjectMaterialsSnapshot } from "../project-recovery/types";
 import { listVideoFilesInFolder } from "./services/materialService";
 import { loadImportedVideos, splitImportedVideos } from "./services/materialWorkflow";
@@ -14,6 +16,7 @@ interface UseMaterialsOptions {
   outputDirectory: Readonly<Ref<string | null>>;
   appendSplitLog: (message: string, level: TaskLogLevel) => void;
   clearSplitLogs: () => void;
+  runTask: <T>(label: string, runner: (task: TaskRunHandle) => Promise<T>) => Promise<T>;
 }
 
 export function useMaterials(options: UseMaterialsOptions) {
@@ -123,7 +126,9 @@ export function useMaterials(options: UseMaterialsOptions) {
     selectedSegmentPath.value = segmentPath;
   }
 
-  async function splitAllMaterials(prepareSegmentAssets: (paths: string[]) => Promise<void>) {
+  async function splitAllMaterials(
+    prepareSegmentAssets: (paths: string[], task: TaskRunHandle) => Promise<void>,
+  ) {
     resetSplitRun();
 
     if (importedVideos.value.length === 0) {
@@ -151,31 +156,41 @@ export function useMaterials(options: UseMaterialsOptions) {
     isSplitting.value = true;
 
     try {
-      const { segmentPaths, failedVideoNames } = await splitImportedVideos({
-        videos: importedVideos.value,
-        outputDirectory: options.outputDirectory.value,
-        segmentDurationSeconds: segmentDurationSeconds.value,
-        appendLog: options.appendSplitLog,
+      await options.runTask("切片并准备全部素材", async (task) => {
+        const { segmentPaths, failedVideoNames } = await splitImportedVideos({
+          videos: importedVideos.value,
+          outputDirectory: options.outputDirectory.value as string,
+          segmentDurationSeconds: segmentDurationSeconds.value,
+          appendLog: options.appendSplitLog,
+          task,
+        });
+
+        task.throwIfCancelled();
+        if (segmentPaths.length < 2) {
+          throw new Error("成功生成的片段不足 2 个，无法继续 AI 混剪。请检查任务日志。 ");
+        }
+
+        splitOutputDirectory.value = options.outputDirectory.value;
+        splitSegmentCount.value = segmentPaths.length;
+        splitSegmentPaths.value = segmentPaths;
+        segmentCategories.value = buildEmptySegmentCategoryMap(segmentPaths);
+        await prepareSegmentAssets(segmentPaths, task);
+        task.throwIfCancelled();
+        options.appendSplitLog(
+          `全部素材切片完成：${importedVideos.value.length - failedVideoNames.length} 个成功，共 ${segmentPaths.length} 个片段。`,
+          failedVideoNames.length > 0 ? "error" : "success",
+        );
+
+        if (failedVideoNames.length > 0) {
+          splitError.value = `${failedVideoNames.length} 个视频切片失败，已保留其他视频生成的片段。`;
+        }
       });
-
-      if (segmentPaths.length < 2) {
-        throw new Error("成功生成的片段不足 2 个，无法继续 AI 混剪。请检查任务日志。 ");
-      }
-
-      splitOutputDirectory.value = options.outputDirectory.value;
-      splitSegmentCount.value = segmentPaths.length;
-      splitSegmentPaths.value = segmentPaths;
-      segmentCategories.value = buildEmptySegmentCategoryMap(segmentPaths);
-      await prepareSegmentAssets(segmentPaths);
-      options.appendSplitLog(
-        `全部素材切片完成：${importedVideos.value.length - failedVideoNames.length} 个成功，共 ${segmentPaths.length} 个片段。`,
-        failedVideoNames.length > 0 ? "error" : "success",
-      );
-
-      if (failedVideoNames.length > 0) {
-        splitError.value = `${failedVideoNames.length} 个视频切片失败，已保留其他视频生成的片段。`;
-      }
     } catch (error) {
+      if (isTaskCancelledError(error)) {
+        splitError.value = "切片任务已取消，可以重新开始。";
+        options.appendSplitLog(splitError.value, "info");
+        return;
+      }
       splitError.value =
         error instanceof Error ? error.message : String(error ?? "视频切片失败。");
       options.appendSplitLog(`切片失败：${splitError.value}`, "error");

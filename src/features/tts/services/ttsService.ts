@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { MixVideoResult, RemixExportSettings } from "../../../services/videoMixService";
+import type { TaskProgressContext } from "../../task-center";
 import type {
   NarratedAudioSettings,
   NarratedSegmentInput,
@@ -48,6 +49,7 @@ export function concatNarratedSegments(
   settings: RemixExportSettings,
   audioSettings: NarratedAudioSettings,
   subtitleSettings: NarratedSubtitleSettings,
+  taskContext?: TaskProgressContext,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_narrated_segments", {
     segments,
@@ -55,5 +57,6 @@ export function concatNarratedSegments(
     settings,
     audioSettings,
     subtitleSettings,
+    taskContext: taskContext ?? null,
   });
 }

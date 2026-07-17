@@ -3,6 +3,7 @@ import { readVideoMetadata } from "../../../services/videoProbeService";
 import { generateThumbnail } from "../../../services/videoThumbnailService";
 import { runRetryableRequest } from "../../../services/retryableRequest";
 import type { TaskLogLevel } from "../../../types/workbench";
+import type { TaskRunHandle } from "../../task-center";
 import { analyzeAiRemixSegments, buildAiRemixVariants } from "./aiRemixService";
 import type {
   AiRemixPlanResult,
@@ -15,6 +16,7 @@ interface PrepareAiRemixSegmentsOptions {
   segmentPaths: string[];
   outputDirectory: string;
   onSegmentError: (message: string) => void;
+  task?: TaskRunHandle;
 }
 
 export interface PrepareAiRemixSegmentsResult {
@@ -32,12 +34,14 @@ export async function prepareAiRemixSegments({
   segmentPaths,
   outputDirectory,
   onSegmentError,
+  task,
 }: PrepareAiRemixSegmentsOptions): Promise<PrepareAiRemixSegmentsResult> {
   const thumbnailEntries: Record<string, string> = {};
   const preparedSegments: AiRemixSegment[] = [];
   const preparationErrors: string[] = [];
 
   for (const [index, segmentPath] of segmentPaths.entries()) {
+    task?.throwIfCancelled();
     try {
       const [thumbnailResult, metadata] = await Promise.all([
         generateThumbnail(segmentPath, outputDirectory, 0.1, `segment_${index + 1}`),
@@ -64,6 +68,11 @@ export async function prepareAiRemixSegments({
       preparationErrors.push(`${formatFileName(segmentPath)}：${errorMessage}`);
       onSegmentError(
         `片段 AI 信息准备失败：${formatFileName(segmentPath)}，${errorMessage}`,
+      );
+    } finally {
+      await task?.update(
+        70 + ((index + 1) / segmentPaths.length) * 30,
+        `正在生成片段预览 ${index + 1}/${segmentPaths.length}`,
       );
     }
   }

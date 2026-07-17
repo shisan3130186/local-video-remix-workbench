@@ -5,6 +5,7 @@ import type {
   SegmentCategory,
   SegmentCategoryOption,
 } from "../../../services/videoMixService";
+import type { TaskProgressContext } from "../../task-center";
 
 export interface RenderVideoResult {
   outputPath: string;
@@ -27,12 +28,16 @@ export function exportCurrentVideo(
   outputDirectory: string,
   canvasAspectRatio: CanvasAspectRatio,
   canvasBackgroundMode: CanvasBackgroundMode,
+  durationSeconds: number | null,
+  taskContext?: TaskProgressContext,
 ): Promise<RenderVideoResult> {
   return invoke<RenderVideoResult>("export_current_video", {
     inputFilePath,
     outputDirectory,
     canvasAspectRatio,
     canvasBackgroundMode,
+    durationSeconds,
+    taskContext: taskContext ?? null,
   });
 }
 

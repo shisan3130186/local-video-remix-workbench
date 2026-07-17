@@ -1,9 +1,8 @@
+use crate::task_runtime::{run_ffmpeg, TaskProgressContext};
 use crate::video_engine::canvas::{build_canvas_filter, CanvasAspectRatio, CanvasBackgroundMode};
-use crate::video_engine::tool_paths::ffmpeg_program;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Serialize)]
@@ -18,6 +17,8 @@ pub fn export_basic_video(
     output_directory: String,
     canvas_aspect_ratio: CanvasAspectRatio,
     canvas_background_mode: CanvasBackgroundMode,
+    duration_seconds: Option<f64>,
+    task_context: Option<TaskProgressContext>,
 ) -> Result<RenderVideoResult, String> {
     let input_path = Path::new(&input_file_path);
     let output_dir = Path::new(&output_directory);
@@ -66,18 +67,14 @@ pub fn export_basic_video(
         output_path_text.to_string(),
     ]);
 
-    let output = Command::new(ffmpeg_program())
-        .args(ffmpeg_args)
-        .output()
-        .map_err(|error| format!("无法调用 ffmpeg：{error}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "视频导出失败。".to_string()
-        } else {
-            stderr
-        });
+    if let Err(error) = run_ffmpeg(
+        ffmpeg_args,
+        task_context.as_ref(),
+        duration_seconds,
+        "视频导出失败。",
+    ) {
+        let _ = fs::remove_file(&output_path);
+        return Err(error);
     }
 
     if !output_path.is_file() {
@@ -100,7 +97,7 @@ fn build_output_path(input_path: &Path, output_dir: &Path) -> Result<PathBuf, St
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|error| format!("无法生成导出文件名：{error}"))?
-        .as_secs();
+        .as_millis();
     let file_name = format!("{file_stem}_export_{timestamp}.mp4");
 
     Ok(output_dir.join(file_name))

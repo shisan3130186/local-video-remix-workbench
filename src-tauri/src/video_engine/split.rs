@@ -1,8 +1,7 @@
-use crate::video_engine::tool_paths::ffmpeg_program;
+use crate::task_runtime::{run_ffmpeg, TaskProgressContext};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Serialize)]
@@ -18,6 +17,8 @@ pub fn split_video_by_duration(
     input_file_path: String,
     output_directory: String,
     segment_duration_seconds: f64,
+    input_duration_seconds: Option<f64>,
+    task_context: Option<TaskProgressContext>,
 ) -> Result<SplitVideoResult, String> {
     let input_path = Path::new(&input_file_path);
     let output_dir = Path::new(&output_directory);
@@ -44,8 +45,8 @@ pub fn split_video_by_duration(
     let segment_duration_text = format!("{segment_duration_seconds:.3}");
     let force_key_frames = format!("expr:gte(t,n_forced*{segment_duration_text})");
 
-    let output = Command::new(ffmpeg_program())
-        .args([
+    if let Err(error) = run_ffmpeg(
+        [
             "-y",
             "-i",
             &input_file_path,
@@ -70,17 +71,16 @@ pub fn split_video_by_duration(
             "-reset_timestamps",
             "1",
             segment_pattern_text,
-        ])
-        .output()
-        .map_err(|error| format!("无法调用 ffmpeg：{error}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "视频切片失败。".to_string()
-        } else {
-            stderr
-        });
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect(),
+        task_context.as_ref(),
+        input_duration_seconds,
+        "视频切片失败。",
+    ) {
+        let _ = fs::remove_dir_all(&segment_dir);
+        return Err(error);
     }
 
     let segment_paths = list_generated_segments(&segment_dir)?;
@@ -105,7 +105,7 @@ fn build_segment_directory(input_path: &Path, output_dir: &Path) -> Result<PathB
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|error| format!("无法生成切片目录名：{error}"))?
-        .as_secs();
+        .as_millis();
     let directory_name = format!("{file_stem}_segments_{timestamp}");
 
     Ok(output_dir.join(directory_name))

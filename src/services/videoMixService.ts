@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { TaskProgressContext } from "../features/task-center";
 
 export interface MixVideoResult {
   outputPath: string;
@@ -91,10 +92,12 @@ export function concatSelectedSegments(
   segmentPaths: string[],
   outputDirectory: string,
   settings: RemixExportSettings,
+  taskContext?: TaskProgressContext,
 ): Promise<MixVideoResult> {
   return invoke<MixVideoResult>("concat_selected_segments", {
     segmentPaths,
     outputDirectory,
     settings,
+    taskContext: taskContext ?? null,
   });
 }
