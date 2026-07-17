@@ -96,7 +96,7 @@ export function useTts(options: UseTtsOptions) {
 
     if (!config.value.configured) {
       ttsError.value =
-        "未配置 TTS_API_KEY。请在启动软件的同一个 PowerShell 窗口中设置后重新启动。";
+        "尚未配置TTS密钥。请打开右侧“API 密钥”设置并保存。";
       return;
     }
 
@@ -172,7 +172,7 @@ export function useTts(options: UseTtsOptions) {
 
     if (!config.value.configured) {
       narratedVideoError.value =
-        "未配置 TTS_API_KEY。请在启动软件的同一个 PowerShell 窗口中设置后重新启动。";
+        "尚未配置TTS密钥。请打开右侧“API 密钥”设置并保存。";
       return;
     }
 

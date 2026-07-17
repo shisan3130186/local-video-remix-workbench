@@ -1,4 +1,5 @@
 mod ai_remix;
+mod api_config;
 mod tts;
 mod video_engine;
 
@@ -7,6 +8,11 @@ use ai_remix::{
     build_ai_remix_variants as create_ai_remix_variants, plan_ai_remix as create_ai_remix_plan,
     AiRemixPlanResult, AiRemixSegmentAnalysisResult, AiRemixSegmentInput, AiRemixVariantPlanResult,
     AiRemixVariantShotInput, AiRemixVisualSegmentInput,
+};
+use api_config::{
+    delete_api_credential as remove_api_credential,
+    get_api_config_status as read_api_config_status, save_api_config as store_api_config,
+    ApiConfigInput, ApiConfigStatus, ApiCredentialKind,
 };
 use std::path::Path;
 use std::process::Command;
@@ -148,8 +154,23 @@ fn build_ai_remix_variants(
 }
 
 #[tauri::command]
-fn get_tts_config_status() -> TtsConfigStatus {
+fn get_tts_config_status() -> Result<TtsConfigStatus, String> {
     read_tts_config_status()
+}
+
+#[tauri::command]
+fn get_api_config_status() -> Result<ApiConfigStatus, String> {
+    read_api_config_status()
+}
+
+#[tauri::command]
+fn save_api_config(input: ApiConfigInput) -> Result<ApiConfigStatus, String> {
+    store_api_config(input)
+}
+
+#[tauri::command]
+fn delete_api_credential(kind: ApiCredentialKind) -> Result<ApiConfigStatus, String> {
+    remove_api_credential(kind)
 }
 
 #[tauri::command]
@@ -212,14 +233,17 @@ pub fn run() {
             cleanup_tts_session,
             concat_narrated_segments,
             concat_selected_segments,
+            delete_api_credential,
             export_current_video,
             generate_thumbnail,
             get_tts_config_status,
+            get_api_config_status,
             is_existing_directory,
             list_video_files_in_folder,
             open_path_in_file_manager,
             plan_ai_remix,
             read_video_metadata,
+            save_api_config,
             split_current_video,
             synthesize_tts,
             synthesize_tts_shot

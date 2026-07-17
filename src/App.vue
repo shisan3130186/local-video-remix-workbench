@@ -1069,6 +1069,7 @@ onMounted(() => {
       @select-bgm-audio-file="selectBgmAudioFile"
       @generate-cover-frame="generateCoverFrame"
       @generate-tts="generateTts"
+      @api-config-changed="loadTtsConfig"
       @update:segment-duration-seconds="segmentDurationSeconds = $event"
       @update:random-pick-count="randomPickCount = $event"
       @update:batch-generate-count="batchGenerateCount = $event"

@@ -1,3 +1,4 @@
+use crate::api_config::{get_api_config_status, load_tts_service_config};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use reqwest::tls::Certificate;
 use reqwest::Client;
@@ -10,8 +11,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 const TTS_ENDPOINT: &str = "https://openspeech.bytedance.com/api/v3/tts/unidirectional";
-const DEFAULT_RESOURCE_ID: &str = "seed-tts-2.0";
-const DEFAULT_SPEAKER: &str = "zh_female_vv_uranus_bigtts";
 const TTS_SUCCESS_CODE: i64 = 20_000_000;
 
 #[derive(Debug, Serialize)]
@@ -42,7 +41,6 @@ pub struct TtsWordTiming {
     word: String,
 }
 
-#[derive(Debug)]
 struct TtsConfig {
     api_key: String,
     resource_id: String,
@@ -69,13 +67,14 @@ struct ParsedTtsResponse {
     words: Vec<TtsWordTiming>,
 }
 
-pub fn get_tts_config_status() -> TtsConfigStatus {
-    TtsConfigStatus {
-        configured: env_value("TTS_API_KEY").is_some(),
-        resource_id: env_value("TTS_RESOURCE_ID")
-            .unwrap_or_else(|| DEFAULT_RESOURCE_ID.to_string()),
-        speaker: env_value("TTS_SPEAKER").unwrap_or_else(|| DEFAULT_SPEAKER.to_string()),
-    }
+pub fn get_tts_config_status() -> Result<TtsConfigStatus, String> {
+    let status = get_api_config_status()?;
+
+    Ok(TtsConfigStatus {
+        configured: status.tts_configured,
+        resource_id: status.tts_resource_id,
+        speaker: status.tts_speaker,
+    })
 }
 
 pub async fn synthesize_tts(
@@ -206,33 +205,13 @@ fn tts_session_directory(session_id: &str) -> Result<PathBuf, String> {
 }
 
 fn load_tts_config(speaker_override: Option<String>) -> Result<TtsConfig, String> {
-    let api_key = env_value("TTS_API_KEY").ok_or_else(|| {
-        "未配置 TTS_API_KEY。请在启动软件的同一个 PowerShell 窗口中设置火山语音 API Key。"
-            .to_string()
-    })?;
-    let resource_id =
-        env_value("TTS_RESOURCE_ID").unwrap_or_else(|| DEFAULT_RESOURCE_ID.to_string());
-    let speaker = speaker_override
-        .and_then(|value| normalize_optional_text(&value))
-        .or_else(|| env_value("TTS_SPEAKER"))
-        .unwrap_or_else(|| DEFAULT_SPEAKER.to_string());
+    let config = load_tts_service_config(speaker_override)?;
 
     Ok(TtsConfig {
-        api_key,
-        resource_id,
-        speaker,
+        api_key: config.api_key,
+        resource_id: config.resource_id,
+        speaker: config.speaker,
     })
-}
-
-fn env_value(name: &str) -> Option<String> {
-    env::var(name)
-        .ok()
-        .and_then(|value| normalize_optional_text(&value))
-}
-
-fn normalize_optional_text(value: &str) -> Option<String> {
-    let normalized = value.trim();
-    (!normalized.is_empty()).then(|| normalized.to_string())
 }
 
 fn build_tts_request_body(text: &str, speaker: &str) -> Value {

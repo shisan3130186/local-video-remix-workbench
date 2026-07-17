@@ -95,7 +95,7 @@ function formatDuration(value: number | null) {
   <p v-if="isLoadingConfig" class="empty-text">正在读取TTS配置...</p>
   <p v-else-if="configError" class="error-text">{{ configError }}</p>
   <p v-else-if="!configured" class="tts-config-help">
-    请在启动软件的PowerShell窗口配置 <code>TTS_API_KEY</code>，Key不会进入前端或日志。
+    请先打开右侧“API 密钥”完成配置。密钥只保存在本机，不会进入任务日志。
   </p>
 
   <label class="field tts-script-field">

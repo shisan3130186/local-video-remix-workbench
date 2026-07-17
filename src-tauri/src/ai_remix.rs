@@ -1,10 +1,10 @@
+use crate::api_config::load_ai_service_config;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use reqwest::tls::Certificate;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
-use std::env;
 use std::error::Error as StdError;
 use std::fs;
 use std::path::Path;
@@ -339,15 +339,13 @@ async fn request_ai_completion(
     max_tokens: u32,
     stage: AiRequestStage,
 ) -> Result<String, String> {
-    let api_key = required_environment_variable("AI_API_KEY")?;
-    let base_url = required_environment_variable("AI_BASE_URL")?;
-    let model = required_environment_variable("AI_MODEL")?;
-    let endpoint = build_chat_completions_url(&base_url)?;
+    let config = load_ai_service_config()?;
+    let endpoint = build_chat_completions_url(&config.base_url)?;
     let response = build_ai_client()?
         .post(endpoint)
-        .bearer_auth(api_key)
+        .bearer_auth(config.api_key)
         .timeout(stage.timeout())
-        .json(&build_ai_request_body(model, messages, max_tokens))
+        .json(&build_ai_request_body(config.model, messages, max_tokens))
         .send()
         .await
         .map_err(|error| format_ai_request_error(error, stage))?;
@@ -423,14 +421,6 @@ fn format_ai_request_error(error: reqwest::Error, stage: AiRequestStage) -> Stri
         "{}阶段：{reason}。请检查网络后重试；如果仍然失败，请查看任务日志。（{detail}）",
         stage.label()
     )
-}
-
-fn required_environment_variable(name: &str) -> Result<String, String> {
-    env::var(name)
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| format!("未配置环境变量 {name}。"))
 }
 
 fn validate_visual_inputs(segments: &[AiRemixVisualSegmentInput]) -> Result<(), String> {

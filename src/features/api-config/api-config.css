@@ -1,0 +1,189 @@
+.api-config-panel {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.api-config-security-note {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #315148;
+  border-radius: 8px;
+  color: #cfe9e1;
+  background: #172a24;
+}
+
+.api-config-security-note > span {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  color: #72d7bd;
+  background: #203f36;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.api-config-security-note div,
+.api-config-section header span {
+  display: grid;
+  gap: 2px;
+}
+
+.api-config-security-note small,
+.api-config-section header small,
+.api-config-platform-field small {
+  color: #91a39d;
+  line-height: 1.45;
+}
+
+.api-config-platform-field {
+  margin: 0;
+}
+
+.api-config-section {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #303936;
+  border-radius: 8px;
+  background: #191d1c;
+}
+
+.api-config-section header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2b3330;
+}
+
+.api-config-section header strong {
+  color: #e1ece8;
+  font-size: 13px;
+}
+
+.api-config-section header em {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid #4b3d2d;
+  border-radius: 999px;
+  color: #d5b988;
+  background: #2a2319;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.api-config-section header .api-config-status--ready {
+  border-color: #2d6455;
+  color: #9ee4d1;
+  background: #173128;
+}
+
+.api-secret-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.api-secret-input button,
+.api-config-delete-row button {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid #3a4541;
+  border-radius: 7px;
+  color: #aebdb8;
+  background: #242927;
+  cursor: pointer;
+}
+
+.api-secret-input button:hover:not(:disabled),
+.api-secret-input button:focus-visible,
+.api-config-delete-row button:hover:not(:disabled),
+.api-config-delete-row button:focus-visible {
+  border-color: #40806f;
+  color: #d9eee8;
+  outline: none;
+}
+
+.api-config-advanced {
+  border: 1px solid #2d3532;
+  border-radius: 7px;
+  background: #171a19;
+}
+
+.api-config-advanced summary {
+  padding: 8px 10px;
+  color: #9dada7;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.api-config-advanced[open] summary {
+  border-bottom: 1px solid #2d3532;
+}
+
+.api-config-advanced .field {
+  margin: 10px;
+}
+
+.api-config-delete-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.api-config-delete-row button {
+  min-height: 30px;
+  color: #d6aaa5;
+  font-size: 11px;
+}
+
+.api-config-delete-row .api-config-delete--confirm {
+  border-color: #8b4941;
+  color: #ffd1ca;
+  background: #3a201d;
+}
+
+.api-config-feedback {
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid #36423e;
+  border-radius: 7px;
+  color: #aebdb8;
+  background: #181d1b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.api-config-feedback--error {
+  border-color: #71413b;
+  color: #f1b7af;
+  background: #2b1d1a;
+}
+
+.api-config-feedback--success {
+  border-color: #2d6455;
+  color: #a9e5d5;
+  background: #173128;
+}
+
+@media (max-width: 560px) {
+  .api-config-section header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .api-config-section header em {
+    align-self: flex-start;
+  }
+
+  .api-secret-input {
+    grid-template-columns: 1fr;
+  }
+}

@@ -75,6 +75,7 @@ export interface ToolSettingModalProps {
 }
 
 export type ToolSettingModalEmits = {
+  apiConfigChanged: [];
   close: [];
   reset: [tool: ToolKey];
   splitSelectedVideo: [];

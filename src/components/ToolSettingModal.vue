@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AudioSettingsPanel from "./tool-settings/AudioSettingsPanel.vue";
+import { ApiConfigSettingsPanel } from "../features/api-config";
 import CanvasSettingsPanel from "./tool-settings/CanvasSettingsPanel.vue";
 import CoverSettingsPanel from "./tool-settings/CoverSettingsPanel.vue";
 import ExportSettingsPanel from "./tool-settings/ExportSettingsPanel.vue";
@@ -15,6 +16,7 @@ defineProps<ToolSettingModalProps>();
 const emit = defineEmits<ToolSettingModalEmits>();
 
 const titles: Record<ToolKey, string> = {
+  apiKeys: "API 密钥",
   remix: "混剪设置",
   canvas: "画布设置",
   audio: "音频设置",
@@ -53,8 +55,13 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
       </header>
 
       <div class="tool-modal__body">
+        <ApiConfigSettingsPanel
+          v-if="activeTool === 'apiKeys'"
+          @changed="emit('apiConfigChanged')"
+        />
+
         <RemixSettingsPanel
-          v-if="activeTool === 'remix'"
+          v-else-if="activeTool === 'remix'"
           :segment-duration-seconds="segmentDurationSeconds"
           :random-pick-count="randomPickCount"
           :batch-generate-count="batchGenerateCount"
@@ -198,7 +205,7 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
         <p v-else class="empty-text">这个入口先定版 UI 位置，本次不开发真实功能。</p>
       </div>
 
-      <footer class="tool-modal__footer">
+      <footer v-if="activeTool !== 'apiKeys'" class="tool-modal__footer">
         <button class="ghost-button" type="button" @click="emit('reset', activeTool)">重置</button>
         <button class="primary-button" type="button" @click="emit('close')">应用</button>
       </footer>

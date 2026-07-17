@@ -1,6 +1,7 @@
 export type TaskLogLevel = "info" | "success" | "error";
 
 export type ToolKey =
+  | "apiKeys"
   | "remix"
   | "canvas"
   | "audio"

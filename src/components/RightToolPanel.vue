@@ -15,6 +15,7 @@ defineEmits<{
 }>();
 
 const primaryTools: Array<{ key: ToolKey; title: string; note: string; symbol: string }> = [
+  { key: "apiKeys", title: "API 密钥", note: "一次填写，AI与配音自动使用", symbol: "钥" },
   { key: "canvas", title: "画布与比例", note: "原画、9:16、模糊背景", symbol: "▣" },
   { key: "effects", title: "画面效果", note: "镜像、旋转、色彩与缩放", symbol: "◐" },
   { key: "transition", title: "平滑混剪", note: "淡入淡出并过滤过短片段", symbol: "≈" },
