@@ -40,6 +40,11 @@ export interface NarratedSegmentInput {
   alternativeVideos: NarratedVideoCandidate[];
 }
 
+export interface NarratedVideoFailure {
+  version: number;
+  message: string;
+}
+
 export interface NarratedAudioSettings {
   keepOriginalAudio: boolean;
   originalAudioVolume: number;

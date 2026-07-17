@@ -16,6 +16,7 @@ import type {
   NarratedSubtitlePosition,
   NarratedSubtitleSettings,
   NarratedSubtitleSize,
+  NarratedVideoFailure,
   TtsConfigStatus,
   TtsSynthesisResult,
 } from "./types";
@@ -49,6 +50,9 @@ export function useTts(options: UseTtsOptions) {
   const ttsError = ref<string | null>(null);
   const narratedVideoError = ref<string | null>(null);
   const narrationProgressText = ref<string | null>(null);
+  const narratedVideoSummaryText = ref<string | null>(null);
+  const narratedVideoResults = ref<string[]>([]);
+  const narratedVideoFailures = ref<NarratedVideoFailure[]>([]);
   const ttsResult = ref<TtsSynthesisResult | null>(null);
   const ttsVideoEnabled = ref(false);
   const ttsKeepOriginalAudio = ref(false);
@@ -129,12 +133,35 @@ export function useTts(options: UseTtsOptions) {
     shots: NarratedShotSource[],
     settings: RemixExportSettings,
   ) {
+    await generateNarratedVideos([shots], settings);
+  }
+
+  async function generateNarratedVideos(
+    variants: NarratedShotSource[][],
+    settings: RemixExportSettings,
+  ) {
     options.clearLogs();
     narratedVideoError.value = null;
     narrationProgressText.value = null;
+    narratedVideoSummaryText.value = null;
+    narratedVideoResults.value = [];
+    narratedVideoFailures.value = [];
+
+    const shots = variants[0] ?? [];
 
     if (shots.length < 2) {
       narratedVideoError.value = "至少保留 2 个分镜才能生成带配音视频。";
+      return;
+    }
+
+    if (
+      variants.some(
+        (variant) =>
+          variant.length !== shots.length ||
+          variant.some((shot, index) => shot.text !== shots[index]?.text),
+      )
+    ) {
+      narratedVideoError.value = "差异视频的分镜数量或文案不一致，请重新生成分镜。";
       return;
     }
 
@@ -168,10 +195,13 @@ export function useTts(options: UseTtsOptions) {
     }
 
     const sessionId = createSessionId();
-    const narratedSegments: NarratedSegmentInput[] = [];
+    const narrationPaths: string[] = [];
     isGeneratingNarratedVideo.value = true;
     options.setMixing(true);
-    options.appendLog(`开始逐句生成AI配音，共 ${shots.length} 个分镜。`, "info");
+    options.appendLog(
+      `开始为 ${shots.length} 个分镜逐句生成一次 AI 配音，之后复用到 ${variants.length} 条差异视频。`,
+      "info",
+    );
 
     try {
       for (const [index, shot] of shots.entries()) {
@@ -182,36 +212,73 @@ export function useTts(options: UseTtsOptions) {
           sessionId,
           index + 1,
         );
-        narratedSegments.push({
-          videoPath: shot.segmentPath,
-          videoDurationSeconds: shot.segmentDurationSeconds,
-          narrationPath: result.outputPath,
-          subtitleText: shot.text,
-          alternativeVideos: shot.alternativeSegments,
-        });
+        narrationPaths.push(result.outputPath);
         options.appendLog(`第 ${index + 1}/${shots.length} 句配音生成完成。`, "success");
       }
 
-      narrationProgressText.value = "正在匹配画面时长并生成完整视频...";
-      options.appendLog("逐句配音完成，开始调整画面时长并合成视频。", "info");
-      const result = await concatNarratedSegments(
-        narratedSegments,
-        options.outputDirectory.value,
-        settings,
-        buildNarratedAudioSettings(
-          ttsKeepOriginalAudio.value,
-          ttsOriginalAudioVolume.value,
-        ),
-        buildNarratedSubtitleSettings(
-          ttsSubtitleEnabled.value,
-          ttsSubtitlePosition.value,
-          ttsSubtitleSize.value,
-        ),
+      options.appendLog(
+        `逐句配音完成，开始顺序合成 ${variants.length} 条视频；单条失败不会中断剩余任务。`,
+        "info",
       );
-      options.onGenerated(result);
-      options.appendLog(options.formatCanvasLog(result), "info");
-      options.appendLog(options.formatSmoothLog(result), "info");
-      options.appendLog(`带AI配音视频生成成功：${formatFileName(result.outputPath)}。`, "success");
+
+      for (const [variantIndex, variant] of variants.entries()) {
+        narrationProgressText.value = `正在生成第 ${variantIndex + 1}/${variants.length} 条带配音视频...`;
+        const narratedSegments: NarratedSegmentInput[] = variant.map((shot, shotIndex) => ({
+          videoPath: shot.segmentPath,
+          videoDurationSeconds: shot.segmentDurationSeconds,
+          narrationPath: narrationPaths[shotIndex],
+          subtitleText: shot.text,
+          alternativeVideos: shot.alternativeSegments,
+        }));
+
+        try {
+          const result = await concatNarratedSegments(
+            narratedSegments,
+            options.outputDirectory.value,
+            settings,
+            buildNarratedAudioSettings(
+              ttsKeepOriginalAudio.value,
+              ttsOriginalAudioVolume.value,
+            ),
+            buildNarratedSubtitleSettings(
+              ttsSubtitleEnabled.value,
+              ttsSubtitlePosition.value,
+              ttsSubtitleSize.value,
+            ),
+          );
+          narratedVideoResults.value.push(result.outputPath);
+          options.onGenerated(result);
+          options.appendLog(options.formatCanvasLog(result), "info");
+          options.appendLog(options.formatSmoothLog(result), "info");
+          options.appendLog(
+            `第 ${variantIndex + 1}/${variants.length} 条带 AI 配音视频生成成功：${formatFileName(result.outputPath)}。`,
+            "success",
+          );
+        } catch (error) {
+          const message = formatError(error, "生成带 AI 配音视频失败。");
+          narratedVideoFailures.value.push({
+            version: variantIndex + 1,
+            message,
+          });
+          options.appendLog(
+            `第 ${variantIndex + 1}/${variants.length} 条带 AI 配音视频生成失败，继续生成下一条：${message}`,
+            "error",
+          );
+        }
+      }
+
+      const successCount = narratedVideoResults.value.length;
+      const failureCount = narratedVideoFailures.value.length;
+      narratedVideoSummaryText.value = `本次完成：成功 ${successCount} 条，失败 ${failureCount} 条，共尝试 ${variants.length} 条；配音只生成了 1 次并已复用。`;
+
+      if (successCount === 0 && failureCount > 0) {
+        narratedVideoError.value = narratedVideoFailures.value[0].message;
+      }
+
+      options.appendLog(
+        narratedVideoSummaryText.value,
+        failureCount > 0 ? "error" : "success",
+      );
     } catch (error) {
       narratedVideoError.value = formatError(error, "生成带AI配音视频失败。");
       options.appendLog(narratedVideoError.value, "error");
@@ -232,6 +299,9 @@ export function useTts(options: UseTtsOptions) {
     ttsError.value = null;
     narratedVideoError.value = null;
     narrationProgressText.value = null;
+    narratedVideoSummaryText.value = null;
+    narratedVideoResults.value = [];
+    narratedVideoFailures.value = [];
     ttsResult.value = null;
     ttsVideoEnabled.value = false;
     ttsKeepOriginalAudio.value = false;
@@ -244,11 +314,15 @@ export function useTts(options: UseTtsOptions) {
   return {
     generateTts,
     generateNarratedVideo,
+    generateNarratedVideos,
     isGeneratingNarratedVideo,
     isGeneratingTts,
     isLoadingTtsConfig: isLoadingConfig,
     loadTtsConfig,
     narratedVideoError,
+    narratedVideoFailures,
+    narratedVideoResults,
+    narratedVideoSummaryText,
     narrationProgressText,
     resetTtsSettings,
     ttsAudioUrl,

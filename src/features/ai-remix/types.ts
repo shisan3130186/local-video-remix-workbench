@@ -41,3 +41,26 @@ export interface AiRemixPlannedShot {
   segment: AiRemixSegment;
   alternativeSegments: AiRemixSegment[];
 }
+
+export interface AiRemixVariantShotInput {
+  segmentId: string;
+  alternativeSegmentIds: string[];
+}
+
+export interface AiRemixVariantPlan {
+  segmentIds: string[];
+}
+
+export interface AiRemixVariantPlanResult {
+  variants: AiRemixVariantPlan[];
+}
+
+export interface AiRemixVariant {
+  version: number;
+  shots: AiRemixPlannedShot[];
+}
+
+export interface AiRemixGenerationFailure {
+  version: number;
+  message: string;
+}

@@ -53,6 +53,26 @@ pub struct AiRemixPlanResult {
     shots: Vec<AiRemixShot>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRemixVariantShotInput {
+    segment_id: String,
+    #[serde(default)]
+    alternative_segment_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRemixVariantPlan {
+    segment_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRemixVariantPlanResult {
+    variants: Vec<AiRemixVariantPlan>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AiRemixShot {
@@ -156,6 +176,162 @@ pub async fn plan_ai_remix(
     Ok(AiRemixPlanResult {
         shots: parse_and_validate_shots(&content, &fixed_shot_texts, &segments)?,
     })
+}
+
+pub fn build_ai_remix_variants(
+    shots: Vec<AiRemixVariantShotInput>,
+    requested_count: usize,
+) -> Result<AiRemixVariantPlanResult, String> {
+    validate_variant_inputs(&shots, requested_count)?;
+
+    let candidate_lists = shots
+        .iter()
+        .map(|shot| {
+            std::iter::once(shot.segment_id.clone())
+                .chain(shot.alternative_segment_ids.iter().cloned())
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let mut variants = Vec::new();
+    let mut seen_variants = HashSet::new();
+
+    push_variant_if_unique(
+        candidate_lists
+            .iter()
+            .map(|candidates| candidates[0].clone())
+            .collect(),
+        &mut variants,
+        &mut seen_variants,
+    );
+
+    if variants.len() < requested_count {
+        let max_rotation_attempts = requested_count.saturating_mul(shots.len()).max(12);
+        for rotation in 0..max_rotation_attempts {
+            let mut used_segment_ids = HashSet::new();
+            let mut selected_segment_ids = Vec::with_capacity(candidate_lists.len());
+
+            for (shot_index, candidates) in candidate_lists.iter().enumerate() {
+                let preferred_index = if candidates.len() == 1 {
+                    0
+                } else {
+                    1 + (rotation + shot_index) % (candidates.len() - 1)
+                };
+                let selected =
+                    select_unused_candidate(candidates, preferred_index, &used_segment_ids);
+                used_segment_ids.insert(selected.clone());
+                selected_segment_ids.push(selected);
+            }
+
+            push_variant_if_unique(selected_segment_ids, &mut variants, &mut seen_variants);
+            if variants.len() >= requested_count {
+                break;
+            }
+        }
+    }
+
+    if variants.len() < requested_count {
+        append_mixed_radix_variants(
+            &candidate_lists,
+            requested_count,
+            &mut variants,
+            &mut seen_variants,
+        );
+    }
+
+    Ok(AiRemixVariantPlanResult { variants })
+}
+
+fn validate_variant_inputs(
+    shots: &[AiRemixVariantShotInput],
+    requested_count: usize,
+) -> Result<(), String> {
+    if shots.len() < 2 {
+        return Err("至少保留 2 个分镜才能生成差异视频。".to_string());
+    }
+
+    if !(1..=10).contains(&requested_count) {
+        return Err("差异视频数量必须在 1 到 10 之间。".to_string());
+    }
+
+    let mut primary_segment_ids = HashSet::new();
+    for (index, shot) in shots.iter().enumerate() {
+        if shot.segment_id.trim().is_empty() {
+            return Err(format!("第 {} 个分镜的主片段编号为空。", index + 1));
+        }
+        if !primary_segment_ids.insert(shot.segment_id.as_str()) {
+            return Err(format!("主分镜重复使用了片段 {}。", shot.segment_id));
+        }
+
+        let mut candidate_ids = HashSet::new();
+        candidate_ids.insert(shot.segment_id.as_str());
+        for alternative_id in &shot.alternative_segment_ids {
+            if alternative_id.trim().is_empty() {
+                return Err(format!("第 {} 个分镜包含空的备选片段编号。", index + 1));
+            }
+            if !candidate_ids.insert(alternative_id.as_str()) {
+                return Err(format!("第 {} 个分镜包含重复候选片段。", index + 1));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn select_unused_candidate(
+    candidates: &[String],
+    preferred_index: usize,
+    used_segment_ids: &HashSet<String>,
+) -> String {
+    (0..candidates.len())
+        .map(|offset| (preferred_index + offset) % candidates.len())
+        .find_map(|index| {
+            let candidate = &candidates[index];
+            (!used_segment_ids.contains(candidate)).then(|| candidate.clone())
+        })
+        .unwrap_or_else(|| candidates[preferred_index % candidates.len()].clone())
+}
+
+fn push_variant_if_unique(
+    segment_ids: Vec<String>,
+    variants: &mut Vec<AiRemixVariantPlan>,
+    seen_variants: &mut HashSet<String>,
+) {
+    if segment_ids.iter().collect::<HashSet<_>>().len() != segment_ids.len() {
+        return;
+    }
+
+    let key = segment_ids.join("\u{1f}");
+    if seen_variants.insert(key) {
+        variants.push(AiRemixVariantPlan { segment_ids });
+    }
+}
+
+fn append_mixed_radix_variants(
+    candidate_lists: &[Vec<String>],
+    requested_count: usize,
+    variants: &mut Vec<AiRemixVariantPlan>,
+    seen_variants: &mut HashSet<String>,
+) {
+    let combination_limit = candidate_lists.iter().fold(1usize, |total, candidates| {
+        total.saturating_mul(candidates.len())
+    });
+    let search_limit = combination_limit.min(100_000);
+
+    for ordinal in 1..search_limit {
+        let mut remainder = ordinal;
+        let mut selected_segment_ids = Vec::with_capacity(candidate_lists.len());
+
+        for candidates in candidate_lists {
+            let candidate_index = remainder % candidates.len();
+            remainder /= candidates.len();
+            selected_segment_ids.push(candidates[candidate_index].clone());
+        }
+
+        push_variant_if_unique(selected_segment_ids, variants, seen_variants);
+        if variants.len() >= requested_count {
+            break;
+        }
+    }
 }
 
 async fn request_ai_completion(
@@ -730,12 +906,13 @@ fn estimate_narration_duration(text: &str) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_ai_client, build_ai_request_body, build_chat_completions_url,
-        parse_and_validate_analyses, parse_and_validate_shots, split_script_into_shots,
-        AiRemixSegmentInput, AiRequestStage, MAX_SHOT_TEXT_CHARACTERS,
+        build_ai_client, build_ai_remix_variants, build_ai_request_body,
+        build_chat_completions_url, parse_and_validate_analyses, parse_and_validate_shots,
+        split_script_into_shots, AiRemixSegmentInput, AiRemixVariantShotInput, AiRequestStage,
+        MAX_SHOT_TEXT_CHARACTERS,
     };
     use serde_json::json;
-    use std::time::Duration;
+    use std::{collections::HashSet, time::Duration};
 
     fn expected_ids() -> Vec<String> {
         vec!["segment-001".to_string(), "segment-002".to_string()]
@@ -753,6 +930,109 @@ mod tests {
 
     fn fixed_shots() -> Vec<String> {
         vec!["先展示结果，".to_string(), "再展示过程。".to_string()]
+    }
+
+    fn variant_shots() -> Vec<AiRemixVariantShotInput> {
+        vec![
+            AiRemixVariantShotInput {
+                segment_id: "segment-001".to_string(),
+                alternative_segment_ids: vec!["segment-003".to_string(), "segment-005".to_string()],
+            },
+            AiRemixVariantShotInput {
+                segment_id: "segment-002".to_string(),
+                alternative_segment_ids: vec!["segment-004".to_string(), "segment-006".to_string()],
+            },
+        ]
+    }
+
+    #[test]
+    fn keeps_primary_plan_as_first_variant() {
+        let result = build_ai_remix_variants(variant_shots(), 3).unwrap();
+
+        assert_eq!(result.variants.len(), 3);
+        assert_eq!(
+            result.variants[0].segment_ids,
+            vec!["segment-001".to_string(), "segment-002".to_string()]
+        );
+    }
+
+    #[test]
+    fn builds_distinct_variants_without_repeating_segments_inside_a_video() {
+        let result = build_ai_remix_variants(variant_shots(), 6).unwrap();
+        let variant_keys = result
+            .variants
+            .iter()
+            .map(|variant| variant.segment_ids.join("->"))
+            .collect::<HashSet<_>>();
+
+        assert_eq!(result.variants.len(), 6);
+        assert_eq!(variant_keys.len(), result.variants.len());
+        assert!(result.variants.iter().all(|variant| {
+            variant.segment_ids.iter().collect::<HashSet<_>>().len() == variant.segment_ids.len()
+        }));
+    }
+
+    #[test]
+    fn returns_only_available_unique_variants_when_alternatives_are_missing() {
+        let shots = vec![
+            AiRemixVariantShotInput {
+                segment_id: "segment-001".to_string(),
+                alternative_segment_ids: vec![],
+            },
+            AiRemixVariantShotInput {
+                segment_id: "segment-002".to_string(),
+                alternative_segment_ids: vec![],
+            },
+        ];
+        let result = build_ai_remix_variants(shots, 3).unwrap();
+
+        assert_eq!(result.variants.len(), 1);
+    }
+
+    #[test]
+    fn rejects_duplicate_primary_segments_for_variants() {
+        let shots = vec![
+            AiRemixVariantShotInput {
+                segment_id: "segment-001".to_string(),
+                alternative_segment_ids: vec![],
+            },
+            AiRemixVariantShotInput {
+                segment_id: "segment-001".to_string(),
+                alternative_segment_ids: vec![],
+            },
+        ];
+        let error = build_ai_remix_variants(shots, 3).unwrap_err();
+
+        assert!(error.contains("重复使用"));
+    }
+
+    #[test]
+    fn rejects_variant_counts_outside_supported_range() {
+        let zero_error = build_ai_remix_variants(variant_shots(), 0).unwrap_err();
+        let eleven_error = build_ai_remix_variants(variant_shots(), 11).unwrap_err();
+
+        assert!(zero_error.contains("1 到 10"));
+        assert!(eleven_error.contains("1 到 10"));
+    }
+
+    #[test]
+    fn skips_variants_that_repeat_a_conflicting_candidate() {
+        let shots = vec![
+            AiRemixVariantShotInput {
+                segment_id: "segment-001".to_string(),
+                alternative_segment_ids: vec!["segment-002".to_string()],
+            },
+            AiRemixVariantShotInput {
+                segment_id: "segment-003".to_string(),
+                alternative_segment_ids: vec!["segment-002".to_string()],
+            },
+        ];
+        let result = build_ai_remix_variants(shots, 10).unwrap();
+
+        assert_eq!(result.variants.len(), 3);
+        assert!(result.variants.iter().all(|variant| {
+            variant.segment_ids.iter().collect::<HashSet<_>>().len() == variant.segment_ids.len()
+        }));
     }
 
     #[test]

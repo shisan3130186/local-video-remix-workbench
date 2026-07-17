@@ -4,8 +4,9 @@ mod video_engine;
 
 use ai_remix::{
     analyze_ai_remix_segments as create_ai_remix_segment_analysis,
-    plan_ai_remix as create_ai_remix_plan, AiRemixPlanResult, AiRemixSegmentAnalysisResult,
-    AiRemixSegmentInput, AiRemixVisualSegmentInput,
+    build_ai_remix_variants as create_ai_remix_variants, plan_ai_remix as create_ai_remix_plan,
+    AiRemixPlanResult, AiRemixSegmentAnalysisResult, AiRemixSegmentInput, AiRemixVariantPlanResult,
+    AiRemixVariantShotInput, AiRemixVisualSegmentInput,
 };
 use std::path::Path;
 use std::process::Command;
@@ -139,6 +140,14 @@ async fn plan_ai_remix(
 }
 
 #[tauri::command]
+fn build_ai_remix_variants(
+    shots: Vec<AiRemixVariantShotInput>,
+    requested_count: usize,
+) -> Result<AiRemixVariantPlanResult, String> {
+    create_ai_remix_variants(shots, requested_count)
+}
+
+#[tauri::command]
 fn get_tts_config_status() -> TtsConfigStatus {
     read_tts_config_status()
 }
@@ -198,6 +207,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             analyze_ai_remix_segments,
+            build_ai_remix_variants,
             check_ffmpeg_environment,
             cleanup_tts_session,
             concat_narrated_segments,

@@ -3,6 +3,8 @@ import type {
   AiRemixPlanResult,
   AiRemixSegmentAnalysisResult,
   AiRemixSegmentInput,
+  AiRemixVariantPlanResult,
+  AiRemixVariantShotInput,
   AiRemixVisualSegmentInput,
 } from "../types";
 
@@ -21,5 +23,15 @@ export function planAiRemix(
   return invoke<AiRemixPlanResult>("plan_ai_remix", {
     script,
     segments,
+  });
+}
+
+export function buildAiRemixVariants(
+  shots: AiRemixVariantShotInput[],
+  requestedCount: number,
+): Promise<AiRemixVariantPlanResult> {
+  return invoke<AiRemixVariantPlanResult>("build_ai_remix_variants", {
+    shots,
+    requestedCount,
   });
 }

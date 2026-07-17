@@ -11,6 +11,9 @@ defineProps<{
   isGenerating: boolean;
   ttsVideoEnabled: boolean;
   generationProgressText: string | null;
+  generationSummaryText: string | null;
+  generationSuccessCount: number;
+  generationFailureCount: number;
   planError: string | null;
   generateError: string | null;
 }>();
@@ -24,6 +27,7 @@ defineEmits<{
 }>();
 
 const script = defineModel<string>("script", { required: true });
+const generateCount = defineModel<number>("generateCount", { required: true });
 
 function formatSeconds(value: number) {
   return `${value.toFixed(2)} 秒`;
@@ -160,6 +164,35 @@ function formatSeconds(value: number) {
           至少保留 2 个分镜才能生成视频。
         </p>
         <p v-if="generateError" class="workflow-error" role="alert">{{ generateError }}</p>
+        <div class="ai-remix-generation-settings">
+          <label for="ai-remix-generate-count">
+            <span>一次生成数量</span>
+            <input
+              id="ai-remix-generate-count"
+              v-model.number="generateCount"
+              type="number"
+              min="1"
+              max="10"
+              step="1"
+              :disabled="isGenerating || isPlanning"
+            />
+          </label>
+          <p>可生成 1～10 条。第一条保留当前分镜，其余会轮换备选画面；备选不足时只生成实际不重复版本。</p>
+        </div>
+        <p v-if="generationProgressText" class="ai-remix-progress" role="status">
+          {{ generationProgressText }}
+        </p>
+        <p
+          v-if="generationSummaryText"
+          class="ai-remix-generation-summary"
+          :class="{ 'ai-remix-generation-summary--warning': generationFailureCount > 0 }"
+          role="status"
+        >
+          {{ generationSummaryText }}
+          <span v-if="generationSuccessCount + generationFailureCount > 0">
+            成功 {{ generationSuccessCount }} 条 · 失败 {{ generationFailureCount }} 条
+          </span>
+        </p>
         <button
           class="primary-button ai-remix-planner__generate-button"
           type="button"
@@ -168,7 +201,7 @@ function formatSeconds(value: number) {
         >
           {{ isGenerating
             ? generationProgressText ?? "正在生成 AI 混剪视频..."
-            : ttsVideoEnabled ? "生成带AI配音的视频" : "按当前分镜生成视频" }}
+            : ttsVideoEnabled ? `生成 ${generateCount} 条带AI配音的视频` : `生成 ${generateCount} 条差异视频` }}
         </button>
       </div>
     </template>

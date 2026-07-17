@@ -6,10 +6,16 @@ import type { TaskLogLevel } from "../../types/workbench";
 import { planAiRemix } from "./services/aiRemixService";
 import {
   analyzeAiRemixSegmentDescriptions,
+  createAiRemixVariants,
   createAiRemixPlannedShots,
   prepareAiRemixSegments,
 } from "./services/aiRemixWorkflow";
-import type { AiRemixPlannedShot, AiRemixSegment } from "./types";
+import type {
+  AiRemixGenerationFailure,
+  AiRemixPlannedShot,
+  AiRemixSegment,
+  AiRemixVariant,
+} from "./types";
 
 interface UseAiRemixOptions {
   outputDirectory: Readonly<Ref<string | null>>;
@@ -36,6 +42,11 @@ export function useAiRemix(options: UseAiRemixOptions) {
   const isGeneratingAiRemix = ref(false);
   const aiPlanError = ref<string | null>(null);
   const aiGenerateError = ref<string | null>(null);
+  const aiGenerateCount = ref(3);
+  const aiGenerationProgressText = ref<string | null>(null);
+  const aiGenerationSummaryText = ref<string | null>(null);
+  const aiGeneratedResults = ref<string[]>([]);
+  const aiGenerationFailures = ref<AiRemixGenerationFailure[]>([]);
 
   function resetAiRemixState(clearScript: boolean) {
     if (clearScript) {
@@ -51,6 +62,11 @@ export function useAiRemix(options: UseAiRemixOptions) {
     isGeneratingAiRemix.value = false;
     aiPlanError.value = null;
     aiGenerateError.value = null;
+    aiGenerateCount.value = 3;
+    aiGenerationProgressText.value = null;
+    aiGenerationSummaryText.value = null;
+    aiGeneratedResults.value = [];
+    aiGenerationFailures.value = [];
     options.clearAiRemixLogs();
   }
 
@@ -225,55 +241,140 @@ export function useAiRemix(options: UseAiRemixOptions) {
     aiPlannedShots.value = updatedShots;
   }
 
-  async function generateAiRemixVideo() {
+  async function prepareAiRemixVariants(): Promise<AiRemixVariant[] | null> {
     aiGenerateError.value = null;
+    aiGenerationProgressText.value = null;
+    aiGenerationSummaryText.value = null;
+    aiGeneratedResults.value = [];
+    aiGenerationFailures.value = [];
 
     if (aiPlannedShots.value.length < 2) {
       aiGenerateError.value = "至少保留 2 个分镜才能生成 AI 混剪视频。";
-      return;
+      return null;
     }
 
     if (!options.outputDirectory.value) {
       aiGenerateError.value = "请先选择输出目录。";
-      return;
+      return null;
+    }
+
+    if (
+      !Number.isInteger(aiGenerateCount.value) ||
+      aiGenerateCount.value < 1 ||
+      aiGenerateCount.value > 10
+    ) {
+      aiGenerateError.value = "生成数量必须是 1 到 10 之间的整数。";
+      return null;
     }
 
     const validationError = options.validateExportSettings();
 
     if (validationError) {
       aiGenerateError.value = validationError;
+      return null;
+    }
+
+    try {
+      const variants = await createAiRemixVariants(
+        aiPlannedShots.value,
+        aiGenerateCount.value,
+      );
+
+      if (variants.length < aiGenerateCount.value) {
+        aiGenerationSummaryText.value = `当前备选画面只能组成 ${variants.length} 条不重复视频，将按实际数量生成。`;
+        options.appendAiRemixLog(aiGenerationSummaryText.value, "info");
+      }
+
+      return variants;
+    } catch (error) {
+      aiGenerateError.value =
+        error instanceof Error
+          ? error.message
+          : String(error ?? "生成差异视频方案失败。");
+      options.appendAiRemixLog(`生成差异视频方案失败：${aiGenerateError.value}`, "error");
+      return null;
+    }
+  }
+
+  async function generateAiRemixVideos(preparedVariants?: AiRemixVariant[]) {
+    const variants = preparedVariants ?? (await prepareAiRemixVariants());
+
+    if (!variants || variants.length === 0 || !options.outputDirectory.value) {
       return;
     }
 
     isGeneratingAiRemix.value = true;
     options.setMixing(true);
     options.appendAiRemixLog(
-      `开始生成 AI 混剪视频，使用 ${aiPlannedShots.value.length} 个分镜。`,
+      `开始顺序生成 ${variants.length} 条 AI 差异视频，每条使用 ${aiPlannedShots.value.length} 个分镜。`,
       "info",
     );
 
     try {
-      const result = await concatSelectedSegments(
-        aiPlannedShots.value.map((shot) => shot.segment.path),
-        options.outputDirectory.value,
-        options.remixExportSettings.value,
+      for (const [index, variant] of variants.entries()) {
+        aiGenerationProgressText.value = `正在生成第 ${index + 1}/${variants.length} 条差异视频...`;
+
+        try {
+          const result = await concatSelectedSegments(
+            variant.shots.map((shot) => shot.segment.path),
+            options.outputDirectory.value,
+            options.remixExportSettings.value,
+          );
+          aiGeneratedResults.value.push(result.outputPath);
+          options.onGenerated(result);
+          options.appendAiRemixLog(options.formatCanvasLog(result), "info");
+          options.appendAiRemixLog(options.formatSmoothLog(result), "info");
+          options.appendAiRemixLog(
+            `第 ${variant.version}/${variants.length} 条差异视频生成成功：${result.outputPath}`,
+            "success",
+          );
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : String(error ?? "AI 混剪视频生成失败。");
+          aiGenerationFailures.value.push({ version: variant.version, message });
+          options.appendAiRemixLog(
+            `第 ${variant.version}/${variants.length} 条差异视频生成失败，继续生成下一条：${message}`,
+            "error",
+          );
+        }
+      }
+
+      const successCount = aiGeneratedResults.value.length;
+      const failureCount = aiGenerationFailures.value.length;
+      const availabilityNote =
+        variants.length < aiGenerateCount.value
+          ? ` 请求 ${aiGenerateCount.value} 条，备选画面实际只能组成 ${variants.length} 条不重复视频。`
+          : "";
+      aiGenerationSummaryText.value = `本次完成：成功 ${successCount} 条，失败 ${failureCount} 条，共尝试 ${variants.length} 条。${availabilityNote}`;
+
+      if (successCount === 0 && failureCount > 0) {
+        aiGenerateError.value = aiGenerationFailures.value[0].message;
+      }
+
+      options.appendAiRemixLog(
+        aiGenerationSummaryText.value,
+        failureCount > 0 ? "error" : "success",
       );
-      options.onGenerated(result);
-      options.appendAiRemixLog(options.formatCanvasLog(result), "info");
-      options.appendAiRemixLog(options.formatSmoothLog(result), "info");
-      options.appendAiRemixLog(`AI 智能混剪生成成功：${result.outputPath}`, "success");
-    } catch (error) {
-      aiGenerateError.value =
-        error instanceof Error ? error.message : String(error ?? "AI 混剪视频生成失败。");
-      options.appendAiRemixLog(`AI 混剪生成失败：${aiGenerateError.value}`, "error");
     } finally {
       isGeneratingAiRemix.value = false;
+      aiGenerationProgressText.value = null;
       options.setMixing(false);
     }
   }
 
+  async function generateAiRemixVideo() {
+    await generateAiRemixVideos();
+  }
+
   return {
     aiGenerateError,
+    aiGenerateCount,
+    aiGeneratedResults,
+    aiGenerationFailures,
+    aiGenerationProgressText,
+    aiGenerationSummaryText,
     aiPlanError,
     aiPlannedShots,
     aiPlanningProgressText,
@@ -281,11 +382,13 @@ export function useAiRemix(options: UseAiRemixOptions) {
     aiPreparedSegments,
     aiScript,
     generateAiRemixVideo,
+    generateAiRemixVideos,
     isGeneratingAiRemix,
     isPlanningAiRemix,
     isPreparingAiSegments,
     moveAiRemixShot,
     prepareSegmentAssets,
+    prepareAiRemixVariants,
     removeAiRemixShot,
     replaceAiRemixShotSegment,
     requestAiRemixPlan,

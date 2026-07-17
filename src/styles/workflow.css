@@ -166,9 +166,81 @@
   background: #16251f;
 }
 
+.ai-remix-generation-settings {
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid #30413b;
+  border-radius: 7px;
+  background: #151b19;
+}
+
+.ai-remix-generation-settings label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #cbd8d3;
+  font-size: 12px;
+}
+
+.ai-remix-generation-settings input {
+  width: 64px;
+  padding: 6px 8px;
+  border: 1px solid #3a4a45;
+  border-radius: 6px;
+  outline: none;
+  color: #e7f2ee;
+  background: #101412;
+}
+
+.ai-remix-generation-settings input:focus {
+  border-color: #2a8c73;
+  box-shadow: 0 0 0 2px rgba(42, 140, 115, 0.2);
+}
+
+.ai-remix-generation-settings p,
+.ai-remix-generation-summary {
+  margin: 0;
+  color: #8fa19b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.ai-remix-generation-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 9px 10px;
+  border: 1px solid #2a6657;
+  border-radius: 7px;
+  color: #b9ddd3;
+  background: #16251f;
+}
+
+.ai-remix-generation-summary span {
+  color: #d9eee8;
+  font-weight: 700;
+}
+
+.ai-remix-generation-summary--warning {
+  border-color: #80643a;
+  color: #e4c992;
+  background: #2b2418;
+}
+
 .ai-remix-planner__plan-button,
 .ai-remix-planner__generate-button {
   justify-self: start;
+}
+
+@media (max-width: 760px) {
+  .ai-remix-generation-settings {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ai-remix-plan-result {

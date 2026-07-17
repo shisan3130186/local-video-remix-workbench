@@ -2,11 +2,12 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { readVideoMetadata } from "../../../services/videoProbeService";
 import { generateThumbnail } from "../../../services/videoThumbnailService";
 import type { TaskLogLevel } from "../../../types/workbench";
-import { analyzeAiRemixSegments } from "./aiRemixService";
+import { analyzeAiRemixSegments, buildAiRemixVariants } from "./aiRemixService";
 import type {
   AiRemixPlanResult,
   AiRemixPlannedShot,
   AiRemixSegment,
+  AiRemixVariant,
 } from "../types";
 
 interface PrepareAiRemixSegmentsOptions {
@@ -173,6 +174,46 @@ export function createAiRemixPlannedShots(
       alternativeSegments: alternativeSegments as AiRemixSegment[],
     };
   });
+}
+
+export async function createAiRemixVariants(
+  shots: AiRemixPlannedShot[],
+  requestedCount: number,
+): Promise<AiRemixVariant[]> {
+  const result = await buildAiRemixVariants(
+    shots.map((shot) => ({
+      segmentId: shot.segment.segmentId,
+      alternativeSegmentIds: shot.alternativeSegments.map(
+        (segment) => segment.segmentId,
+      ),
+    })),
+    requestedCount,
+  );
+
+  return result.variants.map((variant, variantIndex) => ({
+    version: variantIndex + 1,
+    shots: shots.map((shot, shotIndex) => {
+      const selectedSegmentId = variant.segmentIds[shotIndex];
+      const candidates = [shot.segment, ...shot.alternativeSegments];
+      const selectedSegment = candidates.find(
+        (segment) => segment.segmentId === selectedSegmentId,
+      );
+
+      if (!selectedSegment) {
+        throw new Error(
+          `第 ${shotIndex + 1} 个分镜的差异方案包含未知片段 ${selectedSegmentId}。`,
+        );
+      }
+
+      return {
+        ...shot,
+        segment: selectedSegment,
+        alternativeSegments: candidates.filter(
+          (segment) => segment.segmentId !== selectedSegmentId,
+        ),
+      };
+    }),
+  }));
 }
 
 function formatFileName(filePath: string) {

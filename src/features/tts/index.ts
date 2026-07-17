@@ -7,6 +7,7 @@ export type {
   NarratedSubtitlePosition,
   NarratedSubtitleSettings,
   NarratedSubtitleSize,
+  NarratedVideoFailure,
   TtsConfigStatus,
   TtsSynthesisResult,
   TtsWordTiming,

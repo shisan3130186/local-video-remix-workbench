@@ -36,7 +36,10 @@ defineProps<{
   aiPlanningProgressText: string | null;
   isGeneratingAiRemix: boolean;
   ttsVideoEnabled: boolean;
-  narrationProgressText: string | null;
+  generationProgressText: string | null;
+  generationSummaryText: string | null;
+  generationSuccessCount: number;
+  generationFailureCount: number;
   aiPlanError: string | null;
   aiGenerateError: string | null;
   formatDuration: (durationSeconds: number | null) => string;
@@ -65,6 +68,7 @@ defineEmits<{
 const previewVideoRef = defineModel<HTMLVideoElement | null>("previewVideoRef");
 const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewBackgroundVideoRef");
 const aiScript = defineModel<string>("aiScript", { required: true });
+const aiGenerateCount = defineModel<number>("aiGenerateCount", { required: true });
 </script>
 
 <template>
@@ -178,6 +182,7 @@ const aiScript = defineModel<string>("aiScript", { required: true });
       <AiRemixPlanner
         v-if="aiPreparedSegments.length >= 2"
         v-model:script="aiScript"
+        v-model:generate-count="aiGenerateCount"
         :prepared-segments="aiPreparedSegments"
         :planned-shots="aiPlannedShots"
         :is-preparing="isPreparingAiSegments"
@@ -186,7 +191,10 @@ const aiScript = defineModel<string>("aiScript", { required: true });
         :planning-progress-text="aiPlanningProgressText"
         :is-generating="isGeneratingAiRemix"
         :tts-video-enabled="ttsVideoEnabled"
-        :generation-progress-text="narrationProgressText"
+        :generation-progress-text="generationProgressText"
+        :generation-summary-text="generationSummaryText"
+        :generation-success-count="generationSuccessCount"
+        :generation-failure-count="generationFailureCount"
         :plan-error="aiPlanError"
         :generate-error="aiGenerateError"
         @plan="$emit('planAiRemix')"

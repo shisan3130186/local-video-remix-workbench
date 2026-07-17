@@ -169,17 +169,23 @@ const {
 
 const {
   aiGenerateError,
+  aiGenerateCount,
+  aiGeneratedResults,
+  aiGenerationFailures,
+  aiGenerationProgressText,
+  aiGenerationSummaryText,
   aiPlanError,
   aiPlannedShots,
   aiPlanningProgressText,
   aiPreparationError,
   aiPreparedSegments,
   aiScript,
-  generateAiRemixVideo,
+  generateAiRemixVideos,
   isGeneratingAiRemix,
   isPlanningAiRemix,
   isPreparingAiSegments,
   moveAiRemixShot,
+  prepareAiRemixVariants,
   prepareSegmentAssets,
   removeAiRemixShot,
   replaceAiRemixShotSegment,
@@ -208,13 +214,16 @@ const {
 });
 
 const {
-  generateNarratedVideo,
+  generateNarratedVideos,
   generateTts,
   isGeneratingNarratedVideo,
   isGeneratingTts,
   isLoadingTtsConfig,
   loadTtsConfig,
   narratedVideoError,
+  narratedVideoFailures,
+  narratedVideoResults,
+  narratedVideoSummaryText,
   narrationProgressText,
   resetTtsSettings,
   ttsAudioUrl,
@@ -255,25 +264,61 @@ const isGeneratingCurrentAiVideo = computed(
 );
 
 const currentAiGenerateError = computed(() =>
-  ttsVideoEnabled.value ? narratedVideoError.value : aiGenerateError.value,
+  ttsVideoEnabled.value
+    ? narratedVideoError.value ?? aiGenerateError.value
+    : aiGenerateError.value,
+);
+
+const currentAiGenerationProgressText = computed(() =>
+  ttsVideoEnabled.value ? narrationProgressText.value : aiGenerationProgressText.value,
+);
+
+const currentAiGenerationSummaryText = computed(() => {
+  if (!ttsVideoEnabled.value) {
+    return aiGenerationSummaryText.value;
+  }
+
+  return [aiGenerationSummaryText.value, narratedVideoSummaryText.value]
+    .filter((message): message is string => Boolean(message))
+    .join(" ") || null;
+});
+
+const currentAiGenerationSuccessCount = computed(() =>
+  ttsVideoEnabled.value
+    ? narratedVideoResults.value.length
+    : aiGeneratedResults.value.length,
+);
+
+const currentAiGenerationFailureCount = computed(() =>
+  ttsVideoEnabled.value
+    ? narratedVideoFailures.value.length
+    : aiGenerationFailures.value.length,
 );
 
 async function generateCurrentAiRemixVideo() {
-  if (!ttsVideoEnabled.value) {
-    await generateAiRemixVideo();
+  const variants = await prepareAiRemixVariants();
+
+  if (!variants) {
     return;
   }
 
-  await generateNarratedVideo(
-    aiPlannedShots.value.map((shot) => ({
-      text: shot.text,
-      segmentPath: shot.segment.path,
-      segmentDurationSeconds: shot.segment.durationSeconds,
-      alternativeSegments: shot.alternativeSegments.map((segment) => ({
-        videoPath: segment.path,
-        durationSeconds: segment.durationSeconds,
+  if (!ttsVideoEnabled.value) {
+    await generateAiRemixVideos(variants);
+    return;
+  }
+
+  await generateNarratedVideos(
+    variants.map((variant) =>
+      variant.shots.map((shot) => ({
+        text: shot.text,
+        segmentPath: shot.segment.path,
+        segmentDurationSeconds: shot.segment.durationSeconds,
+        alternativeSegments: shot.alternativeSegments.map((segment) => ({
+          videoPath: segment.path,
+          durationSeconds: segment.durationSeconds,
+        })),
       })),
-    })),
+    ),
     remixExportSettings.value,
   );
 }
@@ -873,6 +918,7 @@ onMounted(() => {
         v-model:preview-video-ref="previewVideoRef"
         v-model:preview-background-video-ref="previewBackgroundVideoRef"
         v-model:ai-script="aiScript"
+        v-model:ai-generate-count="aiGenerateCount"
         :is-advanced-mode="isAdvancedMode"
         :imported-video-count="importedVideos.length"
         :selected-video="selectedVideo"
@@ -900,7 +946,10 @@ onMounted(() => {
         :ai-planning-progress-text="aiPlanningProgressText"
         :is-generating-ai-remix="isGeneratingCurrentAiVideo"
         :tts-video-enabled="ttsVideoEnabled"
-        :narration-progress-text="narrationProgressText"
+        :generation-progress-text="currentAiGenerationProgressText"
+        :generation-summary-text="currentAiGenerationSummaryText"
+        :generation-success-count="currentAiGenerationSuccessCount"
+        :generation-failure-count="currentAiGenerationFailureCount"
         :ai-plan-error="aiPlanError"
         :ai-generate-error="currentAiGenerateError"
         :format-duration="formatDuration"
