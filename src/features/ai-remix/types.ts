@@ -1,7 +1,7 @@
 export interface AiRemixVisualSegmentInput {
   segmentId: string;
   durationSeconds: number;
-  thumbnailPath: string;
+  thumbnailPaths: string[];
 }
 
 export interface AiRemixSegmentInput {
@@ -10,9 +10,13 @@ export interface AiRemixSegmentInput {
   description: string;
 }
 
-export interface AiRemixSegment extends AiRemixVisualSegmentInput {
+export interface AiRemixSegment {
+  segmentId: string;
   path: string;
+  durationSeconds: number;
+  thumbnailPath: string;
   thumbnailUrl: string;
+  analysisThumbnailPaths?: string[];
   description: string | null;
 }
 

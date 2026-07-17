@@ -57,7 +57,11 @@ function collectFilePaths(project: ProjectStateSnapshot) {
     ...project.materials.splitSegmentPaths,
     ...Object.values(project.materials.segmentThumbnailPaths),
     ...Object.values(project.materials.videoCoverPaths),
-    ...project.ai.preparedSegments.flatMap((segment) => [segment.path, segment.thumbnailPath]),
+    ...project.ai.preparedSegments.flatMap((segment) => [
+      segment.path,
+      segment.thumbnailPath,
+      ...(segment.analysisThumbnailPaths ?? []),
+    ]),
     project.remixSettings.pictureInPictureSettings.overlayFilePath,
     project.remixSettings.bgmSettings.audioFilePath,
   ]);

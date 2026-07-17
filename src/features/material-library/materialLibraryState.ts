@@ -117,6 +117,7 @@ export function sanitizeMaterialLibrarySnapshot(
         durationSeconds: segment.durationSeconds as number,
         thumbnailPath: segment.thumbnailPath as string,
         thumbnailUrl: convertFileSrc(segment.thumbnailPath as string),
+        analysisThumbnailPaths: [segment.thumbnailPath as string],
         description: segment.description,
       })),
     restoredMaterials: validMaterials.length,

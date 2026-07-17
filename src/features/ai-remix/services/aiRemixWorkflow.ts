@@ -43,23 +43,35 @@ export async function prepareAiRemixSegments({
   for (const [index, segmentPath] of segmentPaths.entries()) {
     task?.throwIfCancelled();
     try {
-      const [thumbnailResult, metadata] = await Promise.all([
-        generateThumbnail(segmentPath, outputDirectory, 0.1, `segment_${index + 1}`),
-        readVideoMetadata(segmentPath),
-      ]);
+      const metadata = await readVideoMetadata(segmentPath);
       const durationSeconds = metadata.durationSeconds;
 
       if (durationSeconds === null || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
         throw new Error("无法读取有效片段时长。");
       }
 
-      thumbnailEntries[segmentPath] = thumbnailResult.thumbnailPath;
+      const frameTimes = buildAnalysisFrameTimes(durationSeconds);
+      const thumbnailResults = await Promise.all(
+        frameTimes.map((timeSeconds, frameIndex) =>
+          generateThumbnail(
+            segmentPath,
+            outputDirectory,
+            timeSeconds,
+            `segment_${index + 1}_frame_${frameIndex + 1}`,
+          ),
+        ),
+      );
+      const representativeThumbnail =
+        thumbnailResults[Math.floor(thumbnailResults.length / 2)];
+
+      thumbnailEntries[segmentPath] = representativeThumbnail.thumbnailPath;
       preparedSegments.push({
         segmentId: `segment-${String(index + 1).padStart(3, "0")}`,
         path: segmentPath,
         durationSeconds,
-        thumbnailPath: thumbnailResult.thumbnailPath,
-        thumbnailUrl: convertFileSrc(thumbnailResult.thumbnailPath),
+        thumbnailPath: representativeThumbnail.thumbnailPath,
+        thumbnailUrl: convertFileSrc(representativeThumbnail.thumbnailPath),
+        analysisThumbnailPaths: thumbnailResults.map((result) => result.thumbnailPath),
         description: null,
       });
     } catch (error) {
@@ -97,7 +109,7 @@ export async function analyzeAiRemixSegmentDescriptions(
   const failedAnalyses: string[] = [];
   updateProgress(`正在理解片段画面 ${completedCount}/${segments.length}`);
   appendLog(
-    `开始分批理解 ${pendingSegments.length} 个片段画面：每次只发送 1 张预览图，最多同时处理 2 张。`,
+    `开始分批理解 ${pendingSegments.length} 个片段画面：每个片段使用开头、中间、结尾多帧，最多同时处理 2 个片段。`,
     "info",
   );
 
@@ -117,7 +129,7 @@ export async function analyzeAiRemixSegmentDescriptions(
               batch.map((segment) => ({
                 segmentId: segment.segmentId,
                 durationSeconds: segment.durationSeconds,
-                thumbnailPath: segment.thumbnailPath,
+                thumbnailPaths: getAnalysisThumbnailPaths(segment),
               })),
             ),
           {
@@ -178,6 +190,19 @@ export async function analyzeAiRemixSegmentDescriptions(
   }
 
   return updatedSegments;
+}
+
+function buildAnalysisFrameTimes(durationSeconds: number) {
+  const safeEnd = Math.max(0.05, durationSeconds - 0.05);
+  const times = [durationSeconds * 0.15, durationSeconds * 0.5, durationSeconds * 0.85]
+    .map((time) => Math.min(safeEnd, Math.max(0.05, time)))
+    .filter((time, index, values) => index === 0 || Math.abs(time - values[index - 1]) >= 0.05);
+  return times.length > 0 ? times : [0.05];
+}
+
+function getAnalysisThumbnailPaths(segment: AiRemixSegment) {
+  const paths = segment.analysisThumbnailPaths?.filter(Boolean) ?? [];
+  return paths.length > 0 ? paths : [segment.thumbnailPath];
 }
 
 export function createAiRemixPlannedShots(

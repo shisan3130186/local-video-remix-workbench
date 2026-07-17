@@ -52,6 +52,8 @@ export function sanitizeProjectSnapshot(
     )
     .map((segment) => ({
       ...segment,
+      analysisThumbnailPaths:
+        segment.analysisThumbnailPaths?.filter((path) => !missingFiles.has(path)) ?? [segment.thumbnailPath],
       thumbnailUrl: convertFileSrc(segment.thumbnailPath),
     }));
   const preparedSegmentMap = new Map(

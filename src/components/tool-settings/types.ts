@@ -10,6 +10,7 @@ import type {
   TtsSynthesisResult,
 } from "../../features/tts";
 import type { ToolKey } from "../../types/workbench";
+import type { SceneSensitivity, SplitMode } from "../../features/materials";
 import type {
   EncoderCapabilities,
   OutputFrameRate,
@@ -31,6 +32,10 @@ export interface ToolSettingModalProps {
   outputDirectory: string | null;
   outputDirectoryError: string | null;
   segmentDurationSeconds: number;
+  splitMode: SplitMode;
+  sceneSensitivity: SceneSensitivity;
+  minimumSegmentSeconds: number;
+  maximumSegmentSeconds: number;
   randomPickCount: number;
   batchGenerateCount: number;
   canvasAspectRatio: CanvasAspectRatio;
@@ -105,6 +110,10 @@ export type ToolSettingModalEmits = {
   generateTts: [];
   detectEncoders: [];
   "update:segmentDurationSeconds": [value: number];
+  "update:splitMode": [value: SplitMode];
+  "update:sceneSensitivity": [value: SceneSensitivity];
+  "update:minimumSegmentSeconds": [value: number];
+  "update:maximumSegmentSeconds": [value: number];
   "update:randomPickCount": [value: number];
   "update:batchGenerateCount": [value: number];
   "update:canvasAspectRatio": [value: CanvasAspectRatio];

@@ -54,7 +54,9 @@ use video_engine::probe::{
     check_environment, probe_video_metadata, FfmpegEnvironmentResult, VideoMetadata,
 };
 use video_engine::render::{export_basic_video, RenderVideoResult};
-use video_engine::split::{split_video_by_duration, SplitVideoResult};
+use video_engine::split::{
+    split_video_by_duration, split_video_by_scene, SceneSensitivity, SplitVideoResult,
+};
 use video_engine::subtitle::NarratedSubtitleSettings;
 use video_engine::thumbnail::{generate_video_thumbnail, ThumbnailFitMode, VideoThumbnailResult};
 
@@ -188,6 +190,27 @@ fn split_current_video(
         input_file_path,
         output_directory,
         segment_duration_seconds,
+        input_duration_seconds,
+        task_context,
+    )
+}
+
+#[tauri::command]
+fn split_video_by_scenes(
+    input_file_path: String,
+    output_directory: String,
+    sensitivity: SceneSensitivity,
+    minimum_segment_seconds: f64,
+    maximum_segment_seconds: f64,
+    input_duration_seconds: Option<f64>,
+    task_context: Option<TaskProgressContext>,
+) -> Result<SplitVideoResult, String> {
+    split_video_by_scene(
+        input_file_path,
+        output_directory,
+        sensitivity,
+        minimum_segment_seconds,
+        maximum_segment_seconds,
         input_duration_seconds,
         task_context,
     )
@@ -364,6 +387,7 @@ pub fn run() {
             save_material_library,
             save_project_snapshot,
             split_current_video,
+            split_video_by_scenes,
             synthesize_tts,
             synthesize_tts_shot,
             update_task_progress

@@ -11,6 +11,7 @@ import type { ProjectMaterialsSnapshot } from "../project-recovery/types";
 import { listVideoFilesInFolder } from "./services/materialService";
 import { loadImportedVideos, splitImportedVideos } from "./services/materialWorkflow";
 import { useMaterialCovers } from "./useMaterialCovers";
+import type { SceneSensitivity, SplitMode } from "./types";
 
 interface UseMaterialsOptions {
   outputDirectory: Readonly<Ref<string | null>>;
@@ -25,6 +26,10 @@ export function useMaterials(options: UseMaterialsOptions) {
   const isImporting = ref(false);
   const importError = ref<string | null>(null);
   const segmentDurationSeconds = ref(5);
+  const splitMode = ref<SplitMode>("scene");
+  const sceneSensitivity = ref<SceneSensitivity>("balanced");
+  const minimumSegmentSeconds = ref(2);
+  const maximumSegmentSeconds = ref(10);
   const isSplitting = ref(false);
   const splitError = ref<string | null>(null);
   const splitOutputDirectory = ref<string | null>(null);
@@ -143,24 +148,45 @@ export function useMaterials(options: UseMaterialsOptions) {
       return;
     }
 
-    if (!Number.isFinite(segmentDurationSeconds.value) || segmentDurationSeconds.value <= 0) {
+    if (
+      splitMode.value === "duration" &&
+      (!Number.isFinite(segmentDurationSeconds.value) || segmentDurationSeconds.value <= 0)
+    ) {
       splitError.value = "切片秒数必须大于 0。";
       options.appendSplitLog(`切片失败：${splitError.value}`, "error");
       return;
     }
 
+    if (splitMode.value === "scene") {
+      const smartSettingsError = validateSmartSplitSettings(
+        minimumSegmentSeconds.value,
+        maximumSegmentSeconds.value,
+      );
+      if (smartSettingsError) {
+        splitError.value = smartSettingsError;
+        options.appendSplitLog(`智能切片失败：${splitError.value}`, "error");
+        return;
+      }
+    }
+
     options.appendSplitLog(
-      `开始切片全部素材，共 ${importedVideos.value.length} 个视频。`,
+      `${splitMode.value === "scene" ? "开始智能切片" : "开始固定时长切片"}，共 ${importedVideos.value.length} 个视频。`,
       "info",
     );
     isSplitting.value = true;
 
     try {
       await options.runTask("切片并准备全部素材", async (task) => {
-        const { segmentPaths, failedVideoNames } = await splitImportedVideos({
+        const { segmentPaths, failedVideoNames, detectedSceneCount } = await splitImportedVideos({
           videos: importedVideos.value,
           outputDirectory: options.outputDirectory.value as string,
+          splitMode: splitMode.value,
           segmentDurationSeconds: segmentDurationSeconds.value,
+          smartSplitSettings: {
+            sensitivity: sceneSensitivity.value,
+            minimumSegmentSeconds: minimumSegmentSeconds.value,
+            maximumSegmentSeconds: maximumSegmentSeconds.value,
+          },
           appendLog: options.appendSplitLog,
           task,
         });
@@ -177,7 +203,9 @@ export function useMaterials(options: UseMaterialsOptions) {
         await prepareSegmentAssets(segmentPaths, task);
         task.throwIfCancelled();
         options.appendSplitLog(
-          `全部素材切片完成：${importedVideos.value.length - failedVideoNames.length} 个成功，共 ${segmentPaths.length} 个片段。`,
+          splitMode.value === "scene"
+            ? `全部素材智能切片完成：${importedVideos.value.length - failedVideoNames.length} 个成功，共 ${segmentPaths.length} 个片段，识别到 ${detectedSceneCount} 个画面变化候选点。`
+            : `全部素材切片完成：${importedVideos.value.length - failedVideoNames.length} 个成功，共 ${segmentPaths.length} 个片段。`,
           failedVideoNames.length > 0 ? "error" : "success",
         );
 
@@ -273,10 +301,13 @@ export function useMaterials(options: UseMaterialsOptions) {
     importVideos,
     isImporting,
     isSplitting,
+    maximumSegmentSeconds,
     mergeSegmentThumbnailPaths,
+    minimumSegmentSeconds,
     restoreMaterials,
     segmentCategories,
     segmentDurationSeconds,
+    sceneSensitivity,
     segmentThumbnailPaths,
     segmentThumbnailUrls,
     selectSegment,
@@ -288,8 +319,22 @@ export function useMaterials(options: UseMaterialsOptions) {
     splitOutputDirectory,
     splitSegmentCount,
     splitSegmentPaths,
+    splitMode,
     updateSegmentCategory,
   };
+}
+
+function validateSmartSplitSettings(minimum: number, maximum: number) {
+  if (!Number.isFinite(minimum) || minimum < 0.5 || minimum > 10) {
+    return "最短片段时长必须在 0.5 到 10 秒之间。";
+  }
+  if (!Number.isFinite(maximum) || maximum < 2 || maximum > 60) {
+    return "最长片段时长必须在 2 到 60 秒之间。";
+  }
+  if (maximum < minimum + 0.5) {
+    return "最长片段时长需要至少比最短片段多 0.5 秒。";
+  }
+  return null;
 }
 
 function buildEmptySegmentCategoryMap(segmentPaths: string[]) {

@@ -659,6 +659,138 @@
   min-height: 38px;
 }
 
+.smart-split-settings {
+  display: grid;
+  gap: 12px;
+  margin: 10px 0 14px;
+  padding: 14px;
+  border: 1px solid #303936;
+  border-radius: 10px;
+  background: #1b211f;
+}
+
+.smart-split-settings__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.smart-split-settings h3,
+.smart-split-settings p {
+  margin: 0;
+}
+
+.smart-split-settings h3 {
+  color: #dceae5;
+  font-size: 13px;
+}
+
+.smart-split-settings__heading p,
+.smart-split-note {
+  margin-top: 4px;
+  color: #7d8c87;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.recommended-badge {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border: 1px solid #2f7e6d;
+  border-radius: 999px;
+  color: #8ce8d2;
+  background: #17362f;
+  font-size: 10px;
+}
+
+.split-mode-options,
+.sensitivity-options {
+  display: grid;
+  gap: 8px;
+}
+
+.split-mode-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.split-mode-option,
+.sensitivity-options label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #343d3a;
+  border-radius: 8px;
+  color: #9dacaa;
+  background: #171c1a;
+  cursor: pointer;
+}
+
+.split-mode-option--active,
+.sensitivity-options label:has(input:checked) {
+  border-color: #2b9b83;
+  color: #dff8f1;
+  background: #18332d;
+}
+
+.split-mode-option input,
+.sensitivity-options input {
+  accent-color: #2adfba;
+}
+
+.split-mode-option span,
+.sensitivity-options span {
+  display: grid;
+  min-width: 0;
+}
+
+.split-mode-option strong,
+.sensitivity-options strong {
+  font-size: 12px;
+}
+
+.split-mode-option small,
+.sensitivity-options small {
+  margin-top: 2px;
+  color: #7d8c87;
+  font-size: 10px;
+}
+
+.sensitivity-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sensitivity-fieldset legend {
+  margin-bottom: 7px;
+  color: #9dacaa;
+  font-size: 12px;
+}
+
+.sensitivity-options {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.smart-split-duration-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.smart-split-duration-grid .field {
+  margin-top: 0;
+}
+
+@media (max-width: 520px) {
+  .split-mode-options,
+  .smart-split-duration-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .output-settings-stack {
   display: grid;
   gap: 12px;

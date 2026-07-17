@@ -16,6 +16,7 @@ defineEmits<{
 
 const primaryTools: Array<{ key: ToolKey; title: string; note: string; symbol: string }> = [
   { key: "apiKeys", title: "API 密钥", note: "一次填写，AI与配音自动使用", symbol: "钥" },
+  { key: "remix", title: "智能切片", note: "场景识别、固定切片和批量参数", symbol: "切" },
   { key: "canvas", title: "画布与比例", note: "原画、9:16、模糊背景", symbol: "▣" },
   { key: "effects", title: "画面效果", note: "镜像、旋转、色彩与缩放", symbol: "◐" },
   { key: "transition", title: "平滑混剪", note: "淡入淡出并过滤过短片段", symbol: "≈" },
@@ -26,7 +27,6 @@ const primaryTools: Array<{ key: ToolKey; title: string; note: string; symbol: s
 ];
 
 const advancedTools: Array<{ key: ToolKey; title: string; note: string }> = [
-  { key: "remix", title: "切片与批量参数", note: "切片时长、抽取数量、生成数量" },
   { key: "cover", title: "视频封面", note: "选择当前视频的封面帧" },
 ];
 </script>

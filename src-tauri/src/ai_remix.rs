@@ -24,7 +24,7 @@ const RETRYABLE_ERROR_PREFIX: &str = "__RETRYABLE_SERVICE_ERROR__:";
 pub struct AiRemixVisualSegmentInput {
     segment_id: String,
     duration_seconds: f64,
-    thumbnail_path: String,
+    thumbnail_paths: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -133,7 +133,7 @@ pub async fn analyze_ai_remix_segments(
         json!([
             {
                 "role": "system",
-                "content": "你是短视频素材理解助手。请分别描述每张片段预览图中真正可见的主体、动作、场景和用途。描述要客观、简短，不能猜测图片之外的信息。只允许返回 JSON 对象，不要返回 Markdown、代码围栏、解释或其他字段。格式必须是：{\"segments\":[{\"segmentId\":\"segment-001\",\"description\":\"画面描述\"}]}"
+                "content": "你是短视频素材理解助手。每个片段会提供1到3张按时间顺序抽取的画面。请综合同一片段的多帧，描述真正可见的主体、场景、动作及动作变化；描述要客观、简短，不能猜测画面之外的信息。只允许返回 JSON 对象，不要返回 Markdown、代码围栏、解释或其他字段。格式必须是：{\"segments\":[{\"segmentId\":\"segment-001\",\"description\":\"画面描述\"}]}"
             },
             {
                 "role": "user",
@@ -502,7 +502,17 @@ fn validate_visual_inputs(segments: &[AiRemixVisualSegmentInput]) -> Result<(), 
             &mut segment_ids,
         )?;
 
-        if !Path::new(&segment.thumbnail_path).is_file() {
+        if segment.thumbnail_paths.is_empty() || segment.thumbnail_paths.len() > 3 {
+            return Err(format!(
+                "片段 {} 需要提供 1 到 3 张预览图。",
+                segment.segment_id
+            ));
+        }
+        if segment
+            .thumbnail_paths
+            .iter()
+            .any(|thumbnail_path| !Path::new(thumbnail_path).is_file())
+        {
             return Err(format!("片段 {} 缺少可用的预览图。", segment.segment_id));
         }
     }
@@ -591,23 +601,25 @@ fn build_visual_analysis_content(
     })];
 
     for segment in segments {
-        let image_bytes = fs::read(&segment.thumbnail_path)
-            .map_err(|error| format!("无法读取片段 {} 的预览图：{error}", segment.segment_id))?;
-        let encoded_image = STANDARD.encode(image_bytes);
-
         content.push(json!({
             "type": "text",
             "text": format!(
-                "片段编号：{}；时长：{:.3} 秒",
-                segment.segment_id, segment.duration_seconds
+                "片段编号：{}；时长：{:.3} 秒；以下 {} 张图按时间顺序来自同一片段，请综合判断主体、场景和动作变化。",
+                segment.segment_id, segment.duration_seconds, segment.thumbnail_paths.len()
             )
         }));
-        content.push(json!({
-            "type": "image_url",
-            "image_url": {
-                "url": format!("data:image/jpeg;base64,{encoded_image}")
-            }
-        }));
+        for thumbnail_path in &segment.thumbnail_paths {
+            let image_bytes = fs::read(thumbnail_path).map_err(|error| {
+                format!("无法读取片段 {} 的预览图：{error}", segment.segment_id)
+            })?;
+            let encoded_image = STANDARD.encode(image_bytes);
+            content.push(json!({
+                "type": "image_url",
+                "image_url": {
+                    "url": format!("data:image/jpeg;base64,{encoded_image}")
+                }
+            }));
+        }
     }
 
     Ok(content)

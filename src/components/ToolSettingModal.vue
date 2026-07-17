@@ -17,7 +17,7 @@ const emit = defineEmits<ToolSettingModalEmits>();
 
 const titles: Record<ToolKey, string> = {
   apiKeys: "API 密钥",
-  remix: "混剪设置",
+  remix: "智能切片与批量",
   canvas: "画布设置",
   audio: "音频设置",
   bgm: "背景音乐",
@@ -63,6 +63,10 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
         <RemixSettingsPanel
           v-else-if="activeTool === 'remix'"
           :segment-duration-seconds="segmentDurationSeconds"
+          :split-mode="splitMode"
+          :scene-sensitivity="sceneSensitivity"
+          :minimum-segment-seconds="minimumSegmentSeconds"
+          :maximum-segment-seconds="maximumSegmentSeconds"
           :random-pick-count="randomPickCount"
           :batch-generate-count="batchGenerateCount"
           :is-splitting="isSplitting"
@@ -75,6 +79,10 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           @pick-segments-randomly="emit('pickSegmentsRandomly')"
           @generate-batch-mixes="emit('generateBatchMixes')"
           @update:segment-duration-seconds="emit('update:segmentDurationSeconds', $event)"
+          @update:split-mode="emit('update:splitMode', $event)"
+          @update:scene-sensitivity="emit('update:sceneSensitivity', $event)"
+          @update:minimum-segment-seconds="emit('update:minimumSegmentSeconds', $event)"
+          @update:maximum-segment-seconds="emit('update:maximumSegmentSeconds', $event)"
           @update:random-pick-count="emit('update:randomPickCount', $event)"
           @update:batch-generate-count="emit('update:batchGenerateCount', $event)"
         />

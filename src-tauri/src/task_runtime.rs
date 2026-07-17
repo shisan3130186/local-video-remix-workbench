@@ -180,6 +180,15 @@ pub fn run_ffmpeg(
     duration_seconds: Option<f64>,
     fallback_error: &str,
 ) -> Result<(), String> {
+    run_ffmpeg_capture_stderr(args, context, duration_seconds, fallback_error).map(|_| ())
+}
+
+pub fn run_ffmpeg_capture_stderr(
+    args: Vec<String>,
+    context: Option<&TaskProgressContext>,
+    duration_seconds: Option<f64>,
+    fallback_error: &str,
+) -> Result<String, String> {
     if let Some(context) = context {
         ensure_not_cancelled(&context.task_id)?;
         let _ = update_task(
@@ -267,7 +276,7 @@ pub fn run_ffmpeg(
     if let Some(context) = context {
         let _ = update_task(&context.task_id, context.end_percent, context.stage.clone());
     }
-    Ok(())
+    Ok(stderr)
 }
 
 fn parse_ffmpeg_elapsed_seconds(line: &str) -> Option<f64> {

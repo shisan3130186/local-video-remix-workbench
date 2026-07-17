@@ -141,10 +141,13 @@ const {
   isGeneratingCover,
   isImporting,
   isSplitting,
+  maximumSegmentSeconds,
   mergeSegmentThumbnailPaths,
+  minimumSegmentSeconds,
   restoreMaterials,
   segmentCategories,
   segmentDurationSeconds,
+  sceneSensitivity,
   segmentThumbnailPaths,
   segmentThumbnailUrls,
   selectSegment,
@@ -158,6 +161,7 @@ const {
   splitOutputDirectory,
   splitSegmentCount,
   splitSegmentPaths,
+  splitMode,
   updateSegmentCategory,
   videoCoverUrls,
   videoCoverPaths,
@@ -638,8 +642,8 @@ const primaryTaskActionLabel = computed(() => {
 
   if (aiPreparedSegments.value.length < 2) {
     return importedVideos.value.length > 1
-      ? `切片全部素材（${importedVideos.value.length} 个）`
-      : "切片当前视频";
+      ? `${splitMode.value === "scene" ? "智能切片" : "切片"}全部素材（${importedVideos.value.length} 个）`
+      : splitMode.value === "scene" ? "智能切片当前视频" : "切片当前视频";
   }
 
   if (aiPlannedShots.value.length < 2) {
@@ -844,6 +848,10 @@ function validateBgmSettings() {
 function resetToolSettings(tool: ToolKey) {
   if (tool === "remix") {
     segmentDurationSeconds.value = 5;
+    splitMode.value = "scene";
+    sceneSensitivity.value = "balanced";
+    minimumSegmentSeconds.value = 2;
+    maximumSegmentSeconds.value = 10;
     randomPickCount.value = 1;
     batchGenerateCount.value = 3;
     return;
@@ -1292,6 +1300,10 @@ onMounted(() => {
       :output-directory="outputDirectory"
       :output-directory-error="outputDirectoryError"
       :segment-duration-seconds="segmentDurationSeconds"
+      :split-mode="splitMode"
+      :scene-sensitivity="sceneSensitivity"
+      :minimum-segment-seconds="minimumSegmentSeconds"
+      :maximum-segment-seconds="maximumSegmentSeconds"
       :random-pick-count="randomPickCount"
       :batch-generate-count="batchGenerateCount"
       :canvas-aspect-ratio="canvasAspectRatio"
@@ -1363,6 +1375,10 @@ onMounted(() => {
       @api-config-changed="loadTtsConfig"
       @detect-encoders="detectEncoders"
       @update:segment-duration-seconds="segmentDurationSeconds = $event"
+      @update:split-mode="splitMode = $event"
+      @update:scene-sensitivity="sceneSensitivity = $event"
+      @update:minimum-segment-seconds="minimumSegmentSeconds = $event"
+      @update:maximum-segment-seconds="maximumSegmentSeconds = $event"
       @update:random-pick-count="randomPickCount = $event"
       @update:batch-generate-count="batchGenerateCount = $event"
       @update:canvas-aspect-ratio="canvasAspectRatio = $event"
