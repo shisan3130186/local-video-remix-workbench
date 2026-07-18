@@ -9,6 +9,7 @@ import type {
   NarratedSubtitleSize,
   TtsSynthesisResult,
 } from "../../features/tts";
+import type { AsrRecognitionResult } from "../../features/asr";
 import type { ToolKey } from "../../types/workbench";
 import type { SceneSensitivity, SplitMode } from "../../features/materials";
 import type {
@@ -84,6 +85,16 @@ export interface ToolSettingModalProps {
   ttsSubtitleSize: NarratedSubtitleSize;
   ttsResult: TtsSynthesisResult | null;
   ttsAudioUrl: string | null;
+  asrConfigured: boolean;
+  asrResourceId: string;
+  asrSourceFilePath: string | null;
+  asrSourceFileName: string | null;
+  isLoadingAsrConfig: boolean;
+  isRecognizingAsr: boolean;
+  asrError: string | null;
+  asrResult: AsrRecognitionResult | null;
+  isSavingAsrToLibrary: boolean;
+  asrLibraryFeedback: string | null;
   outputResolution: OutputResolution;
   outputFrameRate: OutputFrameRate;
   outputQuality: OutputQuality;
@@ -108,6 +119,11 @@ export type ToolSettingModalEmits = {
   selectBgmAudioFile: [];
   generateCoverFrame: [];
   generateTts: [];
+  selectAsrSourceFile: [];
+  recognizeAsr: [];
+  clearAsrSelection: [];
+  saveAsrToLibrary: [];
+  saveAndUseAsrScript: [];
   detectEncoders: [];
   "update:segmentDurationSeconds": [value: number];
   "update:splitMode": [value: SplitMode];

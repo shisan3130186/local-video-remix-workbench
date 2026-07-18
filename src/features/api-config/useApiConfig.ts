@@ -53,7 +53,7 @@ export function useApiConfig() {
       applyStatus(nextStatus);
       successMessage.value = nextStatus.aiConfigured || nextStatus.ttsConfigured
         ? "配置已安全保存，后续启动软件会自动使用。"
-        : "连接参数已保存，但尚未填写AI或TTS密钥。";
+        : "连接参数已保存，但尚未填写AI或TTS/ASR语音密钥。";
       return nextStatus;
     } catch (saveError) {
       error.value = formatError(saveError, "保存API密钥配置失败。");
@@ -71,7 +71,7 @@ export function useApiConfig() {
     try {
       const nextStatus = await deleteApiCredential(kind);
       applyStatus(nextStatus);
-      successMessage.value = kind === "ai" ? "已删除本机保存的AI密钥。" : "已删除本机保存的TTS密钥。";
+      successMessage.value = kind === "ai" ? "已删除本机保存的AI密钥。" : "已删除本机保存的TTS/ASR语音密钥。";
       return nextStatus;
     } catch (deleteError) {
       error.value = formatError(deleteError, "删除API密钥失败。");

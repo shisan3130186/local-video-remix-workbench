@@ -133,7 +133,7 @@ pub fn load_tts_service_config(
         .tts_api_key
         .or_else(|| environment_value("TTS_API_KEY"))
         .ok_or_else(|| {
-            "尚未配置TTS API Key。请打开右侧“API 密钥”设置并保存，或使用环境变量 TTS_API_KEY。"
+            "尚未配置TTS/ASR语音密钥。请打开右侧“API 密钥”设置并保存，或使用环境变量 TTS_API_KEY。"
                 .to_string()
         })?;
     let resource_id = stored
@@ -151,6 +151,14 @@ pub fn load_tts_service_config(
         resource_id,
         speaker,
     })
+}
+
+pub fn load_speech_api_key() -> Result<String, String> {
+    let stored = load_stored_config()?;
+    stored
+        .tts_api_key
+        .or_else(|| environment_value("TTS_API_KEY"))
+        .ok_or_else(|| "尚未配置TTS/ASR语音密钥。请打开右侧“API 密钥”设置并保存。".to_string())
 }
 
 fn build_status(stored: &StoredApiConfig) -> Result<ApiConfigStatus, String> {

@@ -4,7 +4,7 @@ import { AiRemixPlanner } from "../features/ai-remix";
 import type { AiRemixPlannedShot, AiRemixSegment } from "../features/ai-remix";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { CanvasAspectRatio } from "../services/videoMixService";
-import type { ToolKey } from "../types/workbench";
+import type { DrawerKey, ToolKey } from "../types/workbench";
 
 type PreviewToolKey = Extract<ToolKey, "remix" | "canvas" | "cover">;
 
@@ -56,7 +56,7 @@ defineEmits<{
   generateBatchMixes: [];
   exportSelectedVideo: [];
   syncPreviewBackground: [];
-  openDrawer: [drawer: "logs" | "exports" | "batch"];
+  openDrawer: [drawer: DrawerKey];
   openTool: [tool: PreviewToolKey];
   planAiRemix: [];
   moveAiShot: [index: number, direction: -1 | 1];
@@ -155,6 +155,7 @@ const aiGenerateCount = defineModel<number>("aiGenerateCount", { required: true 
         <div class="workflow-stats" aria-label="当前素材统计">
           <span>片段 {{ splitSegmentCount ?? 0 }}</span>
           <span>分镜 {{ aiPlannedShots.length }}</span>
+          <button type="button" @click="$emit('openDrawer', 'scripts')">文案库</button>
           <button type="button" @click="$emit('openDrawer', 'exports')">结果 {{ batchMixResultCount }}</button>
         </div>
       </div>

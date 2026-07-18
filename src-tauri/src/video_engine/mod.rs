@@ -1,3 +1,4 @@
+pub mod audio;
 pub mod canvas;
 pub mod import;
 pub mod mix;

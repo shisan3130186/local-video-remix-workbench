@@ -17,6 +17,7 @@ import {
 import { useRemixSettings } from "./composables/useRemixSettings";
 import { useTaskLogs } from "./composables/useTaskLogs";
 import { useAiRemix } from "./features/ai-remix";
+import { useAsr } from "./features/asr";
 import {
   buildMaterialLibraryState,
   sanitizeMaterialLibrarySnapshot,
@@ -37,6 +38,8 @@ import {
   useProjectRecovery,
 } from "./features/project-recovery";
 import type { ProjectStateSnapshot } from "./features/project-recovery";
+import { ScriptLibraryDrawer, useScriptLibrary } from "./features/script-library";
+import type { ScriptLibraryEntry } from "./features/script-library";
 import { useTts } from "./features/tts";
 import { useTaskCenter } from "./features/task-center";
 import type {
@@ -64,6 +67,7 @@ const isAdvancedMode = ref(false);
 
 const {
   aiRemixLogs,
+  appendAsrLog,
   appendAiRemixLog,
   appendBatchMixLog,
   appendExportLog,
@@ -72,6 +76,7 @@ const {
   appendTtsLog,
   addExportResult,
   clearAiRemixLogs,
+  clearAsrLogs,
   clearBatchMixLogs,
   clearExportLogs,
   clearMixLogs,
@@ -91,6 +96,36 @@ const {
   runTask,
 } = useTaskCenter();
 const tempCleanupFeedback = ref<string | null>(null);
+
+const {
+  asrConfig,
+  asrError,
+  asrResult,
+  asrSourceFileName,
+  asrSourceFilePath,
+  clearAsrSelection,
+  isLoadingAsrConfig,
+  isRecognizingAsr,
+  loadAsrConfig,
+  recognizeAsr,
+  selectAsrSourceFile,
+} = useAsr({
+  appendLog: appendAsrLog,
+  clearLogs: clearAsrLogs,
+  runTask,
+});
+
+const {
+  deleteScriptEntry,
+  deletingScriptId,
+  isLoadingScriptLibrary,
+  isSavingScript,
+  loadScriptLibrary,
+  saveAsrToScriptLibrary,
+  scriptLibraryEntries,
+  scriptLibraryError,
+  scriptLibraryFeedback,
+} = useScriptLibrary();
 
 const {
   applyHorizontalMirror,
@@ -319,6 +354,43 @@ const {
   formatSmoothLog: formatSmoothRemixLog,
   runTask,
 });
+
+async function refreshSpeechConfiguration() {
+  await Promise.all([loadTtsConfig(), loadAsrConfig()]);
+}
+
+async function saveCurrentAsrToLibrary(useAfterSave: boolean) {
+  if (!asrResult.value) return;
+  const saved = await saveAsrToScriptLibrary(asrResult.value);
+  if (!saved || !useAfterSave) return;
+  if (useScriptEntry(saved.entry)) {
+    scriptLibraryFeedback.value = "文案已保存，并填入当前AI分镜文案。";
+    activeTool.value = null;
+  }
+}
+
+function useScriptEntry(entry: ScriptLibraryEntry) {
+  if (entry.text.length > 4000) {
+    window.alert("这条文案超过4000字，请先复制并精简后再用于AI分镜。");
+    return false;
+  }
+  const currentText = aiScript.value.trim();
+  if (
+    currentText &&
+    currentText !== entry.text.trim() &&
+    !window.confirm("当前文案框中已有内容，确定要替换为这条文案吗？")
+  ) {
+    return false;
+  }
+  aiScript.value = entry.text;
+  activeDrawer.value = null;
+  return true;
+}
+
+async function removeScriptEntry(entry: ScriptLibraryEntry) {
+  if (!window.confirm(`确定删除“${entry.title}”吗？`)) return;
+  await deleteScriptEntry(entry.id);
+}
 
 const materialLibraryState = computed(
   (): MaterialLibraryState =>
@@ -1128,6 +1200,8 @@ function formatFileName(filePath: string) {
 onMounted(() => {
   void runEnvironmentCheck();
   void loadTtsConfig();
+  void loadAsrConfig();
+  void loadScriptLibrary();
   void detectEncoders(false);
   void cleanupTaskTempFiles(true);
 });
@@ -1367,6 +1441,16 @@ onMounted(() => {
       :tts-subtitle-size="ttsSubtitleSize"
       :tts-result="ttsResult"
       :tts-audio-url="ttsAudioUrl"
+      :asr-configured="asrConfig.configured"
+      :asr-resource-id="asrConfig.resourceId"
+      :asr-source-file-path="asrSourceFilePath"
+      :asr-source-file-name="asrSourceFileName"
+      :is-loading-asr-config="isLoadingAsrConfig"
+      :is-recognizing-asr="isRecognizingAsr"
+      :asr-error="asrError"
+      :asr-result="asrResult"
+      :is-saving-asr-to-library="isSavingScript"
+      :asr-library-feedback="scriptLibraryError ?? scriptLibraryFeedback"
       :output-resolution="outputResolution"
       :output-frame-rate="outputFrameRate"
       :output-quality="outputQuality"
@@ -1387,7 +1471,12 @@ onMounted(() => {
       @select-bgm-audio-file="selectBgmAudioFile"
       @generate-cover-frame="generateCoverFrame"
       @generate-tts="generateTts"
-      @api-config-changed="loadTtsConfig"
+      @select-asr-source-file="selectAsrSourceFile"
+      @recognize-asr="recognizeAsr"
+      @clear-asr-selection="clearAsrSelection"
+      @save-asr-to-library="saveCurrentAsrToLibrary(false)"
+      @save-and-use-asr-script="saveCurrentAsrToLibrary(true)"
+      @api-config-changed="refreshSpeechConfiguration"
       @detect-encoders="detectEncoders"
       @update:segment-duration-seconds="segmentDurationSeconds = $event"
       @update:split-mode="splitMode = $event"
@@ -1436,6 +1525,18 @@ onMounted(() => {
       :open="activeDrawer === 'logs'"
       :task-logs="taskLogs"
       @close="activeDrawer = null"
+    />
+
+    <ScriptLibraryDrawer
+      :open="activeDrawer === 'scripts'"
+      :entries="scriptLibraryEntries"
+      :is-loading="isLoadingScriptLibrary"
+      :deleting-id="deletingScriptId"
+      :error="scriptLibraryError"
+      :feedback="scriptLibraryFeedback"
+      @close="activeDrawer = null"
+      @use="useScriptEntry"
+      @delete="removeScriptEntry"
     />
 
     <ProjectRecoveryDialog

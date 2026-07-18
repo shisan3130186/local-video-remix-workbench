@@ -149,8 +149,8 @@ function keyPlaceholder(kind: ApiCredentialKind) {
       <section class="api-config-section" aria-labelledby="api-config-tts-title">
         <header>
           <span>
-            <strong id="api-config-tts-title">TTS 语音合成</strong>
-            <small>用于生成逐句配音和带字幕视频</small>
+            <strong id="api-config-tts-title">TTS / ASR 语音密钥</strong>
+            <small>同一个火山语音密钥用于AI配音和语音识别</small>
           </span>
           <em :class="{ 'api-config-status--ready': status?.ttsConfigured }">{{ ttsStatusText }}</em>
         </header>
@@ -158,7 +158,7 @@ function keyPlaceholder(kind: ApiCredentialKind) {
         <SecretInputField
           id="api-config-tts-key"
           v-model="form.ttsApiKey"
-          label="TTS API Key"
+          label="TTS / ASR API Key"
           :placeholder="keyPlaceholder('tts')"
           :disabled="isSaving"
         />
@@ -181,7 +181,7 @@ function keyPlaceholder(kind: ApiCredentialKind) {
             :class="{ 'api-config-delete--confirm': pendingDelete === 'tts' }"
             :disabled="isSaving"
             @click="handleDelete('tts')"
-          >{{ pendingDelete === "tts" ? "再次点击确认删除TTS密钥" : "删除本机TTS密钥" }}</button>
+          >{{ pendingDelete === "tts" ? "再次点击确认删除语音密钥" : "删除本机TTS/ASR语音密钥" }}</button>
           <button v-if="pendingDelete === 'tts'" type="button" :disabled="isSaving" @click="pendingDelete = null">取消</button>
         </div>
       </section>

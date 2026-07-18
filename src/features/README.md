@@ -52,6 +52,22 @@ tts/
 └─ index.ts     对外统一出口
 ```
 
+```text
+asr/
+├─ components   音视频选择、识别结果和句子时间轴
+├─ services     ASR Tauri调用
+├─ useAsr.ts    配置、识别、缓存提示和任务流程
+└─ index.ts     对外统一出口
+```
+
+```text
+script-library/
+├─ components   精简文案库抽屉
+├─ services     文案库读取、保存和删除Tauri调用
+├─ useScriptLibrary.ts 文案库状态与ASR保存联动
+└─ index.ts     对外统一出口
+```
+
 边界规则：
 
 1. `App.vue` 只负责组合功能、页面级导航和少量跨功能状态。

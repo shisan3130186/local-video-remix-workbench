@@ -1,7 +1,9 @@
 mod ai_remix;
 mod api_config;
+mod asr;
 mod material_library;
 mod project_snapshot;
+mod script_library;
 mod task_runtime;
 mod temp_storage;
 mod tts;
@@ -20,6 +22,10 @@ use api_config::{
     get_api_config_status as read_api_config_status, save_api_config as store_api_config,
     ApiConfigInput, ApiConfigStatus, ApiCredentialKind,
 };
+use asr::{
+    get_asr_config_status as read_asr_config_status, recognize_speech as create_asr_recognition,
+    AsrConfigStatus, AsrRecognitionResult,
+};
 use material_library::{
     load_material_library as read_material_library,
     save_material_library as store_material_library, MaterialLibraryLoadResult,
@@ -29,6 +35,12 @@ use project_snapshot::{
     delete_project_snapshot as remove_project_snapshot,
     load_project_snapshot as read_project_snapshot,
     save_project_snapshot as store_project_snapshot, ProjectSnapshot, ProjectSnapshotLoadResult,
+};
+use script_library::{
+    delete_script_library_entry as remove_script_library_entry,
+    load_script_library as read_script_library,
+    save_script_library_entry as store_script_library_entry, SaveScriptLibraryEntryInput,
+    SaveScriptLibraryEntryResult, ScriptLibraryEntry,
 };
 use std::path::Path;
 use std::process::Command;
@@ -271,6 +283,19 @@ fn get_tts_config_status() -> Result<TtsConfigStatus, String> {
 }
 
 #[tauri::command]
+fn get_asr_config_status() -> Result<AsrConfigStatus, String> {
+    read_asr_config_status()
+}
+
+#[tauri::command]
+async fn recognize_speech(
+    file_path: String,
+    task_context: Option<TaskProgressContext>,
+) -> Result<AsrRecognitionResult, String> {
+    create_asr_recognition(file_path, task_context).await
+}
+
+#[tauri::command]
 fn get_api_config_status() -> Result<ApiConfigStatus, String> {
     read_api_config_status()
 }
@@ -308,6 +333,23 @@ fn load_material_library() -> Result<MaterialLibraryLoadResult, String> {
 #[tauri::command]
 fn save_material_library(snapshot: MaterialLibrarySnapshot) -> Result<(), String> {
     store_material_library(snapshot)
+}
+
+#[tauri::command]
+fn load_script_library() -> Result<Vec<ScriptLibraryEntry>, String> {
+    read_script_library()
+}
+
+#[tauri::command]
+fn save_script_library_entry(
+    input: SaveScriptLibraryEntryInput,
+) -> Result<SaveScriptLibraryEntryResult, String> {
+    store_script_library_entry(input)
+}
+
+#[tauri::command]
+fn delete_script_library_entry(id: String) -> Result<Vec<ScriptLibraryEntry>, String> {
+    remove_script_library_entry(id)
 }
 
 #[tauri::command]
@@ -378,10 +420,12 @@ pub fn run() {
             create_task,
             delete_api_credential,
             delete_project_snapshot,
+            delete_script_library_entry,
             extract_ai_remix_segment_content,
             export_current_video,
             finish_task,
             generate_thumbnail,
+            get_asr_config_status,
             get_task_progress,
             get_video_encoder_capabilities,
             get_tts_config_status,
@@ -390,12 +434,15 @@ pub fn run() {
             list_video_files_in_folder,
             load_material_library,
             load_project_snapshot,
+            load_script_library,
             open_path_in_file_manager,
             plan_ai_remix,
             read_video_metadata,
+            recognize_speech,
             save_api_config,
             save_material_library,
             save_project_snapshot,
+            save_script_library_entry,
             split_current_video,
             split_video_by_scenes,
             synthesize_tts,

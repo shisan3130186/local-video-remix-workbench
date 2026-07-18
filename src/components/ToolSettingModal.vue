@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AudioSettingsPanel from "./tool-settings/AudioSettingsPanel.vue";
 import { ApiConfigSettingsPanel } from "../features/api-config";
+import { AsrSettingsPanel } from "../features/asr";
 import CanvasSettingsPanel from "./tool-settings/CanvasSettingsPanel.vue";
 import CoverSettingsPanel from "./tool-settings/CoverSettingsPanel.vue";
 import ExportSettingsPanel from "./tool-settings/ExportSettingsPanel.vue";
@@ -22,6 +23,7 @@ const titles: Record<ToolKey, string> = {
   audio: "音频设置",
   bgm: "背景音乐",
   tts: "语音合成",
+  asr: "语音识别",
   subtitleStyle: "字幕样式",
   watermark: "去除水印",
   cover: "视频封面",
@@ -45,7 +47,13 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
 
 <template>
   <div v-if="activeTool" class="modal-backdrop" @click.self="emit('close')">
-    <section class="tool-modal" role="dialog" aria-modal="true" aria-labelledby="tool-setting-title">
+    <section
+      class="tool-modal"
+      :class="{ 'tool-modal--asr': activeTool === 'asr' }"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tool-setting-title"
+    >
       <header class="tool-modal__header">
         <div>
           <p class="panel__label">二级设置</p>
@@ -167,6 +175,25 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           @update:subtitle-size="emit('update:ttsSubtitleSize', $event)"
         />
 
+        <AsrSettingsPanel
+          v-else-if="activeTool === 'asr'"
+          :configured="asrConfigured"
+          :resource-id="asrResourceId"
+          :source-file-path="asrSourceFilePath"
+          :source-file-name="asrSourceFileName"
+          :is-loading-config="isLoadingAsrConfig"
+          :is-recognizing="isRecognizingAsr"
+          :error="asrError"
+          :result="asrResult"
+          :is-saving-to-library="isSavingAsrToLibrary"
+          :library-feedback="asrLibraryFeedback"
+          @select-source="emit('selectAsrSourceFile')"
+          @recognize="emit('recognizeAsr')"
+          @clear="emit('clearAsrSelection')"
+          @save-to-library="emit('saveAsrToLibrary')"
+          @save-and-use="emit('saveAndUseAsrScript')"
+        />
+
         <CoverSettingsPanel
           v-else-if="activeTool === 'cover' || activeTool === 'frame'"
           :selected-cover-url="selectedCoverUrl"
@@ -226,7 +253,7 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
         <p v-else class="empty-text">这个入口先定版 UI 位置，本次不开发真实功能。</p>
       </div>
 
-      <footer v-if="activeTool !== 'apiKeys'" class="tool-modal__footer">
+      <footer v-if="activeTool !== 'apiKeys' && activeTool !== 'asr'" class="tool-modal__footer">
         <button class="ghost-button" type="button" @click="emit('reset', activeTool)">重置</button>
         <button class="primary-button" type="button" @click="emit('close')">应用</button>
       </footer>

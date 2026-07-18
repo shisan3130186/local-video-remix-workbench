@@ -7,6 +7,7 @@ export type ToolKey =
   | "audio"
   | "bgm"
   | "tts"
+  | "asr"
   | "subtitleStyle"
   | "watermark"
   | "cover"
@@ -24,7 +25,7 @@ export type ToolKey =
   | "subtitles"
   | "export";
 
-export type DrawerKey = "logs" | "exports" | "batch";
+export type DrawerKey = "logs" | "exports" | "batch" | "scripts";
 
 export interface ModuleCard {
   title: string;
