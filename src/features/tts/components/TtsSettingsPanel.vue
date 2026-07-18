@@ -7,6 +7,7 @@ import type {
 } from "../types";
 import NarratedAudioSettingsCard from "./NarratedAudioSettingsCard.vue";
 import NarratedSubtitleSettingsCard from "./NarratedSubtitleSettingsCard.vue";
+import VoiceSelectorCard from "./VoiceSelectorCard.vue";
 import "../tts.css";
 
 const props = defineProps<{
@@ -54,10 +55,6 @@ watch(
 
 function updateText(event: Event) {
   emit("update:text", (event.target as HTMLTextAreaElement).value);
-}
-
-function updateSpeaker(event: Event) {
-  emit("update:speaker", (event.target as HTMLInputElement).value);
 }
 
 function updateVideoEnabled(event: Event) {
@@ -109,17 +106,11 @@ function formatDuration(value: number | null) {
     <small>{{ text.trim().length }} 个字符</small>
   </label>
 
-  <label class="field">
-    <span>音色ID</span>
-    <input
-      :value="speaker"
-      type="text"
-      autocomplete="off"
-      spellcheck="false"
-      placeholder="例如：zh_female_vv_uranus_bigtts"
-      @input="updateSpeaker"
-    />
-  </label>
+  <VoiceSelectorCard
+    :speaker="speaker"
+    :disabled="isGenerating || isGeneratingVideo"
+    @update:speaker="emit('update:speaker', $event)"
+  />
 
   <label class="option-toggle tts-video-toggle">
     <input
