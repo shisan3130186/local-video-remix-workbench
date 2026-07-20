@@ -34,6 +34,10 @@ export function assertValidLoadedSnapshot(snapshot: ProjectSnapshotEnvelope) {
     !isRecord(project.remixSettings.videoEffectSettings) ||
     !isRecord(project.remixSettings.pictureInPictureSettings) ||
     !isRecord(project.remixSettings.bgmSettings) ||
+    ("watermarkSettings" in project.remixSettings &&
+      !isRecord(project.remixSettings.watermarkSettings)) ||
+    ("watermarkRemovalSettings" in project.remixSettings &&
+      !isRecord(project.remixSettings.watermarkRemovalSettings)) ||
     !isRecord(project.tts)
   ) {
     throw new Error("上次项目记录内容不完整，请清除记录后重新开始。");
@@ -64,6 +68,7 @@ function collectFilePaths(project: ProjectStateSnapshot) {
     ]),
     project.remixSettings.pictureInPictureSettings.overlayFilePath,
     project.remixSettings.bgmSettings.audioFilePath,
+    project.remixSettings.watermarkSettings?.imageFilePath,
   ]);
 }
 
@@ -74,7 +79,7 @@ function collectDirectoryPaths(project: ProjectStateSnapshot) {
   ]);
 }
 
-function uniquePaths(paths: Array<string | null>) {
+function uniquePaths(paths: Array<string | null | undefined>) {
   return Array.from(
     new Set(paths.filter((path): path is string => Boolean(path?.trim()))),
   );

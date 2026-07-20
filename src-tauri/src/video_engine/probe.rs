@@ -140,6 +140,14 @@ pub fn probe_video_metadata(file_path: String) -> Result<VideoMetadata, String> 
     })
 }
 
+pub(crate) fn probe_video_dimensions(file_path: &str) -> Result<(u32, u32), String> {
+    let metadata = probe_video_metadata(file_path.to_string())?;
+    metadata
+        .width
+        .zip(metadata.height)
+        .ok_or_else(|| "无法读取视频画面尺寸。".to_string())
+}
+
 fn probe_tool(binary_name: &str, program: &Path) -> ToolProbeResult {
     match Command::new(program).arg("-version").output() {
         Ok(output) if output.status.success() => {

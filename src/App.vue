@@ -162,6 +162,34 @@ const {
   restoreRemixSettings,
   saturation,
   smoothRemixEnabled,
+  resetWatermarkSettings,
+  resetWatermarkRemovalSettings,
+  validateWatermarkSettings,
+  validateWatermarkRemovalSettings,
+  watermarkEnabled,
+  watermarkImageFilePath,
+  watermarkImageSizeRatio,
+  watermarkKind,
+  watermarkMargin,
+  watermarkOpacity,
+  watermarkPosition,
+  watermarkSettings,
+  watermarkText,
+  watermarkTextColor,
+  watermarkTextFontSize,
+  watermarkRemovalCoverColor,
+  watermarkRemovalCoverOpacity,
+  watermarkRemovalEnabled,
+  watermarkRemovalMargin,
+  watermarkRemovalMode,
+  watermarkRemovalPosition,
+  watermarkRemovalSettings,
+  watermarkRemovalSize,
+  watermarkRemovalStrength,
+  watermarkRemovalTrackingEnabled,
+  watermarkRemovalTrackingKeyframes,
+  watermarkRemovalTrackingRegionHeightRatio,
+  watermarkRemovalTrackingRegionWidthRatio,
 } = useRemixSettings();
 
 const {
@@ -234,12 +262,16 @@ const {
   canvasAspectRatio,
   canvasBackgroundMode,
   outputSettings,
+  watermarkSettings,
+  watermarkRemovalSettings,
   segmentPaths: splitSegmentPaths,
   segmentCategories,
   categoryOptions: segmentCategoryOptions,
   remixExportSettings,
   validatePictureInPicture: validatePictureInPictureSettings,
   validateBgm: validateBgmSettings,
+  validateWatermark: validateWatermarkSettings,
+  validateWatermarkRemoval: validateWatermarkRemovalSettings,
   validatePlaybackSpeed,
   appendExportLog,
   appendMixLog,
@@ -297,7 +329,11 @@ const {
   },
   validateExportSettings() {
     return (
-      validatePictureInPictureSettings() ?? validateBgmSettings() ?? validatePlaybackSpeed()
+      validatePictureInPictureSettings() ??
+      validateBgmSettings() ??
+      validateWatermarkSettings() ??
+      validateWatermarkRemovalSettings() ??
+      validatePlaybackSpeed()
     );
   },
   setMixing,
@@ -343,7 +379,11 @@ const {
   clearLogs: clearTtsLogs,
   validateExportSettings() {
     return (
-      validatePictureInPictureSettings() ?? validateBgmSettings() ?? validatePlaybackSpeed()
+      validatePictureInPictureSettings() ??
+      validateBgmSettings() ??
+      validateWatermarkSettings() ??
+      validateWatermarkRemovalSettings() ??
+      validatePlaybackSpeed()
     );
   },
   setMixing,
@@ -683,6 +723,10 @@ const previewUrl = computed(() => {
   return convertFileSrc(selectedVideo.value.filePath);
 });
 
+const watermarkPreviewUrl = computed(() =>
+  selectedVideo.value ? convertFileSrc(selectedVideo.value.filePath) : null,
+);
+
 const previewTitle = computed(() => {
   if (selectedSegmentPath.value) {
     return `片段预览：${formatFileName(selectedSegmentPath.value)}`;
@@ -997,6 +1041,12 @@ function resetToolSettings(tool: ToolKey) {
     return;
   }
 
+  if (tool === "watermark") {
+    resetWatermarkSettings();
+    resetWatermarkRemovalSettings();
+    return;
+  }
+
   if (tool === "cover" || tool === "frame") {
     coverFrameSeconds.value = 1;
     coverError.value = null;
@@ -1154,6 +1204,27 @@ async function selectBgmAudioFile() {
   } catch (error) {
     mixError.value =
       error instanceof Error ? error.message : String(error ?? "选择 BGM 音频失败。");
+  }
+}
+
+async function selectWatermarkImageFile() {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [
+        {
+          name: "图片水印",
+          extensions: ["png", "jpg", "jpeg", "webp", "bmp"],
+        },
+      ],
+    });
+
+    if (!selected || Array.isArray(selected)) return;
+    watermarkImageFilePath.value = selected;
+    watermarkKind.value = "image";
+    watermarkEnabled.value = true;
+  } catch (error) {
+    mixError.value = error instanceof Error ? error.message : String(error ?? "选择图片水印失败。");
   }
 }
 
@@ -1451,6 +1522,9 @@ onMounted(() => {
       :asr-result="asrResult"
       :is-saving-asr-to-library="isSavingScript"
       :asr-library-feedback="scriptLibraryError ?? scriptLibraryFeedback"
+      :watermark-settings="watermarkSettings"
+      :watermark-removal-settings="watermarkRemovalSettings"
+      :watermark-preview-url="watermarkPreviewUrl"
       :output-resolution="outputResolution"
       :output-frame-rate="outputFrameRate"
       :output-quality="outputQuality"
@@ -1476,6 +1550,7 @@ onMounted(() => {
       @clear-asr-selection="clearAsrSelection"
       @save-asr-to-library="saveCurrentAsrToLibrary(false)"
       @save-and-use-asr-script="saveCurrentAsrToLibrary(true)"
+      @select-watermark-image="selectWatermarkImageFile"
       @api-config-changed="refreshSpeechConfiguration"
       @detect-encoders="detectEncoders"
       @update:segment-duration-seconds="segmentDurationSeconds = $event"
@@ -1515,6 +1590,27 @@ onMounted(() => {
       @update:tts-subtitle-enabled="ttsSubtitleEnabled = $event"
       @update:tts-subtitle-position="ttsSubtitlePosition = $event"
       @update:tts-subtitle-size="ttsSubtitleSize = $event"
+      @update:watermark-enabled="watermarkEnabled = $event"
+      @update:watermark-kind="watermarkKind = $event"
+      @update:watermark-text="watermarkText = $event"
+      @update:watermark-position="watermarkPosition = $event"
+      @update:watermark-opacity="watermarkOpacity = $event"
+      @update:watermark-margin="watermarkMargin = $event"
+      @update:watermark-text-font-size="watermarkTextFontSize = $event"
+      @update:watermark-text-color="watermarkTextColor = $event"
+      @update:watermark-image-size-ratio="watermarkImageSizeRatio = $event"
+      @update:watermark-removal-enabled="watermarkRemovalEnabled = $event"
+      @update:watermark-removal-mode="watermarkRemovalMode = $event"
+      @update:watermark-removal-position="watermarkRemovalPosition = $event"
+      @update:watermark-removal-size="watermarkRemovalSize = $event"
+      @update:watermark-removal-margin="watermarkRemovalMargin = $event"
+      @update:watermark-removal-strength="watermarkRemovalStrength = $event"
+      @update:watermark-removal-cover-color="watermarkRemovalCoverColor = $event"
+      @update:watermark-removal-cover-opacity="watermarkRemovalCoverOpacity = $event"
+      @update:watermark-removal-tracking-enabled="watermarkRemovalTrackingEnabled = $event"
+      @update:watermark-removal-tracking-region-width-ratio="watermarkRemovalTrackingRegionWidthRatio = $event"
+      @update:watermark-removal-tracking-region-height-ratio="watermarkRemovalTrackingRegionHeightRatio = $event"
+      @update:watermark-removal-tracking-keyframes="watermarkRemovalTrackingKeyframes = $event"
       @update:output-resolution="outputResolution = $event"
       @update:output-frame-rate="outputFrameRate = $event"
       @update:output-quality="outputQuality = $event"

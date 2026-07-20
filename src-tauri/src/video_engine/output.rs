@@ -148,6 +148,40 @@ pub fn output_canvas_dimensions(
     }
 }
 
+pub fn resolve_output_video_dimensions(
+    settings: OutputSettings,
+    canvas_aspect_ratio: CanvasAspectRatio,
+    source_dimensions: (u32, u32),
+) -> (u32, u32) {
+    if let Some(dimensions) = output_canvas_dimensions(settings, canvas_aspect_ratio) {
+        return dimensions;
+    }
+
+    match settings.resolution {
+        OutputResolution::FollowCanvas => source_dimensions,
+        OutputResolution::Hd720 => scale_dimensions_to_fit(source_dimensions, 1280, 720),
+        OutputResolution::FullHd1080 => scale_dimensions_to_fit(source_dimensions, 1920, 1080),
+    }
+}
+
+fn scale_dimensions_to_fit(
+    source_dimensions: (u32, u32),
+    landscape_width: u32,
+    landscape_height: u32,
+) -> (u32, u32) {
+    let (source_width, source_height) = source_dimensions;
+    let (target_width, target_height) = if source_width >= source_height {
+        (landscape_width, landscape_height)
+    } else {
+        (landscape_height, landscape_width)
+    };
+    let scale = (f64::from(target_width) / f64::from(source_width))
+        .min(f64::from(target_height) / f64::from(source_height));
+    let width = ((f64::from(source_width) * scale / 2.0).floor() as u32 * 2).max(2);
+    let height = ((f64::from(source_height) * scale / 2.0).floor() as u32 * 2).max(2);
+    (width, height)
+}
+
 pub fn append_final_output_args(
     ffmpeg_args: &mut Vec<String>,
     settings: OutputSettings,
@@ -492,6 +526,26 @@ mod tests {
         assert!(filters[0].contains("gte(iw\\,ih)"));
         assert!(filters[0].contains("1280"));
         assert!(filters[0].contains("720"));
+    }
+
+    #[test]
+    fn resolves_final_dimensions_for_original_and_fixed_canvas() {
+        let hd = OutputSettings {
+            resolution: OutputResolution::Hd720,
+            ..OutputSettings::default()
+        };
+        assert_eq!(
+            resolve_output_video_dimensions(hd, CanvasAspectRatio::Original, (1920, 1080)),
+            (1280, 720)
+        );
+        assert_eq!(
+            resolve_output_video_dimensions(hd, CanvasAspectRatio::Original, (1080, 1920)),
+            (720, 1280)
+        );
+        assert_eq!(
+            resolve_output_video_dimensions(hd, CanvasAspectRatio::Square11, (1920, 1080)),
+            (720, 720)
+        );
     }
 
     #[test]

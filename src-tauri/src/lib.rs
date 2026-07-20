@@ -55,19 +55,16 @@ use tts::{
     synthesize_tts as create_tts_audio, synthesize_tts_shot as create_tts_shot_audio,
     TtsConfigStatus, TtsSynthesisResult,
 };
-use video_engine::canvas::{CanvasAspectRatio, CanvasBackgroundMode};
 use video_engine::import::list_supported_videos_in_folder;
 use video_engine::mix::{concat_video_segments, MixVideoResult, RemixSettings};
 use video_engine::narrated_mix::{
     concat_narrated_segments as create_narrated_video, NarratedAudioSettings, NarratedSegmentInput,
 };
-use video_engine::output::{
-    detect_video_encoder_capabilities, EncoderCapabilities, OutputSettings,
-};
+use video_engine::output::{detect_video_encoder_capabilities, EncoderCapabilities};
 use video_engine::probe::{
     check_environment, probe_video_metadata, FfmpegEnvironmentResult, VideoMetadata,
 };
-use video_engine::render::{export_basic_video, RenderVideoResult};
+use video_engine::render::{export_basic_video, BasicExportSettings, RenderVideoResult};
 use video_engine::split::{
     split_video_by_duration, split_video_by_scene, SceneSensitivity, SplitVideoResult,
 };
@@ -175,20 +172,16 @@ fn cleanup_temp_files() -> Result<TempCleanupResult, String> {
 fn export_current_video(
     input_file_path: String,
     output_directory: String,
-    canvas_aspect_ratio: CanvasAspectRatio,
-    canvas_background_mode: CanvasBackgroundMode,
     duration_seconds: Option<f64>,
     task_context: Option<TaskProgressContext>,
-    output_settings: OutputSettings,
+    settings: BasicExportSettings,
 ) -> Result<RenderVideoResult, String> {
     export_basic_video(
         input_file_path,
         output_directory,
-        canvas_aspect_ratio,
-        canvas_background_mode,
         duration_seconds,
         task_context,
-        output_settings,
+        settings,
     )
 }
 

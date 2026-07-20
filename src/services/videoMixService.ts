@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { TaskProgressContext } from "../features/task-center";
 import type { OutputSettings } from "../types/outputSettings";
+import type { WatermarkRemovalSettings, WatermarkSettings } from "../features/watermark";
 
 export interface MixVideoResult {
   outputPath: string;
@@ -69,6 +70,8 @@ export interface RemixExportSettings {
   videoEffectSettings: VideoEffectSettings;
   pictureInPictureSettings: PictureInPictureSettings;
   bgmSettings: BgmSettings;
+  watermarkSettings: WatermarkSettings;
+  watermarkRemovalSettings: WatermarkRemovalSettings;
   subtitleSettings: SubtitleSettings;
   outputSettings: OutputSettings;
 }

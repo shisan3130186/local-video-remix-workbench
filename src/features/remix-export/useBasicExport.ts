@@ -7,6 +7,7 @@ import { isTaskCancelledError } from "../task-center";
 import type { TaskRunHandle } from "../task-center";
 import type { OutputSettings } from "../../types/outputSettings";
 import { exportCurrentVideo } from "./services/remixExportService";
+import type { WatermarkRemovalSettings, WatermarkSettings } from "../watermark";
 
 interface UseBasicExportOptions {
   selectedVideo: Readonly<Ref<ImportedVideo | null>>;
@@ -14,6 +15,10 @@ interface UseBasicExportOptions {
   canvasAspectRatio: Readonly<Ref<CanvasAspectRatio>>;
   canvasBackgroundMode: Readonly<Ref<CanvasBackgroundMode>>;
   outputSettings: Readonly<Ref<OutputSettings>>;
+  watermarkSettings: Readonly<Ref<WatermarkSettings>>;
+  watermarkRemovalSettings: Readonly<Ref<WatermarkRemovalSettings>>;
+  validateWatermark: () => string | null;
+  validateWatermarkRemoval: () => string | null;
   appendExportLog: (message: string, level: TaskLogLevel) => void;
   clearExportLogs: () => void;
   addExportResult: (type: "基础导出", path: string) => void;
@@ -42,6 +47,19 @@ export function useBasicExport(options: UseBasicExportOptions) {
       return;
     }
 
+    const watermarkError = options.validateWatermark();
+    if (watermarkError) {
+      exportError.value = watermarkError;
+      options.appendExportLog(`导出失败：${watermarkError}`, "error");
+      return;
+    }
+    const watermarkRemovalError = options.validateWatermarkRemoval();
+    if (watermarkRemovalError) {
+      exportError.value = watermarkRemovalError;
+      options.appendExportLog(`导出失败：${watermarkRemovalError}`, "error");
+      return;
+    }
+
     options.appendExportLog("开始导出。", "info");
     options.appendExportLog("导出中。", "info");
     isExporting.value = true;
@@ -51,10 +69,14 @@ export function useBasicExport(options: UseBasicExportOptions) {
         exportCurrentVideo(
           options.selectedVideo.value?.filePath as string,
           options.outputDirectory.value as string,
-          options.canvasAspectRatio.value,
-          options.canvasBackgroundMode.value,
           options.selectedVideo.value?.durationSeconds ?? null,
-          options.outputSettings.value,
+          {
+            canvasAspectRatio: options.canvasAspectRatio.value,
+            canvasBackgroundMode: options.canvasBackgroundMode.value,
+            outputSettings: options.outputSettings.value,
+            watermarkSettings: options.watermarkSettings.value,
+            watermarkRemovalSettings: options.watermarkRemovalSettings.value,
+          },
           task.progress(0, 100, "正在导出当前视频"),
         ),
       );
@@ -65,6 +87,14 @@ export function useBasicExport(options: UseBasicExportOptions) {
         `输出设置：${result.outputResolution}，${result.outputFrameRate}，${result.outputQuality}，${result.outputEncoder}，约 ${result.outputVideoBitrateKbps} kbps。`,
         "info",
       );
+      if (options.watermarkSettings.value.enabled) {
+        options.appendExportLog(
+          options.watermarkSettings.value.kind === "text"
+            ? "已添加文字水印。"
+            : "已添加图片水印。",
+          "info",
+        );
+      }
     } catch (error) {
       if (isTaskCancelledError(error)) {
         exportError.value = "导出任务已取消，可以重新开始。";

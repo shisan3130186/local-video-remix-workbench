@@ -1,0 +1,433 @@
+.watermark-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.watermark-tool-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 4px;
+  border: 1px solid #303936;
+  border-radius: 7px;
+  background: #171c1a;
+}
+
+.watermark-tool-tabs button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 5px;
+  color: #8f9e99;
+  background: transparent;
+  cursor: pointer;
+}
+
+.watermark-tool-tabs .watermark-tool-tab--active {
+  color: #ddfff6;
+  background: #21423a;
+  font-weight: 700;
+}
+
+.watermark-removal-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.watermark-removal-note {
+  margin: 0;
+  padding: 9px 10px;
+  border-left: 3px solid #b88a42;
+  color: #b8a789;
+  background: #28231b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.watermark-removal-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.watermark-removal-modes button {
+  display: grid;
+  gap: 2px;
+  min-height: 58px;
+  padding: 8px 10px;
+  border: 1px solid #34413d;
+  border-radius: 7px;
+  color: #aebdb8;
+  background: #1b211f;
+  text-align: left;
+  cursor: pointer;
+}
+
+.watermark-removal-modes button small {
+  color: #7f8e89;
+  font-size: 11px;
+}
+
+.watermark-removal-modes .watermark-removal-mode--active,
+.watermark-removal-sizes .watermark-removal-size--active {
+  border-color: #39d5b4;
+  color: #e3fff8;
+  background: #19372f;
+}
+
+.watermark-removal-preview {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid #303c38;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #28332f, #101514 70%);
+}
+
+.watermark-removal-preview::after {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  color: #52615c;
+  font-size: 12px;
+  content: "原视频画面";
+  transform: translate(-50%, -50%);
+}
+
+.watermark-removal-preview__region {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #ffd18b;
+  color: #ffe4b8;
+  background: rgb(184 119 52 / 32%);
+  font-size: 10px;
+}
+
+.watermark-removal-preview__region--small { width: 18%; height: 12%; }
+.watermark-removal-preview__region--medium { width: 27%; height: 17%; }
+.watermark-removal-preview__region--large { width: 38%; height: 24%; }
+.watermark-removal-preview__region--topLeft { top: 8px; left: 8px; }
+.watermark-removal-preview__region--topRight { top: 8px; right: 8px; }
+.watermark-removal-preview__region--bottomLeft { bottom: 8px; left: 8px; }
+.watermark-removal-preview__region--bottomRight { right: 8px; bottom: 8px; }
+.watermark-removal-preview__region--center { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.watermark-removal-preview__region--blur { backdrop-filter: blur(3px); }
+.watermark-removal-preview__region--mosaic { background: repeating-conic-gradient(#8e6b3e 0 25%, #503d2a 0 50%) 0 / 8px 8px; }
+.watermark-removal-preview__region--cover { border-style: solid; background: rgb(0 0 0 / 82%); }
+.watermark-removal-preview__region--crop {
+  right: 0;
+  left: 0;
+  width: 100%;
+  border-style: solid;
+  border-color: #ef9f68;
+  background: repeating-linear-gradient(135deg, rgb(193 89 46 / 50%) 0 7px, rgb(90 38 26 / 58%) 7px 14px);
+}
+.watermark-removal-preview__region--crop.watermark-removal-preview__region--topLeft,
+.watermark-removal-preview__region--crop.watermark-removal-preview__region--topRight { top: 0; }
+.watermark-removal-preview__region--crop.watermark-removal-preview__region--bottomLeft,
+.watermark-removal-preview__region--crop.watermark-removal-preview__region--bottomRight { bottom: 0; }
+
+.watermark-removal-sizes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.watermark-removal-sizes button {
+  min-height: 32px;
+  border: 1px solid #34413d;
+  border-radius: 6px;
+  color: #9eadA8;
+  background: #1d2321;
+  cursor: pointer;
+}
+
+.moving-watermark-tracker {
+  display: grid;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.moving-watermark-stage {
+  position: relative;
+  width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #42504b;
+  border-radius: 8px;
+  background: #090c0b;
+  touch-action: none;
+}
+
+.moving-watermark-stage video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+}
+
+.moving-watermark-stage__interaction {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.moving-watermark-stage__interaction--moving {
+  cursor: grabbing;
+}
+
+.moving-watermark-stage__trajectory {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.moving-watermark-stage__trajectory polyline {
+  fill: none;
+  stroke: rgb(54 215 180 / 78%);
+  stroke-width: 0.7;
+  stroke-dasharray: 2 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.moving-watermark-stage__trajectory circle {
+  fill: #38d8b6;
+  stroke: #10231f;
+  stroke-width: 0.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.moving-watermark-stage__region {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  min-height: 20px;
+  border: 2px solid #ff9d68;
+  color: #fff4ea;
+  background: rgb(171 62 31 / 33%);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 48%);
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.moving-watermark-player-controls {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.moving-watermark-player-controls button,
+.moving-watermark-actions button,
+.moving-watermark-keyframes button {
+  min-height: 32px;
+  border: 1px solid #3b4944;
+  border-radius: 6px;
+  color: #adbbb7;
+  background: #1c2321;
+  cursor: pointer;
+}
+
+.moving-watermark-player-controls span {
+  color: #82918c;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.moving-watermark-region-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.moving-watermark-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.moving-watermark-actions .primary-button {
+  border-color: #35d4b2;
+  color: #0a2b24;
+  background: #38ddb8;
+  font-weight: 700;
+}
+
+.moving-watermark-keyframes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.moving-watermark-keyframes li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.moving-watermark-keyframes li > button:first-child {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.moving-watermark-keyframes li > button:last-child {
+  padding: 0 10px;
+}
+
+.moving-watermark-keyframes small {
+  color: #7f8e89;
+  font-size: 11px;
+}
+
+.moving-watermark-keyframes__item--active > button:first-child {
+  border-color: #39d5b4;
+  background: #19372f;
+}
+
+.moving-watermark-empty,
+.moving-watermark-keyframes-empty {
+  margin: 0;
+  padding: 10px;
+  border: 1px dashed #3b4844;
+  border-radius: 7px;
+  color: #84938e;
+  background: #171d1b;
+  font-size: 12px;
+  text-align: center;
+}
+
+.watermark-kind {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.watermark-kind button,
+.watermark-position button {
+  min-height: 34px;
+  border: 1px solid #34413d;
+  border-radius: 6px;
+  color: #aab9b4;
+  background: #1d2321;
+  cursor: pointer;
+}
+
+.watermark-kind .watermark-kind__button--active,
+.watermark-position .watermark-position__button--active {
+  border-color: #35d2b1;
+  color: #dffff6;
+  background: #17382f;
+}
+
+.watermark-preview {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid #303c38;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgb(52 69 64 / 35%), transparent 52%),
+    #121716;
+}
+
+.watermark-preview::after {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  color: #46534f;
+  font-size: 12px;
+  content: "成片预览";
+  transform: translate(-50%, -50%);
+}
+
+.watermark-preview__mark {
+  position: absolute;
+  z-index: 1;
+  max-width: 62%;
+  overflow: hidden;
+  padding: 3px 7px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 4px;
+  color: #ffffff;
+  background: rgb(0 0 0 / 36%);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watermark-preview__mark--topLeft { top: 10px; left: 10px; }
+.watermark-preview__mark--topRight { top: 10px; right: 10px; }
+.watermark-preview__mark--bottomLeft { bottom: 10px; left: 10px; }
+.watermark-preview__mark--bottomRight { right: 10px; bottom: 10px; }
+.watermark-preview__mark--center { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+.watermark-position {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.watermark-position legend {
+  grid-column: 1 / -1;
+  margin-bottom: 4px;
+  color: #aebdb8;
+  font-size: 12px;
+}
+
+.watermark-position button {
+  min-width: 0;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+.watermark-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.watermark-help {
+  margin: 0;
+  color: #84938e;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+@media (max-width: 560px) {
+  .watermark-position {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .watermark-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .moving-watermark-region-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .moving-watermark-player-controls {
+    grid-template-columns: auto minmax(70px, 1fr);
+  }
+
+  .moving-watermark-player-controls span {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,6 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { AiRemixPlannedShot, AiRemixSegment } from "../ai-remix/types";
 import { sanitizeAiRemixContentAnalysis } from "../ai-remix/analysisCache";
+import { DEFAULT_WATERMARK_REMOVAL_SETTINGS, DEFAULT_WATERMARK_SETTINGS } from "../watermark";
 import type { ProjectStateSnapshot } from "./types";
 
 export interface SanitizedProjectSnapshot {
@@ -97,6 +98,54 @@ export function sanitizeProjectSnapshot(
       : null;
 
   const remixSettings = cloneJsonValue(project.remixSettings);
+  remixSettings.watermarkSettings = {
+    ...DEFAULT_WATERMARK_SETTINGS,
+    ...(remixSettings.watermarkSettings ?? {}),
+  };
+  remixSettings.watermarkRemovalSettings = {
+    ...DEFAULT_WATERMARK_REMOVAL_SETTINGS,
+    ...(remixSettings.watermarkRemovalSettings ?? {}),
+  };
+  remixSettings.watermarkRemovalSettings.trackingRegionWidthRatio = sanitizeTrackingSize(
+    remixSettings.watermarkRemovalSettings.trackingRegionWidthRatio,
+    DEFAULT_WATERMARK_REMOVAL_SETTINGS.trackingRegionWidthRatio,
+  );
+  remixSettings.watermarkRemovalSettings.trackingRegionHeightRatio = sanitizeTrackingSize(
+    remixSettings.watermarkRemovalSettings.trackingRegionHeightRatio,
+    DEFAULT_WATERMARK_REMOVAL_SETTINGS.trackingRegionHeightRatio,
+  );
+  remixSettings.watermarkRemovalSettings.trackingKeyframes = Array.isArray(
+    remixSettings.watermarkRemovalSettings.trackingKeyframes,
+  )
+    ? remixSettings.watermarkRemovalSettings.trackingKeyframes
+        .filter(
+          (keyframe) =>
+            isRecord(keyframe) &&
+            typeof keyframe.timeSeconds === "number" &&
+            Number.isFinite(keyframe.timeSeconds) &&
+            keyframe.timeSeconds >= 0 &&
+            typeof keyframe.xRatio === "number" &&
+            Number.isFinite(keyframe.xRatio) &&
+            keyframe.xRatio >= 0 &&
+            typeof keyframe.yRatio === "number" &&
+            Number.isFinite(keyframe.yRatio) &&
+            keyframe.yRatio >= 0,
+        )
+        .map((keyframe) => ({
+          timeSeconds: keyframe.timeSeconds as number,
+          xRatio: keyframe.xRatio as number,
+          yRatio: keyframe.yRatio as number,
+        }))
+        .sort((left, right) => left.timeSeconds - right.timeSeconds)
+        .slice(0, 8)
+    : [];
+  if (
+    remixSettings.watermarkRemovalSettings.trackingEnabled &&
+    remixSettings.watermarkRemovalSettings.trackingKeyframes.length < 2
+  ) {
+    remixSettings.watermarkRemovalSettings.trackingEnabled = false;
+    notices.push("移动水印轨迹记录不完整，关键帧跟踪已自动关闭。");
+  }
   const pipPath = remixSettings.pictureInPictureSettings.overlayFilePath;
   if (pipPath && missingFiles.has(pipPath)) {
     remixSettings.pictureInPictureSettings.enabled = false;
@@ -109,6 +158,13 @@ export function sanitizeProjectSnapshot(
     remixSettings.bgmSettings.enabled = false;
     remixSettings.bgmSettings.audioFilePath = null;
     notices.push("原BGM文件已失效，BGM已自动关闭。");
+  }
+
+  const watermarkPath = remixSettings.watermarkSettings.imageFilePath;
+  if (watermarkPath && missingFiles.has(watermarkPath)) {
+    remixSettings.watermarkSettings.enabled = false;
+    remixSettings.watermarkSettings.imageFilePath = null;
+    notices.push("原图片水印文件已失效，水印已自动关闭。");
   }
 
   const sanitizedProject: ProjectStateSnapshot = {
@@ -161,6 +217,16 @@ function filterPathMap<T>(
   return Object.fromEntries(
     Object.entries(entries).filter(([key, value]) => predicate(key, value)),
   ) as Record<string, T>;
+}
+
+function sanitizeTrackingSize(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0.04 && value <= 0.8
+    ? value
+    : fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function cloneJsonValue<T>(value: T): T {

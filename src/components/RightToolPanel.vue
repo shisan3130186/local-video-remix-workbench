@@ -24,6 +24,7 @@ const primaryTools: Array<{ key: ToolKey; title: string; note: string; symbol: s
   { key: "bgm", title: "背景音乐", note: "本地音乐、音量和淡入淡出", symbol: "♫" },
   { key: "tts", title: "AI配音", note: "逐句配音、试听和生成视频", symbol: "声" },
   { key: "asr", title: "语音识别", note: "音频转文字和句子时间轴", symbol: "识" },
+  { key: "watermark", title: "水印工具", note: "添加、融合、模糊、马赛克与遮盖", symbol: "印" },
   { key: "export", title: "导出设置", note: "分辨率、帧率、质量和编码方式", symbol: "出" },
 ];
 

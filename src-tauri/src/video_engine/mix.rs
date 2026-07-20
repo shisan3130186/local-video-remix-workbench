@@ -2,12 +2,22 @@ use crate::task_runtime::{run_ffmpeg, TaskProgressContext};
 use crate::temp_storage::TaskTempDirectory;
 use crate::video_engine::canvas::{
     build_canvas_filter_with_dimensions, build_plain_video_filter, CanvasAspectRatio,
-    CanvasBackgroundMode,
+    CanvasBackgroundMode, CanvasFilter,
 };
 use crate::video_engine::output::{
-    append_final_output_args, build_output_video_filters, output_canvas_dimensions, OutputSettings,
+    append_final_output_args, build_output_video_filters, output_canvas_dimensions,
+    resolve_output_video_dimensions, OutputSettings,
 };
+use crate::video_engine::probe::probe_video_dimensions;
 use crate::video_engine::tool_paths::ffprobe_program;
+use crate::video_engine::watermark::{
+    append_watermark_input_args, build_image_watermark_layer, build_text_watermark_layer,
+    normalize_watermark_settings, prepare_text_watermark_file, uses_image_input, WatermarkKind,
+    WatermarkSettings,
+};
+use crate::video_engine::watermark_removal::{
+    build_watermark_removal_layer, normalize_watermark_removal_settings, WatermarkRemovalSettings,
+};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -91,6 +101,10 @@ pub struct RemixSettings {
     video_effect_settings: VideoEffectSettings,
     picture_in_picture_settings: PictureInPictureSettings,
     bgm_settings: BgmSettings,
+    #[serde(default)]
+    watermark_settings: WatermarkSettings,
+    #[serde(default)]
+    watermark_removal_settings: WatermarkRemovalSettings,
     subtitle_settings: SubtitleSettings,
     #[serde(default)]
     output_settings: OutputSettings,
@@ -157,6 +171,8 @@ fn concat_video_segments_with_options(
         video_effect_settings,
         picture_in_picture_settings,
         bgm_settings,
+        watermark_settings,
+        watermark_removal_settings,
         subtitle_settings,
         output_settings,
     } = settings;
@@ -171,6 +187,16 @@ fn concat_video_segments_with_options(
     let normalized_pip_settings =
         normalize_picture_in_picture_settings(picture_in_picture_settings)?;
     let normalized_bgm_settings = normalize_bgm_settings(bgm_settings)?;
+    let normalized_watermark_settings = normalize_watermark_settings(watermark_settings)?;
+    let normalized_watermark_removal_settings =
+        normalize_watermark_removal_settings(watermark_removal_settings)?;
+
+    if normalized_watermark_removal_settings
+        .as_ref()
+        .is_some_and(|settings| settings.tracking_enabled)
+    {
+        return Err("移动水印关键帧跟踪第一版只支持“导出当前完整视频”。请先导出清理后的视频，再重新导入进行混剪。".to_string());
+    }
 
     if segment_paths.len() < 2 {
         return Err("至少需要 2 个片段才能拼接。".to_string());
@@ -188,6 +214,11 @@ fn concat_video_segments_with_options(
 
     let timestamp = current_timestamp()?;
     let temp_directory = TaskTempDirectory::create("mix")?;
+    let watermark_text_file = normalized_watermark_settings
+        .as_ref()
+        .map(|settings| prepare_text_watermark_file(settings, temp_directory.path()))
+        .transpose()?
+        .flatten();
     let list_path = temp_directory
         .path()
         .join(format!("concat_list_{timestamp}.txt"));
@@ -226,6 +257,15 @@ fn concat_video_segments_with_options(
 
     let concat_list_content = build_concat_list_content(&prepared_segments.segment_paths);
     let output_dimensions = output_canvas_dimensions(output_settings, canvas_aspect_ratio);
+    let watermark_removal_frame_dimensions = normalized_watermark_removal_settings
+        .as_ref()
+        .map(|_| probe_video_dimensions(&prepared_segments.segment_paths[0]))
+        .transpose()?
+        .map(|source_dimensions| {
+            let source_dimensions =
+                dimensions_after_rotation(source_dimensions, normalized_effect_settings.rotation);
+            resolve_output_video_dimensions(output_settings, canvas_aspect_ratio, source_dimensions)
+        });
 
     fs::write(&list_path, concat_list_content).map_err(|error| {
         format!(
@@ -251,10 +291,29 @@ fn concat_video_segments_with_options(
         list_path_text.to_string(),
     ];
 
-    if let Some(pip_settings) = &normalized_pip_settings {
+    let mut next_input_index = 1usize;
+    let pip_input_index = normalized_pip_settings.as_ref().map(|pip_settings| {
+        let index = next_input_index;
+        next_input_index += 1;
+        (index, pip_settings)
+    });
+    if let Some((_index, pip_settings)) = pip_input_index {
         append_pip_input_args(&mut ffmpeg_args, pip_settings)?;
     }
 
+    let watermark_image_input_index = normalized_watermark_settings
+        .as_ref()
+        .filter(|settings| uses_image_input(settings))
+        .map(|settings| {
+            let index = next_input_index;
+            next_input_index += 1;
+            (index, settings)
+        });
+    if let Some((_index, settings)) = watermark_image_input_index {
+        append_watermark_input_args(&mut ffmpeg_args, settings)?;
+    }
+
+    let bgm_input_index = next_input_index;
     if let Some(bgm_settings) = &normalized_bgm_settings {
         append_bgm_input_args(&mut ffmpeg_args, bgm_settings)?;
     }
@@ -276,19 +335,22 @@ fn concat_video_segments_with_options(
         canvas_aspect_ratio,
     ));
 
-    let video_filter = build_canvas_filter_with_dimensions(
+    let base_video_filter = build_canvas_filter_with_dimensions(
         canvas_aspect_ratio,
         canvas_background_mode,
         &video_filters,
         output_dimensions,
     )
     .or_else(|| build_plain_video_filter(&video_filters));
-
-    let bgm_input_index = if normalized_pip_settings.is_some() {
-        2
-    } else {
-        1
-    };
+    let video_filter = build_composed_video_filter(
+        base_video_filter,
+        normalized_watermark_removal_settings.as_ref(),
+        watermark_removal_frame_dimensions,
+        pip_input_index,
+        normalized_watermark_settings.as_ref(),
+        watermark_image_input_index.map(|(index, _settings)| index),
+        watermark_text_file.as_deref(),
+    )?;
 
     if let Some(bgm_settings) = &normalized_bgm_settings {
         let audio_filter = build_bgm_audio_filter(
@@ -299,18 +361,7 @@ fn concat_video_segments_with_options(
             output_duration_seconds,
         );
 
-        if let Some(pip_settings) = &normalized_pip_settings {
-            ffmpeg_args.push("-filter_complex".to_string());
-            ffmpeg_args.push(format!(
-                "{};{}",
-                build_pip_filter(video_filter, pip_settings),
-                audio_filter
-            ));
-            ffmpeg_args.push("-map".to_string());
-            ffmpeg_args.push("[v]".to_string());
-            ffmpeg_args.push("-map".to_string());
-            ffmpeg_args.push("[a]".to_string());
-        } else if let Some(video_filter) = video_filter {
+        if let Some(video_filter) = video_filter {
             if video_filter.is_complex {
                 ffmpeg_args.push("-filter_complex".to_string());
                 ffmpeg_args.push(format!("{};{}", video_filter.filter, audio_filter));
@@ -336,13 +387,6 @@ fn concat_video_segments_with_options(
             ffmpeg_args.push("-map".to_string());
             ffmpeg_args.push("[a]".to_string());
         }
-    } else if let Some(pip_settings) = &normalized_pip_settings {
-        ffmpeg_args.push("-filter_complex".to_string());
-        ffmpeg_args.push(build_pip_filter(video_filter, pip_settings));
-        ffmpeg_args.push("-map".to_string());
-        ffmpeg_args.push("[v]".to_string());
-        ffmpeg_args.push("-map".to_string());
-        ffmpeg_args.push("0:a?".to_string());
     } else if let Some(video_filter) = video_filter {
         if video_filter.is_complex {
             ffmpeg_args.push("-filter_complex".to_string());
@@ -362,7 +406,12 @@ fn concat_video_segments_with_options(
         ffmpeg_args.push(format!("atempo={normalized_playback_speed:.3}"));
     }
 
-    if normalized_pip_settings.is_some() || normalized_bgm_settings.is_some() {
+    if normalized_pip_settings.is_some()
+        || normalized_bgm_settings.is_some()
+        || normalized_watermark_settings
+            .as_ref()
+            .is_some_and(uses_image_input)
+    {
         ffmpeg_args.push("-shortest".to_string());
     }
 
@@ -566,27 +615,101 @@ fn build_bgm_source_filter(
     format!("[{bgm_input_index}:a]{}[bgm]", filters.join(","))
 }
 
-fn build_pip_filter(
-    video_filter: Option<crate::video_engine::canvas::CanvasFilter>,
-    settings: &PictureInPictureSettings,
-) -> String {
-    let base_filter = if let Some(video_filter) = video_filter {
-        if video_filter.is_complex {
-            video_filter.filter.replace("[v]", "[base]")
+fn build_composed_video_filter(
+    base_filter: Option<CanvasFilter>,
+    watermark_removal_settings: Option<&WatermarkRemovalSettings>,
+    watermark_removal_frame_dimensions: Option<(u32, u32)>,
+    pip_input: Option<(usize, &PictureInPictureSettings)>,
+    watermark_settings: Option<&WatermarkSettings>,
+    watermark_image_input_index: Option<usize>,
+    watermark_text_file: Option<&Path>,
+) -> Result<Option<CanvasFilter>, String> {
+    if watermark_removal_settings.is_none() && pip_input.is_none() && watermark_settings.is_none() {
+        return Ok(base_filter);
+    }
+
+    let mut filters = Vec::new();
+    let mut current_label = "[layer0]".to_string();
+    if let Some(base_filter) = base_filter {
+        if base_filter.is_complex {
+            filters.push(base_filter.filter.replace("[v]", &current_label));
         } else {
-            format!("[0:v]{}[base]", video_filter.filter)
+            filters.push(format!("[0:v]{}{}", base_filter.filter, current_label));
         }
     } else {
-        "[0:v]format=yuv420p[base]".to_string()
-    };
+        filters.push(format!("[0:v]format=yuv420p{current_label}"));
+    }
 
+    let mut layer_number = 1usize;
+    if let Some(settings) = watermark_removal_settings {
+        let output_label = format!("[layer{layer_number}]");
+        filters.push(build_watermark_removal_layer(
+            &current_label,
+            &output_label,
+            settings,
+            layer_number,
+            watermark_removal_frame_dimensions
+                .ok_or_else(|| "没有读取到原水印处理所需的画面尺寸。".to_string())?,
+        ));
+        current_label = output_label;
+        layer_number += 1;
+    }
+
+    if let Some((input_index, settings)) = pip_input {
+        let output_label = format!("[layer{layer_number}]");
+        filters.push(build_pip_layer_filter(
+            &current_label,
+            &output_label,
+            input_index,
+            settings,
+            layer_number,
+        ));
+        current_label = output_label;
+        layer_number += 1;
+    }
+
+    if let Some(settings) = watermark_settings {
+        let output_label = format!("[layer{layer_number}]");
+        let filter = match settings.kind {
+            WatermarkKind::Text => build_text_watermark_layer(
+                &current_label,
+                &output_label,
+                settings,
+                watermark_text_file.ok_or_else(|| "没有找到临时文字水印文件。".to_string())?,
+            )?,
+            WatermarkKind::Image => build_image_watermark_layer(
+                &current_label,
+                &output_label,
+                watermark_image_input_index
+                    .ok_or_else(|| "没有找到图片水印输入流。".to_string())?,
+                settings,
+                layer_number,
+            ),
+        };
+        filters.push(filter);
+        current_label = output_label;
+    }
+
+    filters.push(format!("{current_label}format=yuv420p[v]"));
+    Ok(Some(CanvasFilter {
+        filter: filters.join(";"),
+        is_complex: true,
+    }))
+}
+
+fn build_pip_layer_filter(
+    input_label: &str,
+    output_label: &str,
+    input_index: usize,
+    settings: &PictureInPictureSettings,
+    layer_number: usize,
+) -> String {
     let (x, y) = pip_position_expression(settings.position, settings.margin);
 
     format!(
-        "{base_filter};\
-         [1:v]format=rgba,colorchannelmixer=aa={opacity:.3}[pipraw];\
-         [pipraw][base]scale2ref=w=main_w*{size_ratio:.3}:h=-1[pip][basefit];\
-         [basefit][pip]overlay={x}:{y}:eof_action=pass:format=auto,format=yuv420p[v]",
+        "[{input_index}:v]format=rgba,colorchannelmixer=aa={opacity:.3}[pipraw{layer_number}];\
+         [pipraw{layer_number}]{input_label}scale2ref=w=main_w*{size_ratio:.3}:h=-1[pip{layer_number}][pipbase{layer_number}];\
+         [pipbase{layer_number}][pip{layer_number}]overlay={x}:{y}:eof_action=pass:format=auto{output_label}",
         opacity = settings.opacity,
         size_ratio = settings.size_ratio,
     )
@@ -668,6 +791,15 @@ fn build_video_effect_filters(settings: VideoEffectSettings) -> Vec<String> {
     }
 
     filters
+}
+
+fn dimensions_after_rotation(dimensions: (u32, u32), rotation: RotationMode) -> (u32, u32) {
+    match rotation {
+        RotationMode::Clockwise90 | RotationMode::Counterclockwise90 => {
+            (dimensions.1, dimensions.0)
+        }
+        RotationMode::None | RotationMode::Rotate180 => dimensions,
+    }
 }
 
 fn should_apply_eq_filter(settings: VideoEffectSettings) -> bool {
@@ -912,4 +1044,133 @@ fn build_concat_list_content(segment_paths: &[String]) -> String {
             format!("file '{}'\n", normalized_path.replace('\'', "'\\''"))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::video_engine::watermark::WatermarkPosition;
+
+    #[test]
+    fn composes_picture_in_picture_and_image_watermark() {
+        let pip = PictureInPictureSettings {
+            enabled: true,
+            overlay_file_path: Some("pip.png".to_string()),
+            position: PipPosition::TopLeft,
+            size_ratio: 0.3,
+            opacity: 0.8,
+            margin: 20,
+        };
+        let watermark = WatermarkSettings {
+            enabled: true,
+            kind: WatermarkKind::Image,
+            image_file_path: Some("watermark.png".to_string()),
+            position: WatermarkPosition::BottomRight,
+            ..WatermarkSettings::default()
+        };
+
+        let filter = build_composed_video_filter(
+            None,
+            None,
+            None,
+            Some((1, &pip)),
+            Some(&watermark),
+            Some(2),
+            None,
+        )
+        .unwrap()
+        .unwrap();
+
+        assert!(filter.is_complex);
+        assert!(filter.filter.contains("[1:v]format=rgba"));
+        assert!(filter.filter.contains("[2:v]format=rgba"));
+        assert_eq!(filter.filter.matches("overlay=").count(), 2);
+        assert!(filter.filter.ends_with("format=yuv420p[v]"));
+    }
+
+    #[test]
+    fn composes_text_watermark_after_base_filter() {
+        let watermark = WatermarkSettings {
+            enabled: true,
+            text: "中文水印".to_string(),
+            position: WatermarkPosition::Center,
+            ..WatermarkSettings::default()
+        };
+        let base = CanvasFilter {
+            filter: "scale=640:360".to_string(),
+            is_complex: false,
+        };
+
+        let filter = build_composed_video_filter(
+            Some(base),
+            None,
+            None,
+            None,
+            Some(&watermark),
+            None,
+            Some(Path::new(r"C:\Temp\watermark.txt")),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert!(filter.filter.contains("[0:v]scale=640:360[layer0]"));
+        assert!(filter.filter.contains("drawtext="));
+        assert!(filter.filter.contains("x=(w-text_w)/2:y=(h-text_h)/2"));
+    }
+
+    #[test]
+    fn processes_original_watermark_before_pip_and_new_watermark() {
+        use crate::video_engine::watermark_removal::{
+            WatermarkRemovalMode, WatermarkRemovalSettings,
+        };
+
+        let removal = WatermarkRemovalSettings {
+            enabled: true,
+            mode: WatermarkRemovalMode::Cover,
+            ..WatermarkRemovalSettings::default()
+        };
+        let pip = PictureInPictureSettings {
+            enabled: true,
+            overlay_file_path: Some("pip.png".to_string()),
+            position: PipPosition::TopLeft,
+            size_ratio: 0.3,
+            opacity: 0.8,
+            margin: 20,
+        };
+        let watermark = WatermarkSettings {
+            enabled: true,
+            text: "新水印".to_string(),
+            ..WatermarkSettings::default()
+        };
+
+        let filter = build_composed_video_filter(
+            None,
+            Some(&removal),
+            Some((1920, 1080)),
+            Some((1, &pip)),
+            Some(&watermark),
+            None,
+            Some(Path::new(r"C:\Temp\watermark.txt")),
+        )
+        .unwrap()
+        .unwrap();
+
+        let removal_index = filter.filter.find("drawbox=").unwrap();
+        let pip_index = filter.filter.find("[1:v]format=rgba").unwrap();
+        let watermark_index = filter.filter.find("drawtext=").unwrap();
+        assert!(removal_index < pip_index);
+        assert!(pip_index < watermark_index);
+    }
+
+    #[test]
+    fn swaps_removal_dimensions_for_quarter_turn_rotation() {
+        assert_eq!(
+            dimensions_after_rotation((1920, 1080), RotationMode::Clockwise90),
+            (1080, 1920)
+        );
+        assert_eq!(
+            dimensions_after_rotation((1920, 1080), RotationMode::Rotate180),
+            (1920, 1080)
+        );
+    }
 }

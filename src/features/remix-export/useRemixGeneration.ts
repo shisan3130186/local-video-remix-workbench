@@ -20,6 +20,8 @@ interface UseRemixGenerationOptions {
   remixExportSettings: Readonly<Ref<RemixExportSettings>>;
   validatePictureInPicture: () => string | null;
   validateBgm: () => string | null;
+  validateWatermark: () => string | null;
+  validateWatermarkRemoval: () => string | null;
   validatePlaybackSpeed: () => string | null;
   appendMixLog: (message: string, level: TaskLogLevel) => void;
   appendBatchMixLog: (message: string, level: TaskLogLevel) => void;
@@ -160,7 +162,10 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
     batchMixFailures.value = [];
     options.clearBatchMixLogs();
 
-    const baseError = options.validatePictureInPicture() ?? options.validateBgm();
+    const baseError =
+      options.validatePictureInPicture() ?? options.validateBgm() ?? options.validateWatermark();
+    const removalError = options.validateWatermarkRemoval();
+    if (removalError) return setBatchError(removalError);
     if (baseError) return setBatchError(baseError);
     if (!options.outputDirectory.value) return setBatchError("请先选择输出目录。");
     if (!Number.isInteger(batchGenerateCount.value) || batchGenerateCount.value <= 0) {
@@ -262,6 +267,8 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
     const validationError =
       options.validatePictureInPicture() ??
       options.validateBgm() ??
+      options.validateWatermark() ??
+      options.validateWatermarkRemoval() ??
       (!options.outputDirectory.value ? "请先选择输出目录。" : null) ??
       (includePlaybackSpeed ? options.validatePlaybackSpeed() : null);
     if (validationError) {
@@ -273,7 +280,7 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
 
   function buildRunningSettingsSummary() {
     const settings = options.remixExportSettings.value;
-    return `变速倍数 ${settings.playbackSpeed.toFixed(2)}x，平滑混剪${settings.smoothRemixEnabled ? "已开启" : "未开启"}，BGM${settings.bgmSettings.enabled ? "已开启" : "未开启"}。`;
+    return `变速倍数 ${settings.playbackSpeed.toFixed(2)}x，平滑混剪${settings.smoothRemixEnabled ? "已开启" : "未开启"}，BGM${settings.bgmSettings.enabled ? "已开启" : "未开启"}，添加水印${settings.watermarkSettings.enabled ? "已开启" : "未开启"}，原水印处理${settings.watermarkRemovalSettings.enabled ? "已开启" : "未开启"}。`;
   }
 
   function resetCurrentMix() {

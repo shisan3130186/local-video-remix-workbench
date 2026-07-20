@@ -12,6 +12,7 @@ import type {
 import type { AsrRecognitionResult } from "../../features/asr";
 import type { ToolKey } from "../../types/workbench";
 import type { SceneSensitivity, SplitMode } from "../../features/materials";
+import type { WatermarkRemovalSettings, WatermarkSettings } from "../../features/watermark";
 import type {
   EncoderCapabilities,
   OutputFrameRate,
@@ -95,6 +96,9 @@ export interface ToolSettingModalProps {
   asrResult: AsrRecognitionResult | null;
   isSavingAsrToLibrary: boolean;
   asrLibraryFeedback: string | null;
+  watermarkSettings: WatermarkSettings;
+  watermarkRemovalSettings: WatermarkRemovalSettings;
+  watermarkPreviewUrl: string | null;
   outputResolution: OutputResolution;
   outputFrameRate: OutputFrameRate;
   outputQuality: OutputQuality;
@@ -124,6 +128,7 @@ export type ToolSettingModalEmits = {
   clearAsrSelection: [];
   saveAsrToLibrary: [];
   saveAndUseAsrScript: [];
+  selectWatermarkImage: [];
   detectEncoders: [];
   "update:segmentDurationSeconds": [value: number];
   "update:splitMode": [value: SplitMode];
@@ -162,6 +167,27 @@ export type ToolSettingModalEmits = {
   "update:ttsSubtitleEnabled": [value: boolean];
   "update:ttsSubtitlePosition": [value: NarratedSubtitlePosition];
   "update:ttsSubtitleSize": [value: NarratedSubtitleSize];
+  "update:watermarkEnabled": [value: boolean];
+  "update:watermarkKind": [value: WatermarkSettings["kind"]];
+  "update:watermarkText": [value: string];
+  "update:watermarkPosition": [value: WatermarkSettings["position"]];
+  "update:watermarkOpacity": [value: number];
+  "update:watermarkMargin": [value: number];
+  "update:watermarkTextFontSize": [value: number];
+  "update:watermarkTextColor": [value: string];
+  "update:watermarkImageSizeRatio": [value: number];
+  "update:watermarkRemovalEnabled": [value: boolean];
+  "update:watermarkRemovalMode": [value: WatermarkRemovalSettings["mode"]];
+  "update:watermarkRemovalPosition": [value: WatermarkRemovalSettings["position"]];
+  "update:watermarkRemovalSize": [value: WatermarkRemovalSettings["size"]];
+  "update:watermarkRemovalMargin": [value: number];
+  "update:watermarkRemovalStrength": [value: number];
+  "update:watermarkRemovalCoverColor": [value: string];
+  "update:watermarkRemovalCoverOpacity": [value: number];
+  "update:watermarkRemovalTrackingEnabled": [value: boolean];
+  "update:watermarkRemovalTrackingRegionWidthRatio": [value: number];
+  "update:watermarkRemovalTrackingRegionHeightRatio": [value: number];
+  "update:watermarkRemovalTrackingKeyframes": [value: WatermarkRemovalSettings["trackingKeyframes"]];
   "update:outputResolution": [value: OutputResolution];
   "update:outputFrameRate": [value: OutputFrameRate];
   "update:outputQuality": [value: OutputQuality];

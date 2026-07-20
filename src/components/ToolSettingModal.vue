@@ -12,6 +12,7 @@ import TransitionSettingsPanel from "./tool-settings/TransitionSettingsPanel.vue
 import type { ToolSettingModalEmits, ToolSettingModalProps } from "./tool-settings/types";
 import VideoEffectsSettingsPanel from "./tool-settings/VideoEffectsSettingsPanel.vue";
 import type { ToolKey } from "../types/workbench";
+import { WatermarkToolPanel } from "../features/watermark";
 
 defineProps<ToolSettingModalProps>();
 const emit = defineEmits<ToolSettingModalEmits>();
@@ -25,7 +26,7 @@ const titles: Record<ToolKey, string> = {
   tts: "语音合成",
   asr: "语音识别",
   subtitleStyle: "字幕样式",
-  watermark: "去除水印",
+  watermark: "水印工具",
   cover: "视频封面",
   entrance: "入场效果",
   frame: "视频帧操作",
@@ -192,6 +193,36 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           @clear="emit('clearAsrSelection')"
           @save-to-library="emit('saveAsrToLibrary')"
           @save-and-use="emit('saveAndUseAsrScript')"
+        />
+
+        <WatermarkToolPanel
+          v-else-if="activeTool === 'watermark'"
+          :watermark-settings="watermarkSettings"
+          :removal-settings="watermarkRemovalSettings"
+          :preview-url="watermarkPreviewUrl"
+          :disabled="isMixing || isBatchMixing || isExporting || isGeneratingNarratedVideo"
+          @select-image="emit('selectWatermarkImage')"
+          @update:enabled="emit('update:watermarkEnabled', $event)"
+          @update:kind="emit('update:watermarkKind', $event)"
+          @update:text="emit('update:watermarkText', $event)"
+          @update:position="emit('update:watermarkPosition', $event)"
+          @update:opacity="emit('update:watermarkOpacity', $event)"
+          @update:margin="emit('update:watermarkMargin', $event)"
+          @update:text-font-size="emit('update:watermarkTextFontSize', $event)"
+          @update:text-color="emit('update:watermarkTextColor', $event)"
+          @update:image-size-ratio="emit('update:watermarkImageSizeRatio', $event)"
+          @update:removal-enabled="emit('update:watermarkRemovalEnabled', $event)"
+          @update:removal-mode="emit('update:watermarkRemovalMode', $event)"
+          @update:removal-position="emit('update:watermarkRemovalPosition', $event)"
+          @update:removal-size="emit('update:watermarkRemovalSize', $event)"
+          @update:removal-margin="emit('update:watermarkRemovalMargin', $event)"
+          @update:removal-strength="emit('update:watermarkRemovalStrength', $event)"
+          @update:removal-cover-color="emit('update:watermarkRemovalCoverColor', $event)"
+          @update:removal-cover-opacity="emit('update:watermarkRemovalCoverOpacity', $event)"
+          @update:removal-tracking-enabled="emit('update:watermarkRemovalTrackingEnabled', $event)"
+          @update:removal-tracking-region-width-ratio="emit('update:watermarkRemovalTrackingRegionWidthRatio', $event)"
+          @update:removal-tracking-region-height-ratio="emit('update:watermarkRemovalTrackingRegionHeightRatio', $event)"
+          @update:removal-tracking-keyframes="emit('update:watermarkRemovalTrackingKeyframes', $event)"
         />
 
         <CoverSettingsPanel

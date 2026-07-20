@@ -11,9 +11,12 @@ import type {
   VideoEffectSettings,
 } from "../services/videoMixService";
 import { useOutputSettings } from "../features/output-settings";
+import { useWatermarkRemovalSettings, useWatermarkSettings } from "../features/watermark";
 
 export function useRemixSettings() {
   const output = useOutputSettings();
+  const watermark = useWatermarkSettings();
+  const watermarkRemoval = useWatermarkRemovalSettings();
   const applyHorizontalMirror = ref(false);
   const playbackSpeed = ref(1.0);
   const smoothRemixEnabled = ref(false);
@@ -92,6 +95,8 @@ export function useRemixSettings() {
       videoEffectSettings: videoEffectSettings.value,
       pictureInPictureSettings: pictureInPictureSettings.value,
       bgmSettings: bgmSettings.value,
+      watermarkSettings: watermark.watermarkSettings.value,
+      watermarkRemovalSettings: watermarkRemoval.watermarkRemovalSettings.value,
       subtitleSettings: disabledSubtitleSettings.value,
       outputSettings: output.outputSettings.value,
     }),
@@ -121,11 +126,15 @@ export function useRemixSettings() {
     bgmVolume.value = settings.bgmSettings.bgmVolume;
     bgmFadeInSeconds.value = settings.bgmSettings.fadeInSeconds;
     bgmFadeOutSeconds.value = settings.bgmSettings.fadeOutSeconds;
+    watermark.restoreWatermarkSettings(settings.watermarkSettings);
+    watermarkRemoval.restoreWatermarkRemovalSettings(settings.watermarkRemovalSettings);
     output.restoreOutputSettings(settings.outputSettings);
   }
 
   return {
     ...output,
+    ...watermark,
+    ...watermarkRemoval,
     applyHorizontalMirror,
     applyVerticalMirror,
     bgmAudioFilePath,

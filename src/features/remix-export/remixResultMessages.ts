@@ -19,6 +19,8 @@ export function buildMixOptionSummary(settings: RemixExportSettings) {
   const effects = settings.videoEffectSettings;
   const pip = settings.pictureInPictureSettings;
   const bgm = settings.bgmSettings;
+  const watermark = settings.watermarkSettings;
+  const removal = settings.watermarkRemovalSettings;
 
   if (settings.applyHorizontalMirror) options.push("已应用水平镜像");
   if (effects.verticalMirror) options.push("已应用垂直镜像");
@@ -38,6 +40,10 @@ export function buildMixOptionSummary(settings: RemixExportSettings) {
   }
 
   if (pip.enabled) options.push("已应用画中画");
+  if (watermark.enabled) {
+    options.push(watermark.kind === "text" ? "已添加文字水印" : "已添加图片水印");
+  }
+  if (removal.enabled) options.push("已处理原水印区域");
 
   if (bgm.enabled) {
     const fadeSummary =
