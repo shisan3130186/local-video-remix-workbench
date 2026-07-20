@@ -1,5 +1,17 @@
 # TASK
 
+## 2026-07-20：MoneyPrinterPlus 竞品分析
+
+状态：研究、源码核对、功能对比、Markdown 报告和 PDF 视觉检查全部完成；未修改业务代码。
+
+完成内容：
+1. 核对 `ddean2009/MoneyPrinterPlus` 的 README、仓库结构、核心视频逻辑、自动发布、配置保存、依赖、提交、Release 和公开问题。
+2. 与当前项目的素材、切片、AI 分镜、TTS/ASR、字幕、批量导出、任务控制、项目恢复、密钥安全和水印能力逐项对比。
+3. 形成结论：核心功能相似度约 65% - 75%；MoneyPrinterPlus 的平台接入和供应商覆盖更宽，我们的智能剪辑、可靠性和工程底座更深。
+4. 明确建议借鉴资源采集、provider 抽象和独立发布队列，不直接复制 Streamlit 状态层、明文 YAML 密钥和固定 XPath 发布实现。
+5. 生成 `docs/MoneyPrinterPlus_竞品分析.md` 和 `output/pdf/MoneyPrinterPlus_竞品分析报告.pdf`。
+6. PDF 共 4 页，已逐页检查，无截断、重叠、乱码和表格溢出。
+
 ## 2026-07-20：水印工具第一版
 
 状态：代码开发、自动检查、真实FFmpeg验证和用户人工验收全部通过；提交本地Git，不推GitHub。
