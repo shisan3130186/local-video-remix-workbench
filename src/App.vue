@@ -19,6 +19,8 @@ import {
 import { useRemixSettings } from "./composables/useRemixSettings";
 import { useTaskLogs } from "./composables/useTaskLogs";
 import { useAiRemix } from "./features/ai-remix";
+import type { ApiConfigStatus } from "./features/api-config";
+import { getApiConfigStatus } from "./features/api-config/services/apiConfigService";
 import { useAsr } from "./features/asr";
 import {
   buildMaterialLibraryState,
@@ -44,6 +46,12 @@ import { ScriptLibraryDrawer, useScriptLibrary } from "./features/script-library
 import type { ScriptLibraryEntry } from "./features/script-library";
 import { useTts } from "./features/tts";
 import { useTaskCenter } from "./features/task-center";
+import {
+  createDiagnosticReport as requestDiagnosticReport,
+  FirstLaunchWizard,
+  getDiagnosticInfo,
+} from "./features/user-test-package";
+import type { DiagnosticInfo } from "./features/user-test-package";
 import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
@@ -67,6 +75,12 @@ const workspaceMode = ref<WorkspaceMode>("ai");
 const activeTool = ref<ToolKey | null>(null);
 const activeDrawer = ref<DrawerKey | null>(null);
 const isWelcomeVisible = ref(false);
+const welcomeStartStep = ref(0);
+const apiConfigStatus = ref<ApiConfigStatus | null>(null);
+const diagnosticInfo = ref<DiagnosticInfo | null>(null);
+const isRefreshingReadiness = ref(false);
+const readinessError = ref<string | null>(null);
+const diagnosticFeedback = ref<string | null>(null);
 const isAdvancedMode = ref(false);
 
 const {
@@ -401,6 +415,7 @@ const {
 
 async function refreshSpeechConfiguration() {
   await Promise.all([loadTtsConfig(), loadAsrConfig()]);
+  await refreshConfigurationAndDiagnostics();
 }
 
 async function saveCurrentAsrToLibrary(useAfterSave: boolean) {
@@ -651,16 +666,95 @@ async function continueHomeProject() {
   openWorkspace("ai");
 }
 
-function openWelcomeGuide() {
+function openWelcomeGuide(startStep = 0) {
+  welcomeStartStep.value = startStep;
   isWelcomeVisible.value = true;
+}
+
+function openDiagnosticGuide() {
+  openWelcomeGuide(3);
 }
 
 function closeWelcomeGuide() {
   isWelcomeVisible.value = false;
   try {
-    window.localStorage.setItem("smartcut:onboarding-seen", "true");
+    window.localStorage.setItem("smartcut:first-launch-v2", "true");
   } catch {
     // 本地存储不可用时不影响软件继续使用。
+  }
+}
+
+function openApiConfigFromWizard() {
+  activeTool.value = "apiKeys";
+}
+
+async function refreshConfigurationAndDiagnostics() {
+  const [apiResult, diagnosticResult] = await Promise.allSettled([
+    getApiConfigStatus(),
+    getDiagnosticInfo(),
+  ]);
+
+  if (apiResult.status === "fulfilled") {
+    apiConfigStatus.value = apiResult.value;
+  }
+  if (diagnosticResult.status === "fulfilled") {
+    diagnosticInfo.value = diagnosticResult.value;
+  }
+
+  const failure = [apiResult, diagnosticResult].find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failure) {
+    readinessError.value = toErrorMessage(failure.reason, "读取配置和诊断信息失败。");
+  }
+}
+
+async function refreshUserTestReadiness() {
+  isRefreshingReadiness.value = true;
+  readinessError.value = null;
+  diagnosticFeedback.value = null;
+  try {
+    await Promise.all([runEnvironmentCheck(), refreshConfigurationAndDiagnostics()]);
+  } finally {
+    isRefreshingReadiness.value = false;
+  }
+}
+
+async function generateDiagnosticReport() {
+  diagnosticFeedback.value = null;
+  readinessError.value = null;
+  try {
+    const path = await requestDiagnosticReport();
+    diagnosticFeedback.value = `诊断报告已生成：${path}`;
+    diagnosticInfo.value = await getDiagnosticInfo();
+  } catch (error) {
+    readinessError.value = toErrorMessage(error, "生成诊断报告失败。");
+  }
+}
+
+async function openDiagnosticsDirectory() {
+  const path = diagnosticInfo.value?.logsDirectory;
+  if (!path) {
+    readinessError.value = "诊断目录尚未准备完成，请先刷新状态。";
+    return;
+  }
+  try {
+    await openPathInFileManager(path);
+  } catch (error) {
+    readinessError.value = toErrorMessage(error, "无法打开诊断目录。");
+  }
+}
+
+async function openLegalDirectory() {
+  const path = diagnosticInfo.value?.legalDirectory;
+  if (!path) {
+    readinessError.value = "完整说明目录尚未找到，请先刷新状态。";
+    return;
+  }
+  try {
+    await openPathInFileManager(path);
+  } catch (error) {
+    readinessError.value = toErrorMessage(error, "无法打开隐私和许可证目录。");
   }
 }
 
@@ -921,9 +1015,11 @@ async function runEnvironmentCheck() {
 
   try {
     environment.value = await checkFfmpegEnvironment();
+    return environment.value;
   } catch (error) {
     checkError.value =
       error instanceof Error ? error.message : "未检测到 FFmpeg，请配置路径。";
+    return null;
   } finally {
     isChecking.value = false;
   }
@@ -1369,13 +1465,19 @@ function formatFileName(filePath: string) {
   return filePath.split(/[\\/]/).pop() ?? filePath;
 }
 
+function toErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  const message = String(error ?? "").trim();
+  return message || fallback;
+}
+
 onMounted(() => {
   try {
-    isWelcomeVisible.value = window.localStorage.getItem("smartcut:onboarding-seen") !== "true";
+    isWelcomeVisible.value = window.localStorage.getItem("smartcut:first-launch-v2") !== "true";
   } catch {
-    isWelcomeVisible.value = false;
+    isWelcomeVisible.value = true;
   }
-  void runEnvironmentCheck();
+  void refreshUserTestReadiness();
   void loadTtsConfig();
   void loadAsrConfig();
   void loadScriptLibrary();
@@ -1412,21 +1514,40 @@ onMounted(() => {
           :text="projectSaveStatusText"
           :error="projectSaveError"
         />
-        <button class="top-help-button" type="button" @click="openWelcomeGuide">新手教程</button>
+        <button class="top-help-button" type="button" @click="openWelcomeGuide()">新手教程</button>
+        <button class="top-help-button" type="button" @click="openDiagnosticGuide">诊断</button>
       </div>
     </header>
 
+    <FirstLaunchWizard
+      :visible="isWelcomeVisible"
+      :start-step="welcomeStartStep"
+      :environment="environment"
+      :api-status="apiConfigStatus"
+      :diagnostics="diagnosticInfo"
+      :is-refreshing="isRefreshingReadiness || isChecking"
+      :error="readinessError ?? checkError"
+      :report-feedback="diagnosticFeedback"
+      @close="closeWelcomeGuide"
+      @refresh="refreshUserTestReadiness"
+      @open-api-config="openApiConfigFromWizard"
+      @create-report="generateDiagnosticReport"
+      @open-logs="openDiagnosticsDirectory"
+      @open-legal="openLegalDirectory"
+    />
+
     <HomePage
       v-if="!isWorkspaceVisible"
-      :show-welcome="isWelcomeVisible"
       :has-recent-project="hasHomeProject"
       :recent-project-title="homeProjectTitle"
       :recent-project-summary="homeProjectSummary"
       :environment-available="environment?.available ?? null"
+      :ai-configured="apiConfigStatus?.aiConfigured ?? null"
+      :speech-configured="apiConfigStatus?.ttsConfigured ?? null"
+      :diagnostics-available="diagnosticInfo !== null"
       @open-workspace="openWorkspace"
       @continue-project="continueHomeProject"
       @open-welcome="openWelcomeGuide"
-      @close-welcome="closeWelcomeGuide"
     />
 
     <section

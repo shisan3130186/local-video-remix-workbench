@@ -8,3 +8,4 @@
 @import "./styles/home.css";
 @import "./styles/smartcut-theme.css";
 @import "./styles/workspace-modes.css";
+@import "./features/user-test-package/user-test-package.css";

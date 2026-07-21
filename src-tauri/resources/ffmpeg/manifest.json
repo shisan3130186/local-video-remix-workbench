@@ -1,0 +1,15 @@
+{
+  "distribution": "Gyan FFmpeg full build runtime subset",
+  "version": "8.1.1",
+  "license": "GPL-3.0-or-later",
+  "sourcePage": "https://www.gyan.dev/ffmpeg/builds/",
+  "upstreamSource": "https://ffmpeg.org/download.html#get-sources",
+  "includedFiles": {
+    "ffmpeg.exe": {
+      "sha256": "09948d4cdd0650da6ff5a87577469f2a218dc2615ae379f8f734d24c49de0f73"
+    },
+    "ffprobe.exe": {
+      "sha256": "a6618e99bb58869ded3c6f37b53aa1a8d701c3591dbb7b5b317d47369c112be2"
+    }
+  }
+}

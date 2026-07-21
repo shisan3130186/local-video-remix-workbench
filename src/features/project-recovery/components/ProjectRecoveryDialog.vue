@@ -102,7 +102,7 @@ function formatFileName(path: string) {
       <p v-if="restoreError" class="error-text" role="alert">{{ restoreError }}</p>
 
       <footer class="project-recovery-actions">
-        <button type="button" class="secondary-button" :disabled="isRestoring" @click="emit('discard')">
+        <button type="button" class="ghost-button" :disabled="isRestoring" @click="emit('discard')">
           {{ loadError ? "清除记录并新建" : "新建空白项目" }}
         </button>
         <button

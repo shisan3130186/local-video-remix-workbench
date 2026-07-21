@@ -2,6 +2,8 @@ export interface ToolProbeResult {
   available: boolean;
   version: string | null;
   error: string | null;
+  path: string;
+  bundled: boolean;
 }
 
 export interface FfmpegEnvironmentResult {

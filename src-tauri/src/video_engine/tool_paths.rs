@@ -10,6 +10,35 @@ pub fn ffprobe_program() -> PathBuf {
     resolve_program("FFPROBE_PATH", "ffprobe")
 }
 
+pub fn is_bundled_program(program: &Path) -> bool {
+    is_bundled_program_from(program, env::current_exe().ok().as_deref())
+}
+
+fn is_bundled_program_from(program: &Path, current_executable: Option<&Path>) -> bool {
+    let normalized = program.to_string_lossy().replace('\\', "/").to_lowercase();
+    if normalized.contains("/resources/ffmpeg/")
+        || normalized.contains("/src-tauri/resources/ffmpeg/")
+    {
+        return true;
+    }
+
+    let Some(executable_directory) = current_executable.and_then(Path::parent) else {
+        return false;
+    };
+    let Some(program_directory) = program.parent() else {
+        return false;
+    };
+
+    paths_match(program_directory, &executable_directory.join("ffmpeg"))
+}
+
+fn paths_match(left: &Path, right: &Path) -> bool {
+    match (left.canonicalize(), right.canonicalize()) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
+    }
+}
+
 fn resolve_program(environment_name: &str, binary_name: &str) -> PathBuf {
     resolve_program_from(
         env::var_os(environment_name),
@@ -80,7 +109,7 @@ fn tool_file_name(binary_name: &str) -> OsString {
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_program_from;
+    use super::{is_bundled_program, is_bundled_program_from, resolve_program_from};
     use std::ffi::OsString;
     use std::fs;
     use std::path::PathBuf;
@@ -126,5 +155,25 @@ mod tests {
     fn falls_back_to_system_path_name() {
         let actual = resolve_program_from(None, None, None, "ffprobe");
         assert_eq!(actual, PathBuf::from("ffprobe"));
+    }
+
+    #[test]
+    fn detects_bundled_resource_path() {
+        assert!(is_bundled_program(&PathBuf::from(
+            r"C:\Program Files\SmartCut\resources\ffmpeg\ffmpeg.exe"
+        )));
+        assert!(!is_bundled_program(&PathBuf::from("ffmpeg")));
+    }
+
+    #[test]
+    fn detects_bundled_tool_next_to_installed_executable() {
+        let executable = PathBuf::from(r"C:\Program Files\SmartCut\smartcut.exe");
+        let program = PathBuf::from(r"C:\Program Files\SmartCut\ffmpeg\ffmpeg.exe");
+
+        assert!(is_bundled_program_from(&program, Some(&executable)));
+        assert!(!is_bundled_program_from(
+            &PathBuf::from(r"C:\Tools\ffmpeg\ffmpeg.exe"),
+            Some(&executable)
+        ));
     }
 }

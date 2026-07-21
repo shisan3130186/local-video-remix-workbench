@@ -1,4 +1,4 @@
-use crate::video_engine::tool_paths::{ffmpeg_program, ffprobe_program};
+use crate::video_engine::tool_paths::{ffmpeg_program, ffprobe_program, is_bundled_program};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -6,17 +6,19 @@ use std::process::Command;
 
 #[derive(Debug, Serialize)]
 pub struct ToolProbeResult {
-    available: bool,
-    version: Option<String>,
-    error: Option<String>,
+    pub available: bool,
+    pub version: Option<String>,
+    pub error: Option<String>,
+    pub path: String,
+    pub bundled: bool,
 }
 
 #[derive(Debug, Serialize)]
 pub struct FfmpegEnvironmentResult {
-    ffmpeg: ToolProbeResult,
-    ffprobe: ToolProbeResult,
-    available: bool,
-    message: String,
+    pub ffmpeg: ToolProbeResult,
+    pub ffprobe: ToolProbeResult,
+    pub available: bool,
+    pub message: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -59,8 +61,10 @@ pub fn check_environment() -> FfmpegEnvironmentResult {
     let ffmpeg = probe_tool("ffmpeg", &ffmpeg_program);
     let ffprobe = probe_tool("ffprobe", &ffprobe_program);
     let available = ffmpeg.available && ffprobe.available;
-    let message = if available {
-        "FFmpeg 环境正常。".to_string()
+    let message = if available && ffmpeg.bundled && ffprobe.bundled {
+        "内置FFmpeg已就绪，无需额外安装。".to_string()
+    } else if available {
+        "系统FFmpeg环境正常。".to_string()
     } else {
         "未检测到 FFmpeg，请配置路径。".to_string()
     };
@@ -149,6 +153,8 @@ pub(crate) fn probe_video_dimensions(file_path: &str) -> Result<(u32, u32), Stri
 }
 
 fn probe_tool(binary_name: &str, program: &Path) -> ToolProbeResult {
+    let path = program.to_string_lossy().to_string();
+    let bundled = is_bundled_program(program);
     match Command::new(program).arg("-version").output() {
         Ok(output) if output.status.success() => {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -158,6 +164,8 @@ fn probe_tool(binary_name: &str, program: &Path) -> ToolProbeResult {
                 available: true,
                 version,
                 error: None,
+                path,
+                bundled,
             }
         }
         Ok(output) => {
@@ -171,12 +179,16 @@ fn probe_tool(binary_name: &str, program: &Path) -> ToolProbeResult {
                 } else {
                     stderr
                 }),
+                path,
+                bundled,
             }
         }
         Err(error) => ToolProbeResult {
             available: false,
             version: None,
             error: Some(error.to_string()),
+            path,
+            bundled,
         },
     }
 }

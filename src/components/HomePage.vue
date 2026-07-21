@@ -1,29 +1,23 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import type { WorkspaceMode } from "../types/workbench";
 
 const smartCutIconUrl = "/smartcut-icon.svg";
 
 defineProps<{
-  showWelcome: boolean;
   hasRecentProject: boolean;
   recentProjectTitle: string;
   recentProjectSummary: string;
   environmentAvailable: boolean | null;
+  aiConfigured: boolean | null;
+  speechConfigured: boolean | null;
+  diagnosticsAvailable: boolean;
 }>();
 
 const emit = defineEmits<{
   openWorkspace: [mode: WorkspaceMode];
   continueProject: [];
   openWelcome: [];
-  closeWelcome: [];
 }>();
-
-const tutorialWebFeedback = ref<string | null>(null);
-
-function showTutorialWebFeedback() {
-  tutorialWebFeedback.value = "教程网页入口已经预留，发布测试版前接入正式帮助中心地址。";
-}
 </script>
 
 <template>
@@ -121,10 +115,16 @@ function showTutorialWebFeedback() {
             <span :class="{ 'smartcut-ready-list__item--pending': environmentAvailable !== true }">
               {{ environmentAvailable === null ? "FFmpeg 检测中" : environmentAvailable ? "FFmpeg 可用" : "FFmpeg 待检查" }}
             </span>
-            <span>AI 配置可保存</span>
-            <span>TTS / ASR 可用</span>
+            <span :class="{ 'smartcut-ready-list__item--pending': aiConfigured !== true }">
+              {{ aiConfigured === null ? "AI 配置检测中" : aiConfigured ? "AI 已配置" : "AI 待配置" }}
+            </span>
+            <span :class="{ 'smartcut-ready-list__item--pending': speechConfigured !== true }">
+              {{ speechConfigured === null ? "TTS / ASR 检测中" : speechConfigured ? "TTS / ASR 已配置" : "TTS / ASR 待配置" }}
+            </span>
             <span>项目自动保存</span>
-            <span>任务可取消和重试</span>
+            <span :class="{ 'smartcut-ready-list__item--pending': !diagnosticsAvailable }">
+              {{ diagnosticsAvailable ? "诊断日志已就绪" : "诊断日志准备中" }}
+            </span>
           </div>
         </section>
       </div>
@@ -143,34 +143,8 @@ function showTutorialWebFeedback() {
       </div>
       <div class="smartcut-guide__actions">
         <button class="primary-button" type="button" @click="emit('openWelcome')">开始新手引导</button>
-        <button class="ghost-button" type="button" @click="showTutorialWebFeedback">打开教程网页</button>
-        <small v-if="tutorialWebFeedback" role="status">{{ tutorialWebFeedback }}</small>
-        <small v-else>内置引导断网也能使用</small>
+        <small>内置引导断网也能使用</small>
       </div>
     </aside>
-
-    <div
-      v-if="showWelcome"
-      class="modal-backdrop smartcut-tutorial-backdrop"
-      tabindex="-1"
-      @click.self="emit('closeWelcome')"
-      @keydown.esc="emit('closeWelcome')"
-    >
-      <section class="smartcut-tutorial" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
-        <header>
-          <h2 id="tutorial-title">3分钟认识智剪</h2>
-          <button class="modal-close" type="button" aria-label="关闭新手教程" @click="emit('closeWelcome')">×</button>
-        </header>
-        <div class="smartcut-tutorial__steps">
-          <article><small>01</small><h3>选一个创作方式</h3><p>普通用户从AI智能成片开始；有固定规则时使用批量混剪；单项处理进入视频工具。</p></article>
-          <article><small>02</small><h3>按四步完成</h3><p>准备素材、文案与配音、确认分镜、输出视频。右侧只显示当前步骤需要的设置。</p></article>
-          <article><small>03</small><h3>任务可以后台运行</h3><p>生成过程中可以查看真实进度、取消任务、重试失败条目，临时文件会自动清理。</p></article>
-        </div>
-        <footer>
-          <span>首次启动自动显示一次，之后可从首页重新打开。</span>
-          <button class="primary-button" type="button" @click="emit('closeWelcome')">我知道了，开始创作</button>
-        </footer>
-      </section>
-    </div>
   </section>
 </template>

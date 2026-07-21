@@ -1,6 +1,7 @@
 mod ai_remix;
 mod api_config;
 mod asr;
+mod diagnostics;
 mod material_library;
 mod project_snapshot;
 mod script_library;
@@ -25,6 +26,10 @@ use api_config::{
 use asr::{
     get_asr_config_status as read_asr_config_status, recognize_speech as create_asr_recognition,
     AsrConfigStatus, AsrRecognitionResult,
+};
+use diagnostics::{
+    create_diagnostic_report as write_diagnostic_report,
+    get_diagnostic_info as read_diagnostic_info, DiagnosticInfo,
 };
 use material_library::{
     load_material_library as read_material_library,
@@ -74,6 +79,16 @@ use video_engine::thumbnail::{generate_video_thumbnail, ThumbnailFitMode, VideoT
 #[tauri::command]
 fn check_ffmpeg_environment() -> FfmpegEnvironmentResult {
     check_environment()
+}
+
+#[tauri::command]
+fn get_diagnostic_info() -> Result<DiagnosticInfo, String> {
+    read_diagnostic_info()
+}
+
+#[tauri::command]
+fn create_diagnostic_report() -> Result<String, String> {
+    write_diagnostic_report()
 }
 
 #[tauri::command]
@@ -399,6 +414,8 @@ fn concat_narrated_segments(
 }
 
 pub fn run() {
+    diagnostics::install_panic_hook();
+    diagnostics::write_startup_log();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -411,6 +428,7 @@ pub fn run() {
             concat_narrated_segments,
             concat_selected_segments,
             create_task,
+            create_diagnostic_report,
             delete_api_credential,
             delete_project_snapshot,
             delete_script_library_entry,
@@ -419,6 +437,7 @@ pub fn run() {
             finish_task,
             generate_thumbnail,
             get_asr_config_status,
+            get_diagnostic_info,
             get_task_progress,
             get_video_encoder_capabilities,
             get_tts_config_status,
