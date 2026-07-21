@@ -5,3 +5,6 @@
 @import "./styles/tools-and-overlays.css";
 @import "./styles/ai-workspace.css";
 @import "./styles/responsive.css";
+@import "./styles/home.css";
+@import "./styles/smartcut-theme.css";
+@import "./styles/workspace-modes.css";

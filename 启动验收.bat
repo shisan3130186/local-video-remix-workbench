@@ -2,11 +2,11 @@
 setlocal
 
 cd /d "%~dp0"
-title Local Video Remix Workbench - Acceptance
+title SmartCut - Acceptance
 
 echo.
 echo ========================================
-echo Local Video Remix Workbench
+echo SmartCut
 echo Acceptance Startup
 echo ========================================
 echo.

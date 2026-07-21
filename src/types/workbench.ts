@@ -27,6 +27,8 @@ export type ToolKey =
 
 export type DrawerKey = "logs" | "exports" | "batch" | "scripts";
 
+export type WorkspaceMode = "ai" | "batch" | "tools";
+
 export interface ModuleCard {
   title: string;
   category: string;

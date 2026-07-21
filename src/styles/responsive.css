@@ -17,7 +17,7 @@
     height: 50px;
   }
 }
-@media (max-width: 1180px) {
+@media (max-width: 900px) {
   body {
     min-width: 0;
     overflow: auto;
@@ -169,7 +169,7 @@
 
   .center-stage,
   .workbench--advanced .center-stage {
-    grid-template-rows: 48px minmax(420px, 1.3fr) minmax(300px, 0.7fr);
+    grid-template-rows: 48px minmax(520px, 1fr) clamp(200px, 22vh, 240px);
     gap: 10px;
   }
 
@@ -272,7 +272,7 @@
   }
 
   .preview-panel--focused {
-    padding: 14px;
+    padding: 8px 14px 14px;
   }
 
   .preview-panel__header h2 {

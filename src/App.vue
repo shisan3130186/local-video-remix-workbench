@@ -4,15 +4,17 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, ref, watch } from "vue";
 import type { CSSProperties } from "vue";
 import ExportResultDrawer from "./components/ExportResultDrawer.vue";
+import BatchWorkspacePanel from "./components/BatchWorkspacePanel.vue";
 import HomePage from "./components/HomePage.vue";
 import PreviewPanel from "./components/PreviewPanel.vue";
 import RightToolPanel from "./components/RightToolPanel.vue";
 import TaskControlBar from "./components/TaskControlBar.vue";
 import TaskLogDrawer from "./components/TaskLogDrawer.vue";
 import ToolSettingModal from "./components/ToolSettingModal.vue";
+import VideoToolsWorkspace from "./components/VideoToolsWorkspace.vue";
+import WorkspaceModeNav from "./components/WorkspaceModeNav.vue";
 import {
   SEGMENT_CATEGORY_OPTIONS as segmentCategoryOptions,
-  WORKBENCH_MODULE_CARDS as moduleCards,
 } from "./constants/workbench";
 import { useRemixSettings } from "./composables/useRemixSettings";
 import { useTaskLogs } from "./composables/useTaskLogs";
@@ -49,9 +51,10 @@ import type {
 import { isExistingDirectory, openPathInFileManager } from "./services/fileManagerService";
 import { checkFfmpegEnvironment } from "./services/videoProbeService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
-import type { DrawerKey, ToolKey } from "./types/workbench";
+import type { DrawerKey, ToolKey, WorkspaceMode } from "./types/workbench";
 
 const environment = ref<FfmpegEnvironmentResult | null>(null);
+const smartCutIconUrl = "/smartcut-icon.svg";
 const isChecking = ref(true);
 const checkError = ref<string | null>(null);
 const outputDirectory = ref<string | null>(null);
@@ -59,10 +62,11 @@ const outputDirectoryError = ref<string | null>(null);
 const fileManagerError = ref<string | null>(null);
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
-const isWorkspaceVisible = ref(true);
+const isWorkspaceVisible = ref(false);
+const workspaceMode = ref<WorkspaceMode>("ai");
 const activeTool = ref<ToolKey | null>(null);
 const activeDrawer = ref<DrawerKey | null>(null);
-const isWelcomeVisible = ref(true);
+const isWelcomeVisible = ref(false);
 const isAdvancedMode = ref(false);
 
 const {
@@ -573,6 +577,7 @@ const {
     restoreTtsSettings(sanitized.project.tts);
     activateMaterialLibrary();
     resetRandomPickState();
+    workspaceMode.value = "ai";
     isWorkspaceVisible.value = true;
 
     appendSplitLog("已恢复上次项目进度。", "success");
@@ -586,6 +591,76 @@ async function discardProjectSnapshotAndStartBlank() {
   await discardPendingSnapshot();
   if (!pendingProjectSnapshot.value) {
     await inspectMaterialLibrary();
+  }
+}
+
+const hasHomeProject = computed(
+  () => importedVideos.value.length > 0 || Boolean(pendingProjectSnapshot.value?.snapshot),
+);
+
+const homeProjectTitle = computed(() => {
+  if (selectedVideo.value?.fileName) return selectedVideo.value.fileName;
+  return pendingProjectSnapshot.value?.snapshot?.project.materials.importedVideos[0]?.fileName
+    ?? "上次自动保存的项目";
+});
+
+const homeProjectSummary = computed(() => {
+  if (importedVideos.value.length > 0) {
+    return `${importedVideos.value.length} 个素材 · ${aiPlannedShots.value.length} 个分镜 · 项目会自动保存`;
+  }
+
+  const snapshot = pendingProjectSnapshot.value?.snapshot;
+  if (!snapshot) return "素材、文案和设置会自动保存";
+  const videoCount = snapshot.project.materials.importedVideos.length;
+  const shotCount = snapshot.project.ai.plannedShots.length;
+  return `${videoCount} 个素材 · ${shotCount} 个分镜 · ${new Date(snapshot.savedAt).toLocaleString("zh-CN")}`;
+});
+
+const workspaceModeCopy = computed(() => {
+  if (workspaceMode.value === "batch") {
+    return { title: "批量混剪", subtitle: "多素材规则组合与批量生成" };
+  }
+  if (workspaceMode.value === "tools") {
+    return { title: "视频工具", subtitle: "单项处理中心" };
+  }
+  return { title: "AI 智能成片", subtitle: "文案驱动的智能成片流程" };
+});
+
+const productionWorkspaceMode = computed<"ai" | "batch">(() =>
+  workspaceMode.value === "batch" ? "batch" : "ai",
+);
+
+function openWorkspace(mode: WorkspaceMode = "ai") {
+  workspaceMode.value = mode;
+  activeTool.value = null;
+  activeDrawer.value = null;
+  isWorkspaceVisible.value = true;
+}
+
+function changeWorkspaceMode(mode: WorkspaceMode) {
+  workspaceMode.value = mode;
+  activeTool.value = null;
+  activeDrawer.value = null;
+}
+
+async function continueHomeProject() {
+  if (pendingProjectSnapshot.value?.snapshot) {
+    await restorePendingSnapshot();
+    return;
+  }
+  openWorkspace("ai");
+}
+
+function openWelcomeGuide() {
+  isWelcomeVisible.value = true;
+}
+
+function closeWelcomeGuide() {
+  isWelcomeVisible.value = false;
+  try {
+    window.localStorage.setItem("smartcut:onboarding-seen", "true");
+  } catch {
+    // 本地存储不可用时不影响软件继续使用。
   }
 }
 
@@ -761,6 +836,17 @@ const isAnyProcessing = computed(
 );
 
 const primaryTaskActionLabel = computed(() => {
+  if (workspaceMode.value === "tools") {
+    return importedVideos.value.length > 0 ? "请从上方选择一个工具" : "可直接打开语音或密钥工具";
+  }
+
+  if (workspaceMode.value === "batch") {
+    if (importedVideos.value.length === 0) return "请先导入一组素材";
+    if (aiPreparedSegments.value.length < 2) return "智能切片全部素材";
+    if (!outputDirectory.value) return "选择批量输出目录";
+    return `生成 ${batchGenerateCount.value} 条差异视频`;
+  }
+
   if (importedVideos.value.length === 0) {
     return "请先导入素材";
   }
@@ -784,15 +870,30 @@ const primaryTaskActionLabel = computed(() => {
 
 const primaryTaskActionDisabled = computed(
   () =>
+    workspaceMode.value === "tools" ||
     isAnyProcessing.value ||
     importedVideos.value.length === 0 ||
-    (aiPreparedSegments.value.length >= 2 &&
+    (workspaceMode.value === "ai" &&
+      aiPreparedSegments.value.length >= 2 &&
       aiPlannedShots.value.length < 2 &&
       aiScript.value.trim().length === 0),
 );
 
 async function runPrimaryTaskAction() {
   if (primaryTaskActionDisabled.value) {
+    return;
+  }
+
+  if (workspaceMode.value === "batch") {
+    if (aiPreparedSegments.value.length < 2) {
+      await splitSelectedVideo();
+      return;
+    }
+    if (!outputDirectory.value) {
+      await selectOutputDirectory();
+      return;
+    }
+    await generateBatchMixes();
     return;
   }
 
@@ -1269,6 +1370,11 @@ function formatFileName(filePath: string) {
 }
 
 onMounted(() => {
+  try {
+    isWelcomeVisible.value = window.localStorage.getItem("smartcut:onboarding-seen") !== "true";
+  } catch {
+    isWelcomeVisible.value = false;
+  }
   void runEnvironmentCheck();
   void loadTtsConfig();
   void loadAsrConfig();
@@ -1282,14 +1388,22 @@ onMounted(() => {
   <main class="app-shell" :class="{ 'app-shell--home': !isWorkspaceVisible }">
     <header class="top-bar">
       <div class="product-mark">
+        <img class="product-logo" :src="smartCutIconUrl" alt="" />
+        <div class="product-copy">
+          <h1>智剪 <span>SmartCut</span></h1>
+          <small>{{ isWorkspaceVisible ? workspaceModeCopy.subtitle : "本地 AI 视频工作台" }}</small>
+        </div>
         <button v-if="isWorkspaceVisible" class="back-button" type="button" @click="isWorkspaceVisible = false">
-          返回首页
+          ← 首页
         </button>
-        <p v-else class="eyebrow">V0.3.5 分类混剪版</p>
-        <h1>本地短视频批量混剪工作台</h1>
       </div>
+      <WorkspaceModeNav
+        v-if="isWorkspaceVisible"
+        :active-mode="workspaceMode"
+        @change="changeWorkspaceMode"
+      />
       <div class="top-status">
-        <span class="mode-pill">本地处理 / 批量混剪 / 模块工作台</span>
+        <span class="mode-pill">{{ isWorkspaceVisible ? workspaceModeCopy.title : "数据只保存在这台电脑" }}</span>
         <span class="health-pill" :class="{ 'health-pill--ok': environment?.available }">
           {{ environment?.available ? "FFmpeg 就绪" : "FFmpeg 未就绪" }}
         </span>
@@ -1298,25 +1412,31 @@ onMounted(() => {
           :text="projectSaveStatusText"
           :error="projectSaveError"
         />
-        <button class="title-icon" type="button" aria-label="用户中心">人</button>
-        <button class="title-icon" type="button" aria-label="菜单">≡</button>
-        <div class="window-controls" aria-label="窗口控制区">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
+        <button class="top-help-button" type="button" @click="openWelcomeGuide">新手教程</button>
       </div>
     </header>
 
     <HomePage
       v-if="!isWorkspaceVisible"
-      :module-cards="moduleCards"
       :show-welcome="isWelcomeVisible"
-      @open-workspace="isWorkspaceVisible = true"
-      @close-welcome="isWelcomeVisible = false"
+      :has-recent-project="hasHomeProject"
+      :recent-project-title="homeProjectTitle"
+      :recent-project-summary="homeProjectSummary"
+      :environment-available="environment?.available ?? null"
+      @open-workspace="openWorkspace"
+      @continue-project="continueHomeProject"
+      @open-welcome="openWelcomeGuide"
+      @close-welcome="closeWelcomeGuide"
     />
 
-    <section v-else class="workbench" :class="{ 'workbench--advanced': isAdvancedMode }">
+    <section
+      v-else
+      class="workbench"
+      :class="[
+        { 'workbench--advanced': isAdvancedMode },
+        `workbench--${workspaceMode}`,
+      ]"
+    >
       <MaterialPanel
         :is-advanced-mode="isAdvancedMode"
         :imported-videos="importedVideos"
@@ -1360,6 +1480,7 @@ onMounted(() => {
       />
 
       <PreviewPanel
+        v-if="workspaceMode === 'ai'"
         v-model:preview-video-ref="previewVideoRef"
         v-model:preview-background-video-ref="previewBackgroundVideoRef"
         v-model:ai-script="aiScript"
@@ -1417,7 +1538,43 @@ onMounted(() => {
         @generate-ai-remix="generateCurrentAiRemixVideo"
       />
 
+      <BatchWorkspacePanel
+        v-else-if="workspaceMode === 'batch'"
+        :imported-video-count="importedVideos.length"
+        :selected-video="selectedVideo"
+        :preview-url="previewUrl"
+        :split-segment-count="splitSegmentCount"
+        :random-selected-count="randomSelectedSegments.length"
+        :batch-generate-count="batchGenerateCount"
+        :batch-mix-result-count="batchMixResults.length"
+        :is-splitting="isSplitting"
+        :is-mixing="isMixing"
+        :is-batch-mixing="isBatchMixing"
+        :split-error="splitError || outputDirectoryError"
+        :mix-error="mixError"
+        :batch-mix-error="batchMixError"
+        @update:batch-generate-count="batchGenerateCount = $event"
+        @split-selected-video="splitSelectedVideo"
+        @pick-segments-randomly="pickSegmentsRandomly"
+        @concat-random-segments="concatRandomSegments"
+        @concat-categorized-segments="concatCategorizedSegments"
+        @generate-batch-mixes="generateBatchMixes"
+        @open-drawer="activeDrawer = $event"
+        @open-tool="activeTool = $event"
+      />
+
+      <VideoToolsWorkspace
+        v-else
+        :selected-video="selectedVideo"
+        :preview-url="previewUrl"
+        :imported-video-count="importedVideos.length"
+        @open-drawer="activeDrawer = $event"
+        @open-tool="activeTool = $event"
+      />
+
       <RightToolPanel
+        v-if="workspaceMode !== 'tools'"
+        :workspace-mode="productionWorkspaceMode"
         :is-advanced-mode="isAdvancedMode"
         :environment="environment"
         :status-text="statusText"

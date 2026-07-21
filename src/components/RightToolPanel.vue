@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { FfmpegEnvironmentResult } from "../types/videoProbe";
-import type { DrawerKey, ToolKey } from "../types/workbench";
+import type { DrawerKey, ToolKey, WorkspaceMode } from "../types/workbench";
 
-defineProps<{
+const props = defineProps<{
+  workspaceMode: Exclude<WorkspaceMode, "tools">;
   isAdvancedMode: boolean;
   environment: FfmpegEnvironmentResult | null;
   statusText: string;
@@ -31,6 +33,42 @@ const primaryTools: Array<{ key: ToolKey; title: string; note: string; symbol: s
 const advancedTools: Array<{ key: ToolKey; title: string; note: string }> = [
   { key: "cover", title: "视频封面", note: "选择当前视频的封面帧" },
 ];
+
+const toolsByMode: Record<Exclude<WorkspaceMode, "tools">, ToolKey[]> = {
+  ai: ["apiKeys", "remix", "canvas", "bgm", "tts", "asr", "export"],
+  batch: ["remix", "canvas", "effects", "transition", "pip", "bgm", "watermark", "export"],
+};
+
+const toolsByKey = new Map(primaryTools.map((tool) => [tool.key, tool]));
+
+const groupDefinitions: Record<Exclude<WorkspaceMode, "tools">, Array<{
+  title: string;
+  note: string;
+  keys: ToolKey[];
+}>> = {
+  ai: [
+    { title: "智能准备", note: "先完成服务配置和素材切片", keys: ["apiKeys", "remix"] },
+    { title: "声音与文字", note: "配音、识别和背景音乐", keys: ["tts", "asr", "bgm"] },
+    { title: "画面与输出", note: "确认比例后设置导出质量", keys: ["canvas", "export"] },
+  ],
+  batch: [
+    { title: "素材与规则", note: "决定如何切片和组合", keys: ["remix"] },
+    { title: "画面增强", note: "统一批量视频的视觉效果", keys: ["canvas", "effects", "transition", "pip", "watermark"] },
+    { title: "声音与输出", note: "添加音乐并确认导出参数", keys: ["bgm", "export"] },
+  ],
+};
+
+const toolGroups = computed(() => groupDefinitions[props.workspaceMode].map((group) => ({
+  ...group,
+  tools: group.keys
+    .filter((key) => toolsByMode[props.workspaceMode].includes(key))
+    .map((key) => toolsByKey.get(key))
+    .filter((tool): tool is NonNullable<typeof tool> => Boolean(tool)),
+})));
+
+const panelCopy = computed(() => props.workspaceMode === "ai"
+  ? { label: "智能成片", title: "按步骤完成设置" }
+  : { label: "批量混剪", title: "按步骤完成设置" });
 </script>
 
 <template>
@@ -46,8 +84,8 @@ const advancedTools: Array<{ key: ToolKey; title: string; note: string }> = [
     <section class="panel creation-settings-panel">
       <div class="creation-settings-panel__header">
         <div>
-          <p class="panel__label">成片设置</p>
-          <h2>常用调整</h2>
+          <p class="panel__label">{{ panelCopy.label }}</p>
+          <h2>{{ panelCopy.title }}</h2>
         </div>
         <button
           class="mode-switch"
@@ -59,18 +97,26 @@ const advancedTools: Array<{ key: ToolKey; title: string; note: string }> = [
         </button>
       </div>
 
-      <div class="creation-tool-list">
-        <button
-          v-for="tool in primaryTools"
-          :key="tool.key"
-          class="creation-tool"
-          type="button"
-          @click="$emit('openTool', tool.key)"
-        >
-          <span class="creation-tool__symbol" aria-hidden="true">{{ tool.symbol }}</span>
-          <span><strong>{{ tool.title }}</strong><small>{{ tool.note }}</small></span>
-          <em aria-hidden="true">›</em>
-        </button>
+      <div class="creation-tool-groups">
+        <section v-for="group in toolGroups" :key="group.title" class="creation-tool-group">
+          <header>
+            <strong>{{ group.title }}</strong>
+            <small>{{ group.note }}</small>
+          </header>
+          <div class="creation-tool-list">
+            <button
+              v-for="tool in group.tools"
+              :key="tool.key"
+              class="creation-tool"
+              type="button"
+              @click="$emit('openTool', tool.key)"
+            >
+              <span class="creation-tool__symbol" aria-hidden="true">{{ tool.symbol }}</span>
+              <span><strong>{{ tool.title }}</strong><small>{{ tool.note }}</small></span>
+              <em aria-hidden="true">›</em>
+            </button>
+          </div>
+        </section>
       </div>
 
       <details v-if="isAdvancedMode" class="advanced-tool-group">
@@ -95,7 +141,7 @@ const advancedTools: Array<{ key: ToolKey; title: string; note: string }> = [
       <div class="result-shortcuts">
         <button type="button" @click="$emit('openDrawer', 'logs')">任务日志</button>
         <button type="button" @click="$emit('openDrawer', 'exports')">导出结果</button>
-        <button type="button" @click="$emit('openDrawer', 'batch')">批量结果</button>
+        <button v-if="workspaceMode === 'batch'" type="button" @click="$emit('openDrawer', 'batch')">批量结果</button>
       </div>
     </section>
   </aside>

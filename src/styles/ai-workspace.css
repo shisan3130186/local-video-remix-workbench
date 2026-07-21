@@ -26,7 +26,7 @@
 
 .center-stage,
 .workbench--advanced .center-stage {
-  grid-template-rows: 42px minmax(240px, 0.75fr) minmax(330px, 1.25fr);
+  grid-template-rows: 38px minmax(360px, 1fr) clamp(110px, 18vh, 130px);
   gap: 8px;
 }
 
@@ -518,12 +518,13 @@
 }
 
 .preview-panel--focused {
-  padding: 10px;
+  padding: 6px 10px 10px;
   background: #0e1110;
 }
 
 .preview-panel__header {
-  margin-bottom: 8px;
+  align-items: center;
+  margin-bottom: 4px;
 }
 
 .preview-panel__header h2 {
@@ -536,6 +537,14 @@
 
 .preview-panel--focused .video-frame {
   padding: 8px;
+}
+
+.preview-panel--focused .video-frame--portrait {
+  justify-self: center;
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  aspect-ratio: 1.37 / 1;
 }
 
 .preview-empty-state {
@@ -687,7 +696,38 @@
 
 .creation-tool-list {
   display: grid;
+  gap: 5px;
+}
+
+.creation-tool-groups {
+  display: grid;
+  gap: 10px;
+}
+
+.creation-tool-group {
+  display: grid;
   gap: 6px;
+}
+
+.creation-tool-group + .creation-tool-group {
+  padding-top: 9px;
+  border-top: 1px solid #29312f;
+}
+
+.creation-tool-group > header {
+  display: grid;
+  gap: 1px;
+}
+
+.creation-tool-group > header strong {
+  color: #d8dce0;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.creation-tool-group > header small {
+  color: #6f737a;
+  font-size: 9px;
 }
 
 .creation-tool {
@@ -695,8 +735,8 @@
   grid-template-columns: 32px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  min-height: 52px;
-  padding: 7px 8px;
+  min-height: 47px;
+  padding: 6px 8px;
   border: 1px solid #29332f;
   border-radius: 7px;
   color: #d4e3de;

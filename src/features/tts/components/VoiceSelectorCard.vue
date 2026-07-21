@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
-import { findTtsVoice, TTS_GENDER_LABELS, TTS_LANGUAGE_LABELS } from "../voiceCatalog";
+import {
+  findTtsVoice,
+  TTS_GENDER_LABELS,
+  TTS_LANGUAGE_LABELS,
+  TTS_SCENE_LABELS,
+  TTS_VOICE_CATALOG,
+} from "../voiceCatalog";
 import VoiceLibraryDialog from "./VoiceLibraryDialog.vue";
 import "../voice-library.css";
 
@@ -9,6 +15,9 @@ const emit = defineEmits<{ "update:speaker": [speakerId: string] }>();
 const isLibraryOpen = ref(false);
 const selectButton = ref<HTMLButtonElement | null>(null);
 const selectedVoice = computed(() => findTtsVoice(props.speaker));
+const quickVoices = TTS_VOICE_CATALOG.filter(
+  (voice) => voice.recommended && voice.languages.includes("zh"),
+).slice(0, 4);
 
 function updateCustomSpeaker(event: Event) {
   emit("update:speaker", (event.target as HTMLInputElement).value);
@@ -17,6 +26,10 @@ function updateCustomSpeaker(event: Event) {
 function selectSpeaker(speakerId: string) {
   emit("update:speaker", speakerId);
   closeLibrary();
+}
+
+function selectQuickSpeaker(speakerId: string) {
+  emit("update:speaker", speakerId);
 }
 
 function closeLibrary() {
@@ -50,6 +63,31 @@ function closeLibrary() {
         @click="isLibraryOpen = true"
       >
         选择音色
+      </button>
+    </div>
+
+    <div class="voice-quick-heading">
+      <span>常用音色</span>
+      <small>点击卡片直接选择</small>
+    </div>
+    <div class="voice-quick-grid" aria-label="常用AI音色">
+      <button
+        v-for="voice in quickVoices"
+        :key="voice.id"
+        class="voice-quick-card"
+        :class="{ 'voice-quick-card--selected': voice.id === speaker }"
+        type="button"
+        :disabled="disabled"
+        :aria-pressed="voice.id === speaker"
+        @click="selectQuickSpeaker(voice.id)"
+      >
+        <span class="voice-selector-avatar" :class="`voice-selector-avatar--${voice.tone}`" aria-hidden="true">
+          {{ voice.name.slice(0, 2) }}
+        </span>
+        <span>
+          <strong>{{ voice.name }}</strong>
+          <small>{{ TTS_GENDER_LABELS[voice.gender] }} · {{ TTS_SCENE_LABELS[voice.scenes[0]] }}</small>
+        </span>
       </button>
     </div>
 

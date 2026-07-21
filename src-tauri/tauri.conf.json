@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "本地短视频批量混剪工作台",
+  "productName": "智剪 SmartCut",
   "version": "0.3.4",
   "identifier": "com.shisan.local-video-remix-workbench",
   "build": {
@@ -19,11 +19,15 @@
     },
     "windows": [
       {
-        "title": "本地短视频批量混剪工作台",
-        "width": 1100,
-        "height": 760,
-        "minWidth": 860,
-        "minHeight": 560
+        "title": "智剪 SmartCut",
+        "width": 1320,
+        "height": 860,
+        "minWidth": 1100,
+        "minHeight": 720,
+        "center": true,
+        "resizable": true,
+        "maximized": false,
+        "fullscreen": false
       }
     ]
   },

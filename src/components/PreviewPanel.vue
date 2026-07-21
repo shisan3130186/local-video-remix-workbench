@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CSSProperties } from "vue";
+import { computed, type CSSProperties } from "vue";
 import { AiRemixPlanner } from "../features/ai-remix";
 import type { AiRemixPlannedShot, AiRemixSegment } from "../features/ai-remix";
 import type { ImportedVideo } from "../types/videoProbe";
@@ -8,7 +8,7 @@ import type { DrawerKey, ToolKey } from "../types/workbench";
 
 type PreviewToolKey = Extract<ToolKey, "remix" | "canvas" | "cover">;
 
-defineProps<{
+const props = defineProps<{
   isAdvancedMode: boolean;
   importedVideoCount: number;
   selectedVideo: ImportedVideo | null;
@@ -69,6 +69,20 @@ const previewVideoRef = defineModel<HTMLVideoElement | null>("previewVideoRef");
 const previewBackgroundVideoRef = defineModel<HTMLVideoElement | null>("previewBackgroundVideoRef");
 const aiScript = defineModel<string>("aiScript", { required: true });
 const aiGenerateCount = defineModel<number>("aiGenerateCount", { required: true });
+
+const isPortraitPreview = computed(() => {
+  if (props.canvasAspectRatio === "portrait916") {
+    return true;
+  }
+
+  if (props.canvasAspectRatio !== "original") {
+    return false;
+  }
+
+  const width = props.selectedVideo?.width;
+  const height = props.selectedVideo?.height;
+  return width !== null && width !== undefined && height !== null && height !== undefined && height > width;
+});
 </script>
 
 <template>
@@ -94,7 +108,7 @@ const aiGenerateCount = defineModel<number>("aiGenerateCount", { required: true 
     <section class="panel preview-panel preview-panel--focused">
       <div class="panel__header preview-panel__header">
         <div>
-          <p class="panel__label">当前画面</p>
+          <p class="panel__label">视频预览</p>
           <h2>{{ previewTitle }}</h2>
         </div>
         <div class="preview-actions">
@@ -105,7 +119,11 @@ const aiGenerateCount = defineModel<number>("aiGenerateCount", { required: true 
         </div>
       </div>
 
-      <div v-if="previewUrl" class="video-frame">
+      <div
+        v-if="previewUrl"
+        class="video-frame"
+        :class="{ 'video-frame--portrait': isPortraitPreview }"
+      >
         <div
           class="video-frame__canvas"
           :class="{
