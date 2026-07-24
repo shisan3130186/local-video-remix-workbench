@@ -1,7 +1,6 @@
 use crate::video_engine::canvas::CanvasAspectRatio;
-use crate::video_engine::tool_paths::ffmpeg_program;
+use crate::video_engine::tool_paths::{background_command, ffmpeg_program};
 use serde::{Deserialize, Serialize};
-use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -260,7 +259,7 @@ fn detect_video_encoder_capabilities_uncached() -> EncoderCapabilities {
 }
 
 fn test_encoder_capability(encoder: VideoEncoder) -> EncoderCapability {
-    let output = Command::new(ffmpeg_program())
+    let output = background_command(ffmpeg_program())
         .args([
             "-hide_banner",
             "-loglevel",

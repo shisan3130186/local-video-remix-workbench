@@ -9,7 +9,7 @@ use crate::video_engine::output::{
     resolve_output_video_dimensions, OutputSettings,
 };
 use crate::video_engine::probe::probe_video_dimensions;
-use crate::video_engine::tool_paths::ffprobe_program;
+use crate::video_engine::tool_paths::{background_command, ffprobe_program};
 use crate::video_engine::watermark::{
     append_watermark_input_args, build_image_watermark_layer, build_text_watermark_layer,
     normalize_watermark_settings, prepare_text_watermark_file, uses_image_input, WatermarkKind,
@@ -21,7 +21,6 @@ use crate::video_engine::watermark_removal::{
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Serialize)]
@@ -878,7 +877,7 @@ fn prepare_smooth_segments(
 }
 
 fn probe_segment_info(segment_path: &str) -> Result<SegmentInfo, String> {
-    let duration_output = Command::new(ffprobe_program())
+    let duration_output = background_command(ffprobe_program())
         .args([
             "-v",
             "error",
@@ -909,7 +908,7 @@ fn probe_segment_info(segment_path: &str) -> Result<SegmentInfo, String> {
         .parse::<f64>()
         .map_err(|_| format!("无法识别片段时长：{duration_text}"))?;
 
-    let audio_output = Command::new(ffprobe_program())
+    let audio_output = background_command(ffprobe_program())
         .args([
             "-v",
             "error",

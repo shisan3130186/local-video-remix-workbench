@@ -1,8 +1,9 @@
-use crate::video_engine::tool_paths::{ffmpeg_program, ffprobe_program, is_bundled_program};
+use crate::video_engine::tool_paths::{
+    background_command, ffmpeg_program, ffprobe_program, is_bundled_program,
+};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 #[derive(Debug, Serialize)]
 pub struct ToolProbeResult {
@@ -85,7 +86,7 @@ pub fn probe_video_metadata(file_path: String) -> Result<VideoMetadata, String> 
         return Err("选择的路径不是视频文件。".to_string());
     }
 
-    let output = Command::new(ffprobe_program())
+    let output = background_command(ffprobe_program())
         .args([
             "-v",
             "error",
@@ -155,7 +156,7 @@ pub(crate) fn probe_video_dimensions(file_path: &str) -> Result<(u32, u32), Stri
 fn probe_tool(binary_name: &str, program: &Path) -> ToolProbeResult {
     let path = program.to_string_lossy().to_string();
     let bundled = is_bundled_program(program);
-    match Command::new(program).arg("-version").output() {
+    match background_command(program).arg("-version").output() {
         Ok(output) if output.status.success() => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let version = stdout.lines().next().map(|line| line.trim().to_string());

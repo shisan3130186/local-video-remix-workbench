@@ -1,6 +1,20 @@
 use std::env;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
+use std::process::Command;
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+pub fn background_command(program: impl AsRef<OsStr>) -> Command {
+    let mut command = Command::new(program);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    command
+}
 
 pub fn ffmpeg_program() -> PathBuf {
     resolve_program("FFMPEG_PATH", "ffmpeg")
@@ -109,7 +123,9 @@ fn tool_file_name(binary_name: &str) -> OsString {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_bundled_program, is_bundled_program_from, resolve_program_from};
+    use super::{
+        background_command, is_bundled_program, is_bundled_program_from, resolve_program_from,
+    };
     use std::ffi::OsString;
     use std::fs;
     use std::path::PathBuf;
@@ -175,5 +191,11 @@ mod tests {
             &PathBuf::from(r"C:\Tools\ffmpeg\ffmpeg.exe"),
             Some(&executable)
         ));
+    }
+
+    #[test]
+    fn builds_background_command_for_video_tools() {
+        let command = background_command("ffmpeg");
+        assert_eq!(command.get_program(), "ffmpeg");
     }
 }

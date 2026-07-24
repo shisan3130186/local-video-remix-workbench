@@ -1,5 +1,19 @@
 # DECISIONS.md
 
+## 2026-07-24：Windows视频子进程统一无窗口运行
+
+决定：
+所有FFmpeg/FFprobe进程统一通过`video_engine::tool_paths::background_command`创建；Windows固定使用`CREATE_NO_WINDOW`，禁止业务模块直接`Command::new`启动视频工具。
+
+原因：
+桌面主程序使用Windows GUI子系统只能隐藏自身控制台，不能自动隐藏后续FFmpeg/FFprobe子进程。导入、缩略图、切片和导出会频繁启动工具，直接调用会让用户反复看到黑色终端闪烁。
+
+技术边界：
+1. 统一入口只改变Windows窗口创建方式，不改变参数、标准输出、错误输出和退出码。
+2. 任务运行仍必须保留stdout/stderr管道，以支持真实进度、错误提示和取消。
+3. macOS/Linux不添加Windows专用标记，保持原始Command行为。
+4. 新增视频工具调用时必须复用统一入口，并在提交前搜索直接调用。
+
 ## 2026-07-21：普通用户测试包只内置FFmpeg与FFprobe运行文件
 
 决定：

@@ -1,6 +1,6 @@
 [package]
 name = "local-video-remix-workbench"
-version = "0.4.0"
+version = "0.4.1"
 description = "智剪 SmartCut 本地AI视频工作台"
 authors = ["shisan3130186"]
 edition = "2021"

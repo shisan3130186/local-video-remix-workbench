@@ -4,10 +4,9 @@ use crate::video_engine::mix::{concat_narrated_prepared_segments, MixVideoResult
 use crate::video_engine::subtitle::{
     ensure_ass_filter_available, prepare_ass_subtitle, NarratedSubtitleSettings,
 };
-use crate::video_engine::tool_paths::ffprobe_program;
+use crate::video_engine::tool_paths::{background_command, ffprobe_program};
 use serde::Deserialize;
 use std::path::Path;
-use std::process::Command;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -384,7 +383,7 @@ fn select_best_candidate_index(
 }
 
 fn probe_media_duration(path: &str, label: &str) -> Result<f64, String> {
-    let output = Command::new(ffprobe_program())
+    let output = background_command(ffprobe_program())
         .args([
             "-v",
             "error",
@@ -415,7 +414,7 @@ fn probe_media_duration(path: &str, label: &str) -> Result<f64, String> {
 }
 
 fn probe_media_has_audio(path: &str, label: &str) -> Result<bool, String> {
-    let output = Command::new(ffprobe_program())
+    let output = background_command(ffprobe_program())
         .args([
             "-v",
             "error",

@@ -1,8 +1,7 @@
-use crate::video_engine::tool_paths::ffmpeg_program;
+use crate::video_engine::tool_paths::{background_command, ffmpeg_program};
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 const SUBTITLE_TARGET_CHARACTERS: usize = 12;
 const SUBTITLE_MAX_CHARACTERS: usize = 16;
@@ -40,7 +39,7 @@ pub enum NarratedSubtitleSize {
 }
 
 pub fn ensure_ass_filter_available() -> Result<(), String> {
-    let output = Command::new(ffmpeg_program())
+    let output = background_command(ffmpeg_program())
         .args(["-hide_banner", "-filters"])
         .output()
         .map_err(|error| format!("无法检查FFmpeg字幕能力：{error}"))?;

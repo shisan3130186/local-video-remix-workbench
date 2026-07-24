@@ -1,8 +1,8 @@
-use crate::video_engine::tool_paths::ffmpeg_program;
+use crate::video_engine::tool_paths::{background_command, ffmpeg_program};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread;
@@ -198,7 +198,7 @@ pub fn run_ffmpeg_capture_stderr(
         );
     }
 
-    let mut command = Command::new(ffmpeg_program());
+    let mut command = background_command(ffmpeg_program());
     command
         .args(["-progress", "pipe:1", "-nostats"])
         .args(args)

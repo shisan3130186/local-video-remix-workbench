@@ -7,7 +7,7 @@
 
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$resultRoot = "E:\Workspace\测试结果库\Project_03_本地短视频批量混剪工作台\2026-07-21_第四阶段用户测试包"
+$resultRoot = "E:\Workspace\测试结果库\Project_03_本地短视频批量混剪工作台\2026-07-22_V0.4.1后台命令无终端弹窗修复"
 New-Item -ItemType Directory -Path $resultRoot -Force | Out-Null
 
 function Get-PeSubsystem([string]$Path) {

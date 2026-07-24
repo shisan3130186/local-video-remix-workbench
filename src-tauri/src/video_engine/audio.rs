@@ -1,9 +1,8 @@
 use crate::task_runtime::{run_ffmpeg, TaskProgressContext};
-use crate::video_engine::tool_paths::ffprobe_program;
+use crate::video_engine::tool_paths::{background_command, ffprobe_program};
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 const MAX_ASR_DURATION_SECONDS: f64 = 2.0 * 60.0 * 60.0;
 const MAX_NORMALIZED_AUDIO_BYTES: u64 = 24 * 1024 * 1024;
@@ -106,7 +105,7 @@ struct AudioProbeResult {
 }
 
 fn probe_audio_source(source_path: &Path) -> Result<AudioProbeResult, String> {
-    let output = Command::new(ffprobe_program())
+    let output = background_command(ffprobe_program())
         .args([
             "-v",
             "error",

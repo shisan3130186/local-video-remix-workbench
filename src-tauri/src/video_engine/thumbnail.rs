@@ -1,8 +1,7 @@
-use crate::video_engine::tool_paths::ffmpeg_program;
+use crate::video_engine::tool_paths::{background_command, ffmpeg_program};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Serialize)]
@@ -55,7 +54,7 @@ pub fn generate_video_thumbnail(
     let time_text = format!("{time_seconds:.3}");
     let video_filter = thumbnail_video_filter(fit_mode);
 
-    let output = Command::new(ffmpeg_program())
+    let output = background_command(ffmpeg_program())
         .args([
             "-y",
             "-ss",
