@@ -1,0 +1,28 @@
+{
+  "name": "smartcut-membership-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node dist/cloudbase-server.js",
+    "dev": "pnpm dlx wrangler@4.113.0 dev --local",
+    "dev:cloudbase": "pnpm run build:cloudbase && node dist/cloudbase-server.js",
+    "check": "tsc --noEmit",
+    "check:cloudbase": "tsc -p tsconfig.cloudbase.json --noEmit",
+    "build:cloudbase": "tsc -p tsconfig.cloudbase.json",
+    "test": "node --test tests/*.test.mjs",
+    "deploy": "pnpm dlx wrangler@4.113.0 deploy",
+    "deploy:cloudbase": "pnpm run build:cloudbase && pnpm --package=@cloudbase/cli@latest dlx tcb fn deploy smartcut-membership-api --force --httpFn",
+    "db:local": "pnpm dlx wrangler@4.113.0 d1 migrations apply smartcut-membership --local",
+    "db:remote": "pnpm dlx wrangler@4.113.0 d1 migrations apply smartcut-membership --remote"
+  },
+  "dependencies": {
+    "@cloudbase/node-sdk": "^3.18.3",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.0"
+  }
+}

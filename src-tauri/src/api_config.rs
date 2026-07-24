@@ -326,7 +326,7 @@ fn config_file_path() -> Result<PathBuf, String> {
 }
 
 #[cfg(target_os = "windows")]
-fn protect_data(data: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn protect_data(data: &[u8]) -> Result<Vec<u8>, String> {
     use std::ptr::null;
     use std::slice;
     use windows_sys::Win32::Foundation::LocalFree;
@@ -370,7 +370,7 @@ fn protect_data(data: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 #[cfg(target_os = "windows")]
-fn unprotect_data(data: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn unprotect_data(data: &[u8]) -> Result<Vec<u8>, String> {
     use std::ptr::{null, null_mut};
     use std::slice;
     use windows_sys::Win32::Foundation::LocalFree;
@@ -413,12 +413,12 @@ fn unprotect_data(data: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn protect_data(_data: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn protect_data(_data: &[u8]) -> Result<Vec<u8>, String> {
     Err("当前安全密钥存储只支持Windows。".to_string())
 }
 
 #[cfg(not(target_os = "windows"))]
-fn unprotect_data(_data: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn unprotect_data(_data: &[u8]) -> Result<Vec<u8>, String> {
     Err("当前安全密钥存储只支持Windows。".to_string())
 }
 

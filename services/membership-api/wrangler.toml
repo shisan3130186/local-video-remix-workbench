@@ -1,0 +1,12 @@
+name = "smartcut-membership-api"
+main = "src/index.ts"
+compatibility_date = "2026-07-24"
+
+[vars]
+OFFLINE_GRACE_HOURS = "72"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "smartcut-membership"
+database_id = "45bec156-e5ce-4b5c-8ed5-bc5c6be017eb"
+migrations_dir = "migrations"

@@ -121,6 +121,32 @@ summary:focus-visible {
   background: var(--smartcut-panel-3);
 }
 
+.membership-top-button {
+  position: relative;
+  padding-left: 22px;
+}
+
+.membership-top-button::before {
+  position: absolute;
+  left: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #71767d;
+  content: "";
+}
+
+.membership-top-button--active {
+  border-color: rgba(66, 199, 213, 0.5);
+  color: #b9f0f4;
+  background: rgba(66, 199, 213, 0.1);
+}
+
+.membership-top-button--active::before {
+  background: var(--smartcut-accent);
+  box-shadow: 0 0 0 3px rgba(66, 199, 213, 0.12);
+}
+
 .top-status {
   gap: 7px;
 }

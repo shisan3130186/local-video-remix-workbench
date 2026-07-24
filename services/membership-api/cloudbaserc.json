@@ -1,0 +1,33 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "smartcut-membership-d8bfdff54769",
+  "functionRoot": ".",
+  "functions": [
+    {
+      "name": "smartcut-membership-api",
+      "type": "HTTP",
+      "dir": ".",
+      "runtime": "Nodejs20.19",
+      "timeout": 20,
+      "memorySize": 256,
+      "installDependency": true,
+      "ignore": [
+        ".git",
+        ".gitignore",
+        ".gitattributes",
+        ".dev.vars*",
+        ".cloudbase-*.local.txt",
+        "node_modules",
+        "admin-manager",
+        "tests",
+        "migrations",
+        "scripts",
+        "src",
+        "wrangler.toml",
+        "tsconfig.json",
+        "tsconfig.cloudbase.json",
+        "README.md"
+      ]
+    }
+  ]
+}

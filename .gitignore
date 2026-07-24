@@ -17,6 +17,7 @@ venv/
 .env.local
 *.key
 *.pem
+.cloudbase-*.local.txt
 
 # logs
 *.log

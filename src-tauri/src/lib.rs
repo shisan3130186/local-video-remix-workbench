@@ -3,6 +3,7 @@ mod api_config;
 mod asr;
 mod diagnostics;
 mod material_library;
+mod membership;
 mod project_snapshot;
 mod script_library;
 mod task_runtime;
@@ -35,6 +36,13 @@ use material_library::{
     load_material_library as read_material_library,
     save_material_library as store_material_library, MaterialLibraryLoadResult,
     MaterialLibrarySnapshot,
+};
+use membership::{
+    change_account_password as change_remote_account_password,
+    get_account_status as read_account_status, login_account as login_remote_account,
+    logout_account as logout_remote_account, redeem_membership as redeem_remote_membership,
+    refresh_account as refresh_remote_account, register_account as register_remote_account,
+    AccountStatus,
 };
 use project_snapshot::{
     delete_project_snapshot as remove_project_snapshot,
@@ -319,6 +327,48 @@ fn delete_api_credential(kind: ApiCredentialKind) -> Result<ApiConfigStatus, Str
 }
 
 #[tauri::command]
+fn get_account_status() -> Result<AccountStatus, String> {
+    read_account_status()
+}
+
+#[tauri::command]
+async fn register_account(
+    email: String,
+    password: String,
+    display_name: String,
+) -> Result<AccountStatus, String> {
+    register_remote_account(email, password, display_name).await
+}
+
+#[tauri::command]
+async fn login_account(email: String, password: String) -> Result<AccountStatus, String> {
+    login_remote_account(email, password).await
+}
+
+#[tauri::command]
+async fn refresh_account() -> Result<AccountStatus, String> {
+    refresh_remote_account().await
+}
+
+#[tauri::command]
+async fn redeem_membership(redemption_code: String) -> Result<AccountStatus, String> {
+    redeem_remote_membership(redemption_code).await
+}
+
+#[tauri::command]
+async fn change_account_password(
+    current_password: String,
+    new_password: String,
+) -> Result<AccountStatus, String> {
+    change_remote_account_password(current_password, new_password).await
+}
+
+#[tauri::command]
+async fn logout_account() -> Result<AccountStatus, String> {
+    logout_remote_account().await
+}
+
+#[tauri::command]
 fn load_project_snapshot() -> Result<ProjectSnapshotLoadResult, String> {
     read_project_snapshot()
 }
@@ -430,6 +480,7 @@ pub fn run() {
             create_task,
             create_diagnostic_report,
             delete_api_credential,
+            change_account_password,
             delete_project_snapshot,
             delete_script_library_entry,
             extract_ai_remix_segment_content,
@@ -442,6 +493,7 @@ pub fn run() {
             get_video_encoder_capabilities,
             get_tts_config_status,
             get_api_config_status,
+            get_account_status,
             is_existing_directory,
             list_video_files_in_folder,
             load_material_library,
@@ -451,6 +503,11 @@ pub fn run() {
             plan_ai_remix,
             read_video_metadata,
             recognize_speech,
+            login_account,
+            logout_account,
+            redeem_membership,
+            refresh_account,
+            register_account,
             save_api_config,
             save_material_library,
             save_project_snapshot,

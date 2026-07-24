@@ -1,2 +1,6 @@
+packages:
+  - services/*
+
 allowBuilds:
+  core-js-pure: false
   esbuild: true

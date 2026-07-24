@@ -29,6 +29,7 @@ import {
 } from "./features/material-library";
 import type { MaterialLibraryState } from "./features/material-library";
 import { MaterialPanel, useMaterials } from "./features/materials";
+import { MembershipDialog, useMembership } from "./features/membership";
 import {
   BatchResultDrawer,
   formatRemixCanvasLog,
@@ -82,6 +83,23 @@ const isRefreshingReadiness = ref(false);
 const readinessError = ref<string | null>(null);
 const diagnosticFeedback = ref<string | null>(null);
 const isAdvancedMode = ref(false);
+
+const {
+  activeAction: membershipActiveAction,
+  changePassword: changeMembershipPassword,
+  error: membershipError,
+  feedback: membershipFeedback,
+  isDialogVisible: isMembershipVisible,
+  loadStatus: loadMembershipStatus,
+  login: loginMembershipAccount,
+  logout: logoutMembershipAccount,
+  openDialog: openMembershipDialog,
+  redeem: redeemMembershipCode,
+  refreshStatus: refreshMembershipStatus,
+  register: registerMembershipAccount,
+  status: membershipStatus,
+  topBarText: membershipTopBarText,
+} = useMembership();
 
 const {
   aiRemixLogs,
@@ -1483,6 +1501,9 @@ onMounted(() => {
   void loadScriptLibrary();
   void detectEncoders(false);
   void cleanupTaskTempFiles(true);
+  void loadMembershipStatus().then((status) => {
+    if (status?.signedIn) void refreshMembershipStatus(true);
+  });
 });
 </script>
 
@@ -1514,10 +1535,32 @@ onMounted(() => {
           :text="projectSaveStatusText"
           :error="projectSaveError"
         />
+        <button
+          class="top-help-button membership-top-button"
+          :class="{ 'membership-top-button--active': membershipStatus?.memberActive }"
+          type="button"
+          @click="openMembershipDialog"
+        >{{ membershipTopBarText }}</button>
         <button class="top-help-button" type="button" @click="openWelcomeGuide()">新手教程</button>
         <button class="top-help-button" type="button" @click="openDiagnosticGuide">诊断</button>
       </div>
     </header>
+
+    <MembershipDialog
+      :visible="isMembershipVisible"
+      :status="membershipStatus"
+      :active-action="membershipActiveAction"
+      :error="membershipError"
+      :feedback="membershipFeedback"
+      @close="isMembershipVisible = false"
+      @login="loginMembershipAccount"
+      @register="registerMembershipAccount"
+      @refresh="refreshMembershipStatus(false)"
+      @redeem="redeemMembershipCode"
+      @change-password="changeMembershipPassword"
+      @logout="logoutMembershipAccount"
+      @api-config-changed="refreshSpeechConfiguration"
+    />
 
     <FirstLaunchWizard
       :visible="isWelcomeVisible"
