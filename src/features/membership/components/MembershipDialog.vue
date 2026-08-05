@@ -6,13 +6,16 @@ import AccountAuthPanel from "./AccountAuthPanel.vue";
 import AccountProfilePanel from "./AccountProfilePanel.vue";
 import "../membership.css";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   visible: boolean;
   status: AccountStatus | null;
   activeAction: AccountAction | null;
   error: string | null;
   feedback: string | null;
-}>();
+  initialPage?: "profile" | "api";
+}>(), {
+  initialPage: "profile",
+});
 
 const emit = defineEmits<{
   close: [];
@@ -27,9 +30,9 @@ const emit = defineEmits<{
 
 const activePage = ref<"profile" | "api">("profile");
 
-watch(() => props.visible, (visible) => {
-  if (!visible) activePage.value = "profile";
-});
+watch([() => props.visible, () => props.initialPage], ([visible, initialPage]) => {
+  activePage.value = visible ? initialPage : "profile";
+}, { immediate: true });
 
 function forwardLogin(email: string, password: string) {
   emit("login", email, password);
@@ -81,6 +84,9 @@ function forwardPasswordChange(currentPassword: string, newPassword: string) {
       </main>
 
       <div class="membership-dialog__messages">
+        <p v-if="status?.membershipState === 'expired'" class="membership-feedback membership-feedback--error" role="alert">
+          卡密授权已过期，请兑换新的卡密后继续使用软件功能。
+        </p>
         <p v-if="error" class="membership-feedback membership-feedback--error" role="alert">{{ error }}</p>
         <p v-if="feedback" class="membership-feedback" role="status">{{ feedback }}</p>
       </div>

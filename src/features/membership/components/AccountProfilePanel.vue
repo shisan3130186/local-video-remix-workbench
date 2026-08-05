@@ -26,6 +26,11 @@ const expiryLabel = computed(() => {
   if (!props.status.expiresAt) return "未开通";
   return formatTime(props.status.expiresAt);
 });
+const expiryState = computed(() => {
+  if (props.status.membershipState === "active") return { label: "有效", modifier: "active" };
+  if (props.status.membershipState === "expired") return { label: "已过期", modifier: "expired" };
+  return null;
+});
 
 function submitRedeem() {
   const code = redemptionCode.value.trim();
@@ -68,7 +73,17 @@ function formatTime(value: number) {
       </div>
       <dl>
         <div><dt>邮箱</dt><dd>{{ status.email }}</dd></div>
-        <div><dt>有效期至</dt><dd :class="{ 'account-profile__expired': status.membershipState === 'expired' }">{{ expiryLabel }}</dd></div>
+        <div>
+          <dt>有效期至</dt>
+          <dd class="account-profile__expiry-row">
+            <span>{{ expiryLabel }}</span>
+            <span
+              v-if="expiryState"
+              class="account-profile__expiry-badge"
+              :class="`account-profile__expiry-badge--${expiryState.modifier}`"
+            >{{ expiryState.label }}</span>
+          </dd>
+        </div>
       </dl>
     </div>
 

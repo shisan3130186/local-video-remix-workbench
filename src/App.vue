@@ -31,7 +31,7 @@ import {
 } from "./features/material-library";
 import type { MaterialLibraryState } from "./features/material-library";
 import { useMaterials } from "./features/materials";
-import { MembershipDialog, useMembership } from "./features/membership";
+import { AccessRequirementDialog, MembershipDialog, useMembership } from "./features/membership";
 import { PosterMakerWorkbench } from "./features/poster-maker";
 import {
   BatchResultDrawer,
@@ -91,6 +91,11 @@ const readinessError = ref<string | null>(null);
 const diagnosticFeedback = ref<string | null>(null);
 const isAdvancedMode = ref(false);
 const isThemeSettingsVisible = ref(false);
+const isAccessRequirementVisible = ref(false);
+const membershipInitialPage = ref<"profile" | "api">("profile");
+const missingAuthorization = ref(false);
+const missingAiService = ref(false);
+const missingTtsService = ref(false);
 const {
   preference: themePreference,
   resolvedTheme,
@@ -687,7 +692,32 @@ const productionWorkspaceMode = computed<"ai" | "batch">(() =>
   workspaceMode.value === "batch" ? "batch" : "ai",
 );
 
+function openMembershipCenter(page: "profile" | "api" = "profile") {
+  membershipInitialPage.value = page;
+  openMembershipDialog();
+}
+
+function ensureFeatureAccess(): boolean {
+  if (!isDesktopRuntime) return true;
+
+  missingAuthorization.value = membershipStatus.value?.memberActive !== true;
+  missingAiService.value = apiConfigStatus.value?.aiConfigured !== true;
+  missingTtsService.value = apiConfigStatus.value?.ttsConfigured !== true;
+  if (!missingAuthorization.value && !missingAiService.value && !missingTtsService.value) {
+    return true;
+  }
+
+  isAccessRequirementVisible.value = true;
+  return false;
+}
+
+function confirmAccessRequirement() {
+  isAccessRequirementVisible.value = false;
+  openMembershipCenter(missingAuthorization.value ? "profile" : "api");
+}
+
 function openWorkspace(mode: WorkspaceMode = "ai", batchKind?: "remix" | "category") {
+  if (!ensureFeatureAccess()) return;
   activeFeature.value = null;
   workspaceMode.value = mode;
   if (mode === "batch" && batchKind) batchWorkspaceKind.value = batchKind;
@@ -698,6 +728,7 @@ function openWorkspace(mode: WorkspaceMode = "ai", batchKind?: "remix" | "catego
 }
 
 function openWorkspaceTool(tool: ToolKey) {
+  if (!ensureFeatureAccess()) return;
   activeFeature.value = null;
   workspaceMode.value = "tools";
   if (tool === "effects") {
@@ -718,6 +749,7 @@ function changeWorkspaceMode(mode: WorkspaceMode) {
 }
 
 function openFeature(feature: FeatureKey) {
+  if (!ensureFeatureAccess()) return;
   activeFeature.value = feature;
   activeTool.value = null;
   activeDrawer.value = null;
@@ -731,17 +763,37 @@ function goHome() {
   isWorkspaceVisible.value = false;
 }
 
+watch(
+  [
+    () => membershipStatus.value?.memberActive,
+    () => apiConfigStatus.value?.aiConfigured,
+    () => apiConfigStatus.value?.ttsConfigured,
+  ],
+  ([memberActive, aiConfigured, ttsConfigured]) => {
+    if (!isDesktopRuntime || !isWorkspaceVisible.value) return;
+    if (memberActive === true && aiConfigured === true && ttsConfigured === true) return;
+    goHome();
+    ensureFeatureAccess();
+  },
+);
+
 function useFeatureText(text: string) {
   aiScript.value = text;
   openWorkspace("ai");
 }
 
 async function continueHomeProject() {
+  if (!ensureFeatureAccess()) return;
   if (pendingProjectSnapshot.value?.snapshot) {
     await restorePendingSnapshot();
     return;
   }
   openWorkspace("ai");
+}
+
+async function restoreProjectWithAccess() {
+  if (!ensureFeatureAccess()) return;
+  await restorePendingSnapshot();
 }
 
 function openWelcomeGuide(startStep = 0) {
@@ -1597,7 +1649,7 @@ onMounted(() => {
           class="top-help-button membership-top-button"
           :class="{ 'membership-top-button--active': membershipStatus?.memberActive }"
           type="button"
-          @click="openMembershipDialog"
+          @click="openMembershipCenter('profile')"
         >{{ isWorkspaceVisible ? "♙" : membershipTopBarText }}</button>
         <button
           class="top-help-button theme-top-button"
@@ -1618,6 +1670,7 @@ onMounted(() => {
       :active-action="membershipActiveAction"
       :error="membershipError"
       :feedback="membershipFeedback"
+      :initial-page="membershipInitialPage"
       @close="isMembershipVisible = false"
       @login="loginMembershipAccount"
       @register="registerMembershipAccount"
@@ -1626,6 +1679,15 @@ onMounted(() => {
       @change-password="changeMembershipPassword"
       @logout="logoutMembershipAccount"
       @api-config-changed="refreshSpeechConfiguration"
+    />
+
+    <AccessRequirementDialog
+      :visible="isAccessRequirementVisible"
+      :missing-authorization="missingAuthorization"
+      :missing-ai-service="missingAiService"
+      :missing-tts-service="missingTtsService"
+      @close="isAccessRequirementVisible = false"
+      @confirm="confirmAccessRequirement"
     />
 
     <ThemeSettingsDialog
@@ -2066,7 +2128,7 @@ onMounted(() => {
       :load-error="projectRecoveryLoadError"
       :restore-error="projectRecoveryError"
       :is-restoring="isRestoringProject"
-      @restore="restorePendingSnapshot"
+      @restore="restoreProjectWithAccess"
       @discard="discardProjectSnapshotAndStartBlank"
     />
     <ExportResultDrawer

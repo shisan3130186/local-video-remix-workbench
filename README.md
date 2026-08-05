@@ -119,12 +119,12 @@ corepack pnpm tauri build
 
 ## Windows 安装包状态
 
-V0.5.0 NSIS普通用户测试包已经生成。安装包内置FFmpeg 8.1.1与FFprobe，普通用户无需安装开发环境或在终端配置路径；AI/TTS/ASR密钥和会员会话继续使用Windows当前用户加密保存。
+V0.5.0新版UI与权限门禁新电脑测试包已经生成。安装包内置FFmpeg 8.1.1与FFprobe，普通用户无需安装开发环境或在终端配置路径；AI/TTS/ASR密钥和会员会话继续使用Windows当前用户加密保存，不会从开发电脑复制到新电脑。
 
-最新验收安装包：`E:\Workspace\测试结果库\Project_03_本地短视频批量混剪工作台\2026-07-24_V0.5.0国内会员系统用户测试包\智剪 SmartCut_0.5.0_x64-setup.exe`
+最新新电脑测试安装包：`E:\Workspace\测试结果库\Project_03_本地短视频批量混剪工作台\2026-08-05_V0.5.0新版UI与权限门禁新电脑测试包\智剪 SmartCut_0.5.0_x64-setup.exe`
 
-- 安装包大小：115.95MB。
-- SHA256：`5b24f3cdd443260ac4b412bf5bb8662a66ccc8c4e13d4beb3e620c7c17a2b6eb`。
+- 安装包大小：115.97MB。
+- SHA256：`bcef22fb5407cf7b31d3de5b9f09b1ab7220da2ed477ddff49477b1587d88316`。
 - 当前限制：尚未购买Windows代码签名证书，因此首次安装可能显示“未知发布者”；真正独立的干净Windows电脑仍需在用户测试阶段补做整条成片流程。
 
 使用和诊断说明见 `docs/14_用户测试包与诊断说明.md`，会员与卡密管理见 `docs/15_会员系统与卡密管理说明.md`，发布前检查见 `tasks/安装包发布准备清单.md`。
