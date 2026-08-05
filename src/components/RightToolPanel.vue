@@ -1,148 +1,96 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { ref } from "vue";
 import type { FfmpegEnvironmentResult } from "../types/videoProbe";
 import type { DrawerKey, ToolKey, WorkspaceMode } from "../types/workbench";
 
-const props = defineProps<{
+defineProps<{
   workspaceMode: Exclude<WorkspaceMode, "tools">;
   isAdvancedMode: boolean;
   environment: FfmpegEnvironmentResult | null;
   statusText: string;
+  hasVideo: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   openTool: [tool: ToolKey];
   openDrawer: [drawer: DrawerKey];
   toggleAdvancedMode: [enabled: boolean];
+  createTask: [];
 }>();
 
-const primaryTools: Array<{ key: ToolKey; title: string; note: string; symbol: string }> = [
-  { key: "apiKeys", title: "API 密钥", note: "一次填写，AI、配音与识别自动使用", symbol: "钥" },
-  { key: "remix", title: "智能切片", note: "场景识别、固定切片和批量参数", symbol: "切" },
-  { key: "canvas", title: "画布与比例", note: "原画、9:16、模糊背景", symbol: "▣" },
-  { key: "effects", title: "画面效果", note: "镜像、旋转、色彩与缩放", symbol: "◐" },
-  { key: "transition", title: "平滑混剪", note: "淡入淡出并过滤过短片段", symbol: "≈" },
-  { key: "pip", title: "画中画", note: "叠加视频或图片素材", symbol: "▤" },
-  { key: "bgm", title: "背景音乐", note: "本地音乐、音量和淡入淡出", symbol: "♫" },
-  { key: "tts", title: "AI配音", note: "逐句配音、试听和生成视频", symbol: "声" },
-  { key: "asr", title: "语音识别", note: "音频转文字和句子时间轴", symbol: "识" },
-  { key: "watermark", title: "水印工具", note: "添加、融合、模糊、马赛克与遮盖", symbol: "印" },
-  { key: "export", title: "导出设置", note: "分辨率、帧率、质量和编码方式", symbol: "出" },
-];
+const originalVolume = defineModel<number>("originalVolume", { required: true });
+const bgmEnabled = defineModel<boolean>("bgmEnabled", { required: true });
+const bgmVolume = defineModel<number>("bgmVolume", { required: true });
+const ttsEnabled = defineModel<boolean>("ttsEnabled", { required: true });
+const ttsSpeaker = defineModel<string>("ttsSpeaker", { required: true });
+const speechVolume = defineModel<number>("speechVolume", { required: true });
+const speechSpeed = defineModel<number>("speechSpeed", { required: true });
+const subtitleEnabled = defineModel<boolean>("subtitleEnabled", { required: true });
+const subtitleSize = defineModel<string>("subtitleSize", { required: true });
 
-const advancedTools: Array<{ key: ToolKey; title: string; note: string }> = [
-  { key: "cover", title: "视频封面", note: "选择当前视频的封面帧" },
-];
-
-const toolsByMode: Record<Exclude<WorkspaceMode, "tools">, ToolKey[]> = {
-  ai: ["apiKeys", "remix", "canvas", "bgm", "tts", "asr", "export"],
-  batch: ["remix", "canvas", "effects", "transition", "pip", "bgm", "watermark", "export"],
-};
-
-const toolsByKey = new Map(primaryTools.map((tool) => [tool.key, tool]));
-
-const groupDefinitions: Record<Exclude<WorkspaceMode, "tools">, Array<{
-  title: string;
-  note: string;
-  keys: ToolKey[];
-}>> = {
-  ai: [
-    { title: "智能准备", note: "先完成服务配置和素材切片", keys: ["apiKeys", "remix"] },
-    { title: "声音与文字", note: "配音、识别和背景音乐", keys: ["tts", "asr", "bgm"] },
-    { title: "画面与输出", note: "确认比例后设置导出质量", keys: ["canvas", "export"] },
-  ],
-  batch: [
-    { title: "素材与规则", note: "决定如何切片和组合", keys: ["remix"] },
-    { title: "画面增强", note: "统一批量视频的视觉效果", keys: ["canvas", "effects", "transition", "pip", "watermark"] },
-    { title: "声音与输出", note: "添加音乐并确认导出参数", keys: ["bgm", "export"] },
-  ],
-};
-
-const toolGroups = computed(() => groupDefinitions[props.workspaceMode].map((group) => ({
-  ...group,
-  tools: group.keys
-    .filter((key) => toolsByMode[props.workspaceMode].includes(key))
-    .map((key) => toolsByKey.get(key))
-    .filter((tool): tool is NonNullable<typeof tool> => Boolean(tool)),
-})));
-
-const panelCopy = computed(() => props.workspaceMode === "ai"
-  ? { label: "智能成片", title: "按步骤完成设置" }
-  : { label: "批量混剪", title: "按步骤完成设置" });
+const activeTab = ref<"basic" | "visual">("basic");
+const subtitlePreset = ref(7);
+const subtitleColors = ["#f3f3f3", "#f4d22f", "#50d7b0", "#f08c57", "#76a9ff", "#ef6f91", "#111317", "#ffffff", "#2cc7b1", "#f6b83f", "#db4267", "#9be3d2"];
 </script>
 
 <template>
-  <aside class="right-rail tool-rail" aria-label="成片设置">
-    <section class="panel workspace-status-panel">
-      <span class="engine-status-dot" :class="{ 'engine-status-dot--ok': environment?.available }"></span>
-      <span>
-        <strong>{{ environment?.available ? "本地引擎已就绪" : "正在检测本地引擎" }}</strong>
-        <small>{{ statusText }}</small>
-      </span>
-    </section>
+  <aside class="replica-settings-rail" aria-label="成片设置">
+    <div class="replica-settings-tabs" role="tablist" aria-label="参数分类">
+      <button type="button" :class="{ 'is-active': activeTab === 'basic' }" @click="activeTab = 'basic'">基础设置</button>
+      <button type="button" :class="{ 'is-active': activeTab === 'visual' }" @click="activeTab = 'visual'">画面处理</button>
+    </div>
 
-    <section class="panel creation-settings-panel">
-      <div class="creation-settings-panel__header">
-        <div>
-          <p class="panel__label">{{ panelCopy.label }}</p>
-          <h2>{{ panelCopy.title }}</h2>
+    <div v-if="activeTab === 'basic'" class="replica-settings-scroll">
+      <section class="replica-setting-block replica-volume-row">
+        <label for="source-volume">原视频音量</label>
+        <input id="source-volume" v-model.number="originalVolume" type="range" min="0" max="2" step="0.05" />
+        <output>{{ Math.round(originalVolume * 100) }}%</output>
+      </section>
+
+      <section class="replica-setting-block">
+        <header><strong>背景音乐</strong><label class="replica-switch"><input v-model="bgmEnabled" type="checkbox" /><span></span></label></header>
+        <button class="replica-file-field" type="button" :disabled="!bgmEnabled" @click="emit('openTool', 'bgm')"><span>选择本地音乐</span><b>▢</b></button>
+        <label class="replica-range-row"><span>BGM音量</span><input v-model.number="bgmVolume" :disabled="!bgmEnabled" type="range" min="0" max="1" step="0.05" /><output>{{ Math.round(bgmVolume * 100) }}%</output></label>
+      </section>
+
+      <section class="replica-setting-block">
+        <header><strong>语音合成</strong><label class="replica-switch"><input v-model="ttsEnabled" type="checkbox" /><span></span></label></header>
+        <button class="replica-voice-row" type="button" :disabled="!ttsEnabled" @click="emit('openTool', 'tts')">
+          <span class="replica-avatar">音</span><span><strong>{{ ttsSpeaker || '小问 2.0' }}</strong><small>中文 · 通用场景</small></span><b>⇄</b>
+        </button>
+        <label class="replica-range-row"><span>原声音量</span><input v-model.number="speechVolume" :disabled="!ttsEnabled" type="range" min="0" max="1" step="0.05" /><output>{{ Math.round(speechVolume * 100) }}%</output></label>
+        <label class="replica-range-row"><span>语速调整</span><input v-model.number="speechSpeed" :disabled="!ttsEnabled" type="range" min="0.5" max="2" step="0.05" /><output>{{ speechSpeed.toFixed(1) }}x</output></label>
+      </section>
+
+      <section class="replica-setting-block replica-subtitle-block">
+        <header><strong>文本/字幕样式</strong><button type="button" @click="emit('openTool', 'tts')">字幕样式</button></header>
+        <label class="replica-select-row"><span>选择字体</span><select><option>MiSans</option><option>微软雅黑</option><option>思源黑体</option></select></label>
+        <label class="replica-select-row"><span>字号大小</span><select v-model="subtitleSize"><option value="small">小号</option><option value="medium">中号</option><option value="large">大号</option></select></label>
+        <label class="replica-range-row"><span>字体透明</span><input type="range" min="10" max="100" value="100" /><output>100%</output></label>
+        <div class="replica-style-swatches">
+          <button v-for="(color, index) in subtitleColors" :key="color + index" type="button" :class="{ 'is-active': subtitlePreset === index }" :style="{ color }" @click="subtitlePreset = index">A</button>
         </div>
-        <button
-          class="mode-switch"
-          type="button"
-          :aria-pressed="isAdvancedMode"
-          @click="$emit('toggleAdvancedMode', !isAdvancedMode)"
-        >
-          {{ isAdvancedMode ? "精简显示" : "显示高级" }}
-        </button>
-      </div>
+        <label class="replica-checkbox-row"><input v-model="subtitleEnabled" type="checkbox" />生成字幕</label>
+      </section>
+    </div>
 
-      <div class="creation-tool-groups">
-        <section v-for="group in toolGroups" :key="group.title" class="creation-tool-group">
-          <header>
-            <strong>{{ group.title }}</strong>
-            <small>{{ group.note }}</small>
-          </header>
-          <div class="creation-tool-list">
-            <button
-              v-for="tool in group.tools"
-              :key="tool.key"
-              class="creation-tool"
-              type="button"
-              @click="$emit('openTool', tool.key)"
-            >
-              <span class="creation-tool__symbol" aria-hidden="true">{{ tool.symbol }}</span>
-              <span><strong>{{ tool.title }}</strong><small>{{ tool.note }}</small></span>
-              <em aria-hidden="true">›</em>
-            </button>
-          </div>
-        </section>
-      </div>
-
-      <details v-if="isAdvancedMode" class="advanced-tool-group">
-        <summary>更多高级设置</summary>
-        <button
-          v-for="tool in advancedTools"
-          :key="tool.key"
-          type="button"
-          @click="$emit('openTool', tool.key)"
-        >
-          <span><strong>{{ tool.title }}</strong><small>{{ tool.note }}</small></span>
-          <em aria-hidden="true">›</em>
-        </button>
+    <div v-else class="replica-settings-scroll replica-visual-tools">
+      <button type="button" @click="emit('openTool', 'canvas')"><span>画布比例</span><small>原画、9:16 与背景填充</small><b>›</b></button>
+      <button type="button" @click="emit('openTool', 'effects')"><span>画面调整</span><small>镜像、旋转、亮度、色彩与缩放</small><b>›</b></button>
+      <button type="button" @click="emit('openTool', 'transition')"><span>片段衔接</span><small>淡入淡出与短片段过滤</small><b>›</b></button>
+      <button type="button" @click="emit('openTool', 'pip')"><span>画中画</span><small>叠加视频或图片素材</small><b>›</b></button>
+      <button type="button" @click="emit('openTool', 'watermark')"><span>水印处理</span><small>添加、遮盖、模糊与跟踪</small><b>›</b></button>
+      <button type="button" @click="emit('openTool', 'export')"><span>输出参数</span><small>分辨率、帧率、编码与质量</small><b>›</b></button>
+      <details class="replica-more-settings">
+        <summary>展开全部</summary>
+        <button type="button" @click="emit('openTool', 'cover')">视频封面 <b>›</b></button>
+        <button type="button" @click="emit('toggleAdvancedMode', !isAdvancedMode)">{{ isAdvancedMode ? '关闭高级显示' : '显示高级参数' }} <b>›</b></button>
       </details>
-    </section>
+    </div>
 
-    <section class="panel result-shortcuts-panel">
-      <div>
-        <p class="panel__label">任务信息</p>
-        <h2>日志与结果</h2>
-      </div>
-      <div class="result-shortcuts">
-        <button type="button" @click="$emit('openDrawer', 'logs')">任务日志</button>
-        <button type="button" @click="$emit('openDrawer', 'exports')">导出结果</button>
-        <button v-if="workspaceMode === 'batch'" type="button" @click="$emit('openDrawer', 'batch')">批量结果</button>
-      </div>
-    </section>
+    <div class="replica-settings-footer">
+      <button class="replica-create-button" type="button" :disabled="!hasVideo" @click="emit('createTask')">{{ hasVideo ? '创建任务' : '请先导入视频素材' }}</button>
+      <div><button type="button" @click="emit('openDrawer', 'logs')">任务日志</button><button type="button" @click="emit('openDrawer', 'exports')">导出结果</button></div>
+    </div>
   </aside>
 </template>

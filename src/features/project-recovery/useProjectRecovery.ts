@@ -21,6 +21,7 @@ interface UseProjectRecoveryOptions {
   hasMeaningfulState: () => boolean;
   applySnapshot: (result: ProjectSnapshotLoadResult) => string[];
   onNoSnapshot?: () => Promise<void>;
+  enabled?: boolean;
 }
 
 const AUTO_SAVE_DELAY_MS = 1200;
@@ -31,7 +32,7 @@ export function useProjectRecovery(options: UseProjectRecoveryOptions) {
   const restoreError = ref<string | null>(null);
   const recoveryNotices = ref<string[]>([]);
   const isRestoring = ref(false);
-  const status = ref<ProjectAutoSaveStatus>("loading");
+  const status = ref<ProjectAutoSaveStatus>(options.enabled === false ? "idle" : "loading");
   const saveError = ref<string | null>(null);
   const lastSavedAt = ref<string | null>(null);
   let autoSaveEnabled = false;
@@ -56,7 +57,7 @@ export function useProjectRecovery(options: UseProjectRecoveryOptions) {
   );
 
   onMounted(() => {
-    void loadLatestSnapshot();
+    if (options.enabled !== false) void loadLatestSnapshot();
   });
 
   onBeforeUnmount(() => {

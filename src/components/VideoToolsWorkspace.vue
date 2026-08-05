@@ -1,112 +1,122 @@
 <script setup lang="ts">
+import { computed, ref } from "vue";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { DrawerKey, ToolKey } from "../types/workbench";
+import type { OutputFrameRate, OutputQuality, OutputResolution, VideoEncoder } from "../types/outputSettings";
 
-defineProps<{
+const props = defineProps<{
+  view: "effects" | "extract";
+  importedVideos: ImportedVideo[];
   selectedVideo: ImportedVideo | null;
   previewUrl: string | null;
   importedVideoCount: number;
+  videoCoverUrls: Record<string, string>;
+  splitSegmentPaths: string[];
+  selectedSegmentPath: string | null;
+  segmentThumbnailUrls: Record<string, string>;
+  outputDirectory: string | null;
+  isProcessing: boolean;
+  progressText: string | null;
+  error: string | null;
+  formatDuration: (durationSeconds: number | null) => string;
+  formatFileName: (path: string) => string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
+  importVideos: [];
+  importVideoFolder: [];
+  clearVideos: [];
+  selectVideo: [video: ImportedVideo];
+  selectSegment: [segmentPath: string];
+  selectOutputDirectory: [];
+  splitSelectedVideo: [];
+  analyzeContent: [];
+  startProcessing: [];
   openTool: [tool: ToolKey];
   openDrawer: [drawer: DrawerKey];
 }>();
 
-const toolGroups: Array<{
-  title: string;
-  note: string;
-  tools: Array<{ key: ToolKey; title: string; note: string; symbol: string; requiresVideo?: boolean }>;
-}> = [
-  {
-    title: "画面处理",
-    note: "处理比例、颜色、封面和水印",
-    tools: [
-      { key: "watermark", title: "水印工具", note: "添加水印、固定区域处理和移动水印跟踪", symbol: "印", requiresVideo: true },
-      { key: "effects", title: "画面调整", note: "镜像、旋转、变速、亮度与色彩", symbol: "调", requiresVideo: true },
-      { key: "canvas", title: "画布与比例", note: "原画、9:16 和模糊背景填充", symbol: "框", requiresVideo: true },
-      { key: "cover", title: "视频封面", note: "从当前视频截取一帧作为封面", symbol: "封", requiresVideo: true },
-      { key: "pip", title: "画中画", note: "叠加另一个视频或图片素材", symbol: "叠", requiresVideo: true },
-    ],
-  },
-  {
-    title: "声音与文字",
-    note: "独立完成配音、识别和背景音乐",
-    tools: [
-      { key: "asr", title: "语音识别", note: "音频或视频转文字，并保存到文案库", symbol: "识" },
-      { key: "tts", title: "AI 配音", note: "选择可视化音色，试听并生成配音", symbol: "声" },
-      { key: "bgm", title: "背景音乐", note: "调整原声、音乐音量和淡入淡出", symbol: "乐", requiresVideo: true },
-    ],
-  },
-  {
-    title: "设置与输出",
-    note: "管理服务密钥和最终导出参数",
-    tools: [
-      { key: "apiKeys", title: "AI / TTS 密钥", note: "填写一次后加密保存在当前 Windows 用户中", symbol: "钥" },
-      { key: "export", title: "导出与格式转换", note: "设置分辨率、帧率、质量和编码方式", symbol: "出", requiresVideo: true },
-    ],
-  },
+const splitMode = ref<"scene" | "fixed">("scene");
+const segmentSeconds = ref(5);
+const previewOrientationClass = computed(() => {
+  const width = props.selectedVideo?.width ?? 0;
+  const height = props.selectedVideo?.height ?? 0;
+  return width > height ? "is-landscape" : "is-portrait";
+});
+const outputResolution = defineModel<OutputResolution>("outputResolution", { required: true });
+const outputFrameRate = defineModel<OutputFrameRate>("outputFrameRate", { required: true });
+const outputQuality = defineModel<OutputQuality>("outputQuality", { required: true });
+const outputEncoder = defineModel<VideoEncoder>("outputEncoder", { required: true });
+
+const effectGroups: Array<{ title: string; key: ToolKey; note: string }> = [
+  { title: "基础画面", key: "effects", note: "镜像、旋转、变速、缩放与色彩" },
+  { title: "去除水印", key: "watermark", note: "固定区域、移动跟踪、模糊与遮盖" },
+  { title: "画布背景", key: "canvas", note: "比例适配、模糊背景与裁切方式" },
+  { title: "画中画", key: "pip", note: "融合图片或视频叠加素材" },
+  { title: "背景音乐", key: "bgm", note: "原声、音乐音量与淡入淡出" },
+  { title: "视频封面", key: "cover", note: "截取画面并设置导出封面" },
 ];
 </script>
 
 <template>
-  <section class="video-tools-workspace" aria-label="视频工具中心">
-    <header class="workspace-page-heading">
-      <div>
-        <p class="panel__label">单项处理</p>
-        <h2>视频工具中心</h2>
-        <small>只选一个需要的工具，不进入完整成片流程。</small>
-      </div>
-      <div class="video-tools-workspace__header-actions">
-        <button class="ghost-button" type="button" @click="$emit('openDrawer', 'scripts')">文案库</button>
-        <button class="panel-toggle" type="button" @click="$emit('openDrawer', 'exports')">导出结果</button>
-      </div>
-    </header>
+  <section class="replica-tools-workspace" :class="`is-${view}`" :aria-label="view === 'effects' ? '视频效果处理工作台' : '视频内容提炼工作台'">
+    <aside class="replica-tools-source">
+      <div class="replica-source-toolbar"><button class="is-primary" type="button" @click="emit('importVideos')">导入视频</button><button type="button" @click="emit('importVideoFolder')">文件夹</button><button type="button" :disabled="!importedVideoCount" @click="emit('clearVideos')">清空</button></div>
+      <div v-if="!importedVideoCount" class="replica-source-empty"><span>□</span><strong>暂无视频文件</strong><small>支持导入单个、多选或整个文件夹</small></div>
+      <div v-else class="replica-tools-file-list"><button v-for="video in importedVideos" :key="video.id" type="button" :class="{ 'is-active': selectedVideo?.id === video.id }" @click="emit('selectVideo', video)"><img v-if="videoCoverUrls[video.id]" :src="videoCoverUrls[video.id]" alt="" /><span v-else>▶</span><b>{{ video.fileName }}</b><small>{{ formatDuration(video.durationSeconds) }}</small></button></div>
+      <button class="replica-output-path" type="button" @click="emit('selectOutputDirectory')"><span>输出路径</span><strong>{{ outputDirectory ?? '请选择输出文件夹' }}</strong><b>▢</b></button>
+    </aside>
 
-    <div class="video-tools-workspace__layout">
-      <section class="panel tool-source-preview">
-        <div class="panel__header">
-          <div>
-            <p class="panel__label">当前处理对象</p>
-            <h3>{{ selectedVideo?.fileName ?? "尚未选择视频" }}</h3>
-          </div>
-          <span class="count-badge">素材 {{ importedVideoCount }}</span>
+    <main class="replica-tools-center">
+      <section class="replica-tools-preview">
+        <header><strong>{{ view === 'effects' ? '视频预览' : '原视频预览' }}</strong><span>{{ selectedVideo?.fileName ?? '' }}</span></header>
+        <div v-if="previewUrl" class="replica-tools-screen">
+          <video
+            :src="previewUrl"
+            :class="previewOrientationClass"
+            :width="selectedVideo?.width ?? undefined"
+            :height="selectedVideo?.height ?? undefined"
+            controls
+            playsinline
+            preload="metadata"
+          ></video>
         </div>
-        <div v-if="previewUrl" class="tool-source-preview__video">
-          <span class="preview-fit-badge">完整画面</span>
-          <video :src="previewUrl" controls playsinline preload="metadata" aria-label="当前工具素材完整画面预览"></video>
-        </div>
-        <div v-else class="tool-source-preview__empty">
-          <strong>需要画面处理时，先从左侧导入视频</strong>
-          <small>语音识别、AI 配音和密钥设置也可以直接打开。</small>
-        </div>
-        <div class="tool-source-preview__tips">
-          <strong>这里不会自动执行完整混剪</strong>
-          <small>选中工具、调整参数、确认输出即可。</small>
-        </div>
+        <div v-else class="replica-tools-screen replica-tools-screen--empty"><span>□</span><strong>选择视频后在此预览</strong></div>
       </section>
 
-      <div class="tool-group-list">
-        <section v-for="group in toolGroups" :key="group.title" class="tool-group-section">
-          <header>
-            <div><h3>{{ group.title }}</h3><small>{{ group.note }}</small></div>
-          </header>
-          <div class="tool-center-grid">
-            <button
-              v-for="tool in group.tools"
-              :key="tool.key"
-              type="button"
-              :disabled="tool.requiresVideo && !selectedVideo"
-              @click="$emit('openTool', tool.key)"
-            >
-              <span aria-hidden="true">{{ tool.symbol }}</span>
-              <strong>{{ tool.title }}</strong>
-              <small>{{ tool.requiresVideo && !selectedVideo ? "请先导入视频" : tool.note }}</small>
-              <em aria-hidden="true">进入</em>
-            </button>
-          </div>
-        </section>
-      </div>
-    </div>
+      <section v-if="view === 'effects'" class="replica-split-settings">
+        <header><strong>视频分割</strong><small>长视频可以先拆成多个片段再统一处理</small></header>
+        <div class="replica-split-options"><button type="button" :class="{ 'is-active': splitMode === 'scene' }" @click="splitMode = 'scene'">智能场景分割</button><button type="button" :class="{ 'is-active': splitMode === 'fixed' }" @click="splitMode = 'fixed'">固定时长分割</button><label v-if="splitMode === 'fixed'">每段 <input v-model.number="segmentSeconds" type="number" min="1" max="120" /> 秒</label><button class="is-primary" type="button" :disabled="!selectedVideo || isProcessing" @click="emit('splitSelectedVideo')">{{ isProcessing ? '处理中...' : '开始分割' }}</button></div>
+      </section>
+
+      <section v-else class="replica-extract-results">
+        <header><strong>提炼片段</strong><span>{{ splitSegmentPaths.length }} 个</span></header>
+        <div v-if="splitSegmentPaths.length === 0" class="replica-category-empty"><strong>还没有内容片段</strong><small>先切片，再用本地或云端模型分析片段内容</small><button type="button" :disabled="!selectedVideo || isProcessing" @click="emit('splitSelectedVideo')">生成内容切片</button></div>
+        <div v-else class="replica-extract-grid"><button v-for="segmentPath in splitSegmentPaths" :key="segmentPath" type="button" :class="{ 'is-active': selectedSegmentPath === segmentPath }" @click="emit('selectSegment', segmentPath)"><img v-if="segmentThumbnailUrls[segmentPath]" :src="segmentThumbnailUrls[segmentPath]" alt="" /><span v-else>▶</span><b>{{ formatFileName(segmentPath) }}</b><small>等待内容分析</small></button></div>
+      </section>
+    </main>
+
+    <aside class="replica-tools-settings">
+      <template v-if="view === 'effects'">
+        <header><strong>效果设置</strong><small>点击卡片打开详细参数</small></header>
+        <div class="replica-effect-list"><button v-for="group in effectGroups" :key="group.key" type="button" @click="emit('openTool', group.key)"><span><strong>{{ group.title }}</strong><small>{{ group.note }}</small></span><b>›</b></button></div>
+      </template>
+      <template v-else>
+        <header><strong>内容提炼</strong><small>识别主题、动作、卖点和镜头类型</small></header>
+        <section class="replica-setting-block"><strong>分析模式</strong><label class="replica-radio-row"><input checked type="radio" name="extract-mode" />本地快速模型</label><label class="replica-radio-row"><input type="radio" name="extract-mode" />云端精确模型</label></section>
+        <section class="replica-setting-block"><strong>提炼维度</strong><label class="replica-checkbox-row"><input checked type="checkbox" />镜头类型</label><label class="replica-checkbox-row"><input checked type="checkbox" />人物动作</label><label class="replica-checkbox-row"><input checked type="checkbox" />产品卖点</label><label class="replica-checkbox-row"><input checked type="checkbox" />可用文案</label></section>
+        <button class="replica-analyze-button" type="button" :disabled="splitSegmentPaths.length === 0 || isProcessing" @click="emit('analyzeContent')">{{ isProcessing ? '正在分析...' : '开始内容提炼' }}</button>
+      </template>
+      <p v-if="progressText" class="replica-progress-text">{{ progressText }}</p><p v-if="error" class="workflow-error" role="alert">{{ error }}</p>
+    </aside>
+
+    <footer v-if="view === 'effects'" class="replica-tools-output-bar">
+      <label>分辨率<select v-model="outputResolution"><option value="followCanvas">跟随画布</option><option value="hd720">720P</option><option value="fullHd1080">1080P</option></select></label>
+      <label>帧率<select v-model="outputFrameRate"><option value="source">原帧率</option><option value="fps24">24fps</option><option value="fps25">25fps</option><option value="fps30">30fps</option><option value="fps50">50fps</option><option value="fps60">60fps</option></select></label>
+      <label>质量<select v-model="outputQuality"><option value="compact">节省空间</option><option value="standard">标准</option><option value="high">高质量</option></select></label>
+      <label>编码<select v-model="outputEncoder"><option value="auto">自动</option><option value="cpu">CPU</option><option value="nvidia">NVIDIA</option><option value="intel">Intel</option><option value="amd">AMD</option></select></label>
+      <span>格式 MP4</span><span>保留原文件</span><span>命名 原文件名_处理</span><span>线程 自动</span>
+      <button type="button" :disabled="!selectedVideo || !outputDirectory || isProcessing" @click="emit('startProcessing')">{{ isProcessing ? '处理中...' : '开始处理' }}</button>
+    </footer>
   </section>
 </template>

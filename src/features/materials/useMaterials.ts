@@ -131,6 +131,14 @@ export function useMaterials(options: UseMaterialsOptions) {
     selectedSegmentPath.value = segmentPath;
   }
 
+  function clearImportedVideos() {
+    covers.resetMaterialCovers();
+    importedVideos.value = [];
+    selectedVideo.value = null;
+    importError.value = null;
+    resetSplitState();
+  }
+
   async function splitAllMaterials(
     prepareSegmentAssets: (paths: string[], task: TaskRunHandle) => Promise<void>,
   ) {
@@ -296,6 +304,7 @@ export function useMaterials(options: UseMaterialsOptions) {
   return {
     ...covers,
     addRelinkedMaterial,
+    clearImportedVideos,
     importError,
     importedVideos,
     importVideoFolder,

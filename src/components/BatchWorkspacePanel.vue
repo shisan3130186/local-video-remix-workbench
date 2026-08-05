@@ -1,14 +1,20 @@
 <script setup lang="ts">
+import { computed, ref } from "vue";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { DrawerKey, ToolKey } from "../types/workbench";
 
-type BatchToolKey = Extract<ToolKey, "remix" | "canvas" | "effects" | "transition" | "export">;
+type BatchToolKey = Extract<ToolKey, "remix" | "canvas" | "effects" | "transition" | "pip" | "bgm" | "watermark" | "export">;
 
-defineProps<{
-  importedVideoCount: number;
+const props = defineProps<{
+  kind: "remix" | "category";
+  importedVideos: ImportedVideo[];
   selectedVideo: ImportedVideo | null;
+  sourcePreviewUrl: string | null;
   previewUrl: string | null;
-  splitSegmentCount: number | null;
+  videoCoverUrls: Record<string, string>;
+  splitSegmentPaths: string[];
+  selectedSegmentPath: string | null;
+  segmentThumbnailUrls: Record<string, string>;
   randomSelectedCount: number;
   batchGenerateCount: number;
   batchMixResultCount: number;
@@ -18,120 +24,120 @@ defineProps<{
   splitError: string | null;
   mixError: string | null;
   batchMixError: string | null;
+  formatDuration: (durationSeconds: number | null) => string;
+  formatResolution: (video: ImportedVideo) => string;
+  formatFileName: (path: string) => string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
+  importVideos: [];
+  importVideoFolder: [];
+  selectVideo: [video: ImportedVideo];
+  selectSegment: [segmentPath: string];
   splitSelectedVideo: [];
   pickSegmentsRandomly: [];
   concatRandomSegments: [];
   concatCategorizedSegments: [];
   generateBatchMixes: [];
+  openAiWorkspace: [];
   openTool: [tool: BatchToolKey];
   openDrawer: [drawer: DrawerKey];
   "update:batchGenerateCount": [count: number];
 }>();
+
+const script = defineModel<string>("script", { required: true });
+const originalVolume = defineModel<number>("originalVolume", { required: true });
+const bgmEnabled = defineModel<boolean>("bgmEnabled", { required: true });
+const activeTab = ref<"basic" | "visual">("basic");
+const narrationMode = ref<"custom" | "copy" | "audio">("custom");
+const categoryNames = ["开头", "产品", "细节", "效果", "场景", "结尾"];
+const selectedSegmentTitle = computed(() => props.selectedSegmentPath ? props.formatFileName(props.selectedSegmentPath) : "等待生成切片");
+const previewOrientationClass = computed(() => {
+  const width = props.selectedVideo?.width ?? 0;
+  const height = props.selectedVideo?.height ?? 0;
+  return width > height ? "is-landscape" : "is-portrait";
+});
+
+function startBatch() {
+  if (props.kind === "category") emit("concatCategorizedSegments");
+  else emit("generateBatchMixes");
+}
 </script>
 
 <template>
-  <section class="batch-workspace" aria-label="批量混剪工作区">
-    <header class="workspace-page-heading">
-      <div>
-        <p class="panel__label">批量生产</p>
-        <h2>用一套规则生成多个差异版本</h2>
-        <small>适合素材量较多、需要一次导出多条视频的任务。</small>
+  <section class="replica-batch-workspace" :class="`is-${kind}`" :aria-label="kind === 'category' ? '分类混剪工作台' : '视频混剪工作台'">
+    <aside class="replica-batch-source">
+      <div class="replica-source-toolbar">
+        <button class="is-primary" type="button" @click="emit('importVideoFolder')">▣ 导入文件夹</button>
+        <button type="button" @click="emit('importVideos')">导入视频</button>
       </div>
-      <button class="panel-toggle" type="button" @click="$emit('openDrawer', 'batch')">
-        批量结果 {{ batchMixResultCount }}
-      </button>
-    </header>
-
-    <nav class="batch-steps" aria-label="批量混剪步骤">
-      <span :class="{ 'batch-steps__item--done': importedVideoCount > 0 }"><b>1</b><small>导入多份素材</small></span>
-      <i aria-hidden="true"></i>
-      <span :class="{ 'batch-steps__item--done': (splitSegmentCount ?? 0) > 1 }"><b>2</b><small>切成可组合片段</small></span>
-      <i aria-hidden="true"></i>
-      <span :class="{ 'batch-steps__item--done': randomSelectedCount > 0 }"><b>3</b><small>确认组合规则</small></span>
-      <i aria-hidden="true"></i>
-      <span :class="{ 'batch-steps__item--active': batchMixResultCount > 0 }"><b>4</b><small>批量生成</small></span>
-    </nav>
-
-    <div class="batch-workspace__body">
-      <section class="panel batch-preview-card">
-        <div class="panel__header">
-          <div>
-            <p class="panel__label">素材预览</p>
-            <h3>{{ selectedVideo?.fileName ?? "等待选择素材" }}</h3>
-          </div>
-          <span class="count-badge">{{ importedVideoCount }} 个视频</span>
-        </div>
-        <div v-if="previewUrl" class="batch-preview-card__video">
-          <span class="preview-fit-badge">完整画面</span>
-          <video :src="previewUrl" controls playsinline preload="metadata" aria-label="当前批量素材完整画面预览"></video>
-        </div>
-        <div v-else class="batch-preview-card__empty">
-          <strong>先从左侧导入一组视频</strong>
-          <small>这里用于抽查当前素材，批量规则在右侧设置。</small>
-        </div>
-      </section>
-
-      <section class="panel batch-recipe-card">
-        <div class="batch-recipe-card__heading">
-          <div>
-            <p class="panel__label">本次生成方案</p>
-            <h3>组合规则</h3>
-          </div>
-          <button class="ghost-button" type="button" @click="$emit('openTool', 'remix')">详细参数</button>
-        </div>
-
-        <div class="batch-recipe-stats">
-          <article><small>源视频</small><strong>{{ importedVideoCount }}</strong></article>
-          <article><small>可用片段</small><strong>{{ splitSegmentCount ?? 0 }}</strong></article>
-          <article><small>已选片段</small><strong>{{ randomSelectedCount }}</strong></article>
-        </div>
-
-        <label class="batch-count-field">
-          <span><strong>生成数量</strong><small>建议先生成 3 条检查效果</small></span>
-          <input
-            :value="batchGenerateCount"
-            type="number"
-            min="1"
-            max="20"
-            @input="$emit('update:batchGenerateCount', Number(($event.target as HTMLInputElement).value))"
-          />
-        </label>
-
-        <div class="batch-rule-actions">
-          <button type="button" :disabled="isSplitting || importedVideoCount === 0" @click="$emit('splitSelectedVideo')">
-            <span>01</span><strong>{{ isSplitting ? "正在切片" : "智能切片全部素材" }}</strong><small>把长视频拆成可重新组合的片段</small>
-          </button>
-          <button type="button" :disabled="(splitSegmentCount ?? 0) < 2" @click="$emit('pickSegmentsRandomly')">
-            <span>02</span><strong>随机选择一组片段</strong><small>先预览一次组合结构是否合适</small>
-          </button>
-          <button type="button" :disabled="randomSelectedCount === 0 || isMixing" @click="$emit('concatRandomSegments')">
-            <span>03</span><strong>生成单条样片</strong><small>正式批量前先输出一条检查节奏</small>
-          </button>
-        </div>
-
-        <div class="batch-enhance-row" aria-label="批量增强设置">
-          <button type="button" @click="$emit('openTool', 'canvas')">画布比例</button>
-          <button type="button" @click="$emit('openTool', 'effects')">画面效果</button>
-          <button type="button" @click="$emit('openTool', 'transition')">平滑转场</button>
-          <button type="button" @click="$emit('openTool', 'export')">输出设置</button>
-        </div>
-
-        <button
-          class="primary-button batch-generate-button"
-          type="button"
-          :disabled="isBatchMixing || (splitSegmentCount ?? 0) < 2"
-          @click="$emit('generateBatchMixes')"
-        >
-          {{ isBatchMixing ? "正在批量生成..." : `生成 ${batchGenerateCount} 条差异视频` }}
+      <div v-if="importedVideos.length === 0" class="replica-source-empty"><span>□</span><strong>暂无视频素材</strong><small>点击导入按钮或拖拽添加素材</small></div>
+      <div v-else class="replica-batch-source-list">
+        <button v-for="video in importedVideos" :key="video.id" type="button" :class="{ 'is-active': selectedVideo?.id === video.id }" @click="emit('selectVideo', video)">
+          <img v-if="videoCoverUrls[video.id]" :src="videoCoverUrls[video.id]" alt="" /><span v-else>▶</span>
+          <b>{{ video.fileName }}</b><small>{{ formatDuration(video.durationSeconds) }}</small>
         </button>
+      </div>
+      <footer class="replica-batch-source-footer">
+        <template v-if="kind === 'category'">
+          <label><span>导出数量</span><input :value="batchGenerateCount" type="number" min="1" max="20" @input="emit('update:batchGenerateCount', Number(($event.target as HTMLInputElement).value))" /></label>
+          <div class="replica-mode-switch"><button v-for="mode in (['custom','copy','audio'] as const)" :key="mode" type="button" :class="{ 'is-active': narrationMode === mode }" @click="narrationMode = mode">{{ mode === 'custom' ? '自定义' : mode === 'copy' ? '文案' : '音频' }}</button></div>
+        </template>
+        <template v-else><strong>已导入 {{ importedVideos.length }} 个视频</strong><small>切片后将随机重组生成差异版本</small></template>
+      </footer>
+    </aside>
 
-        <p v-if="splitError || mixError || batchMixError" class="workflow-error" role="alert">
-          {{ splitError || mixError || batchMixError }}
-        </p>
+    <main class="replica-batch-center">
+      <section class="replica-batch-preview">
+        <header><strong>ⓘ 使用指引</strong><span>{{ selectedVideo ? formatResolution(selectedVideo) : '' }}</span></header>
+        <div v-if="sourcePreviewUrl" class="replica-batch-screen">
+          <video
+            :src="sourcePreviewUrl"
+            :class="previewOrientationClass"
+            :width="selectedVideo?.width ?? undefined"
+            :height="selectedVideo?.height ?? undefined"
+            controls
+            playsinline
+            preload="metadata"
+          ></video>
+        </div>
+        <div v-else class="replica-batch-screen replica-batch-screen--empty"><span>□</span><strong>选择素材后在此预览</strong></div>
       </section>
-    </div>
+
+      <section class="replica-batch-content">
+        <header><strong>{{ kind === 'category' ? '切片分类' : '视频文案' }}</strong><span>{{ splitSegmentPaths.length }} 个片段</span></header>
+        <template v-if="kind === 'remix'">
+          <textarea v-model="script" maxlength="4000" placeholder="输入配音文案；不需要配音可留空"></textarea>
+          <div class="replica-batch-inline-actions">
+            <button type="button" :disabled="!selectedVideo || isSplitting" @click="emit('splitSelectedVideo')">{{ isSplitting ? '正在切片...' : '生成视频切片' }}</button>
+            <button type="button" :disabled="splitSegmentPaths.length < 2" @click="emit('pickSegmentsRandomly')">随机抽取</button>
+            <button type="button" :disabled="randomSelectedCount === 0 || isMixing" @click="emit('concatRandomSegments')">生成样片</button>
+          </div>
+        </template>
+        <template v-else>
+          <div v-if="splitSegmentPaths.length === 0" class="replica-category-empty"><strong>请先生成切片</strong><small>切片完成后可按镜头用途分类组合</small><button type="button" :disabled="!selectedVideo || isSplitting" @click="emit('splitSelectedVideo')">{{ isSplitting ? '正在切片...' : '开始智能切片' }}</button></div>
+          <div v-else class="replica-category-grid">
+            <button v-for="(segmentPath, index) in splitSegmentPaths" :key="segmentPath" type="button" :class="{ 'is-active': selectedSegmentPath === segmentPath }" @click="emit('selectSegment', segmentPath)">
+              <img v-if="segmentThumbnailUrls[segmentPath]" :src="segmentThumbnailUrls[segmentPath]" alt="" /><span v-else>▶</span><b>{{ categoryNames[index % categoryNames.length] }}</b><small>{{ formatFileName(segmentPath) }}</small>
+            </button>
+          </div>
+          <div class="replica-current-segment"><strong>{{ selectedSegmentTitle }}</strong><video v-if="selectedSegmentPath && previewUrl" :src="previewUrl" controls playsinline preload="metadata"></video></div>
+        </template>
+        <p v-if="splitError || mixError || batchMixError" class="workflow-error" role="alert">{{ splitError || mixError || batchMixError }}</p>
+      </section>
+    </main>
+
+    <aside class="replica-batch-settings">
+      <div class="replica-settings-tabs"><button type="button" :class="{ 'is-active': activeTab === 'basic' }" @click="activeTab = 'basic'">基础设置</button><button type="button" :class="{ 'is-active': activeTab === 'visual' }" @click="activeTab = 'visual'">画面处理</button></div>
+      <div v-if="activeTab === 'basic'" class="replica-settings-scroll">
+        <section class="replica-setting-block replica-volume-row"><label>原视频音量</label><input v-model.number="originalVolume" type="range" min="0" max="2" step="0.05" /><output>{{ Math.round(originalVolume * 100) }}%</output></section>
+        <section class="replica-setting-block"><header><strong>背景音乐</strong><label class="replica-switch"><input v-model="bgmEnabled" type="checkbox" /><span></span></label></header><button class="replica-file-field" type="button" @click="emit('openTool','bgm')"><span>选择本地音乐</span><b>▢</b></button></section>
+        <section class="replica-setting-block"><header><strong>混剪方式</strong></header><button class="replica-setting-link" type="button" @click="emit('openTool','remix')">智能切片与组合规则 <b>›</b></button><button class="replica-setting-link" type="button" @click="emit('openTool','export')">导出数量与输出规格 <b>›</b></button></section>
+      </div>
+      <div v-else class="replica-settings-scroll replica-visual-tools">
+        <button v-for="item in ([['canvas','画布比例'],['effects','画面调整'],['transition','转场衔接'],['pip','画中画'],['watermark','水印处理']] as const)" :key="item[0]" type="button" @click="emit('openTool', item[0])"><span>{{ item[1] }}</span><small>打开完整参数设置</small><b>›</b></button>
+      </div>
+      <footer class="replica-batch-create"><button type="button" :disabled="splitSegmentPaths.length < 2 || isBatchMixing || isMixing" @click="startBatch">{{ isBatchMixing || isMixing ? '正在生成...' : kind === 'category' ? '开始分类混剪' : '开始批量混剪' }}</button><div><button type="button" @click="emit('openDrawer','logs')">任务日志</button><button type="button" @click="emit('openDrawer','batch')">结果 {{ batchMixResultCount }}</button></div></footer>
+    </aside>
   </section>
 </template>

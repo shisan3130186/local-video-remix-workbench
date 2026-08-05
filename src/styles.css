@@ -9,3 +9,9 @@
 @import "./styles/smartcut-theme.css";
 @import "./styles/workspace-modes.css";
 @import "./features/user-test-package/user-test-package.css";
+/* 正式工作台紧凑化视觉覆盖层，必须保持在最后载入。 */
+@import "./styles/compact-workbench.css";
+@import "./styles/v3-creation-hub.css";
+@import "./styles/feature-workspaces.css";
+@import "./styles/competitor-replica.css";
+@import "./features/theme/theme.css";

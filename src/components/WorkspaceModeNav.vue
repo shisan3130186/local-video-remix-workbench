@@ -9,10 +9,10 @@ defineEmits<{
   change: [mode: WorkspaceMode];
 }>();
 
-const modes: Array<{ key: WorkspaceMode; label: string; shortLabel: string }> = [
-  { key: "ai", label: "AI 智能成片", shortLabel: "AI" },
-  { key: "batch", label: "批量混剪", shortLabel: "批量" },
-  { key: "tools", label: "视频工具", shortLabel: "工具" },
+const modes: Array<{ key: WorkspaceMode; label: string }> = [
+  { key: "ai", label: "AI 成片" },
+  { key: "batch", label: "批量混剪" },
+  { key: "tools", label: "效率工具" },
 ];
 </script>
 
@@ -26,8 +26,7 @@ const modes: Array<{ key: WorkspaceMode; label: string; shortLabel: string }> = 
       :aria-current="activeMode === mode.key ? 'page' : undefined"
       @click="$emit('change', mode.key)"
     >
-      <span>{{ mode.shortLabel }}</span>
-      <strong>{{ mode.label }}</strong>
+      <span>{{ mode.label }}</span>
     </button>
   </nav>
 </template>

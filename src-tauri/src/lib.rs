@@ -1,6 +1,7 @@
 mod ai_remix;
 mod api_config;
 mod asr;
+mod desktop_tools;
 mod diagnostics;
 mod material_library;
 mod membership;
@@ -17,7 +18,7 @@ use ai_remix::{
     extract_ai_remix_segment_content as create_ai_remix_segment_content_analysis,
     plan_ai_remix as create_ai_remix_plan, AiRemixPlanResult, AiRemixSegmentAnalysisResult,
     AiRemixSegmentContentAnalysisResult, AiRemixSegmentInput, AiRemixVariantPlanResult,
-    AiRemixVariantShotInput, AiRemixVisualSegmentInput,
+    AiRemixVariantShotInput, AiRemixVisualSegmentInput, ScriptRewriteInput, ScriptRewriteResult,
 };
 use api_config::{
     delete_api_credential as remove_api_credential,
@@ -27,6 +28,11 @@ use api_config::{
 use asr::{
     get_asr_config_status as read_asr_config_status, recognize_speech as create_asr_recognition,
     AsrConfigStatus, AsrRecognitionResult,
+};
+use desktop_tools::{
+    batch_rename_files as rename_files, list_files_in_folder as read_files_in_folder,
+    write_base64_file as store_base64_file, write_utf8_text_file as store_utf8_text_file,
+    RenameFileInput, RenameFileResult,
 };
 use diagnostics::{
     create_diagnostic_report as write_diagnostic_report,
@@ -67,6 +73,9 @@ use tts::{
     cleanup_tts_session as remove_tts_session, get_tts_config_status as read_tts_config_status,
     synthesize_tts as create_tts_audio, synthesize_tts_shot as create_tts_shot_audio,
     TtsConfigStatus, TtsSynthesisResult,
+};
+use video_engine::image_video::{
+    convert_images_to_videos as create_image_videos, ImageVideoBatchResult,
 };
 use video_engine::import::list_supported_videos_in_folder;
 use video_engine::mix::{concat_video_segments, MixVideoResult, RemixSettings};
@@ -151,6 +160,26 @@ fn open_path_in_file_manager(path: String) -> Result<(), String> {
 #[tauri::command]
 fn is_existing_directory(path: String) -> bool {
     Path::new(&path).is_dir()
+}
+
+#[tauri::command]
+fn batch_rename_files(items: Vec<RenameFileInput>) -> Result<Vec<RenameFileResult>, String> {
+    rename_files(items)
+}
+
+#[tauri::command]
+fn list_files_in_folder(folder_path: String) -> Result<Vec<String>, String> {
+    read_files_in_folder(folder_path)
+}
+
+#[tauri::command]
+fn write_utf8_text_file(path: String, content: String) -> Result<(), String> {
+    store_utf8_text_file(path, content)
+}
+
+#[tauri::command]
+fn write_base64_file(path: String, data: String) -> Result<(), String> {
+    store_base64_file(path, data)
 }
 
 #[tauri::command]
@@ -283,6 +312,30 @@ async fn plan_ai_remix(
     segments: Vec<AiRemixSegmentInput>,
 ) -> Result<AiRemixPlanResult, String> {
     create_ai_remix_plan(script, segments).await
+}
+
+#[tauri::command]
+async fn rewrite_scripts(input: ScriptRewriteInput) -> Result<ScriptRewriteResult, String> {
+    ai_remix::rewrite_scripts(input).await
+}
+
+#[tauri::command]
+fn convert_images_to_videos(
+    image_paths: Vec<String>,
+    output_directory: String,
+    duration_seconds: f64,
+    aspect_ratio: video_engine::canvas::CanvasAspectRatio,
+    output_settings: video_engine::output::OutputSettings,
+    task_context: Option<TaskProgressContext>,
+) -> Result<ImageVideoBatchResult, String> {
+    create_image_videos(
+        image_paths,
+        output_directory,
+        duration_seconds,
+        aspect_ratio,
+        output_settings,
+        task_context,
+    )
 }
 
 #[tauri::command]
@@ -470,6 +523,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             analyze_ai_remix_segments,
+            batch_rename_files,
             build_ai_remix_variants,
             cancel_task,
             check_ffmpeg_environment,
@@ -477,6 +531,7 @@ pub fn run() {
             cleanup_tts_session,
             concat_narrated_segments,
             concat_selected_segments,
+            convert_images_to_videos,
             create_task,
             create_diagnostic_report,
             delete_api_credential,
@@ -495,6 +550,7 @@ pub fn run() {
             get_api_config_status,
             get_account_status,
             is_existing_directory,
+            list_files_in_folder,
             list_video_files_in_folder,
             load_material_library,
             load_project_snapshot,
@@ -503,6 +559,7 @@ pub fn run() {
             plan_ai_remix,
             read_video_metadata,
             recognize_speech,
+            rewrite_scripts,
             login_account,
             logout_account,
             redeem_membership,
@@ -516,7 +573,9 @@ pub fn run() {
             split_video_by_scenes,
             synthesize_tts,
             synthesize_tts_shot,
-            update_task_progress
+            update_task_progress,
+            write_base64_file,
+            write_utf8_text_file
         ])
         .run(tauri::generate_context!())
         .expect("failed to run tauri app");

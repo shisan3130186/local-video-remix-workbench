@@ -4,15 +4,14 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, ref, watch } from "vue";
 import type { CSSProperties } from "vue";
 import ExportResultDrawer from "./components/ExportResultDrawer.vue";
+import AiSourceSidebar from "./components/AiSourceSidebar.vue";
 import BatchWorkspacePanel from "./components/BatchWorkspacePanel.vue";
 import HomePage from "./components/HomePage.vue";
 import PreviewPanel from "./components/PreviewPanel.vue";
 import RightToolPanel from "./components/RightToolPanel.vue";
-import TaskControlBar from "./components/TaskControlBar.vue";
 import TaskLogDrawer from "./components/TaskLogDrawer.vue";
 import ToolSettingModal from "./components/ToolSettingModal.vue";
 import VideoToolsWorkspace from "./components/VideoToolsWorkspace.vue";
-import WorkspaceModeNav from "./components/WorkspaceModeNav.vue";
 import {
   SEGMENT_CATEGORY_OPTIONS as segmentCategoryOptions,
 } from "./constants/workbench";
@@ -22,14 +21,18 @@ import { useAiRemix } from "./features/ai-remix";
 import type { ApiConfigStatus } from "./features/api-config";
 import { getApiConfigStatus } from "./features/api-config/services/apiConfigService";
 import { useAsr } from "./features/asr";
+import { CopyRewriteWorkbench } from "./features/copy-rewrite";
+import { FileRenamerWorkbench } from "./features/file-renamer";
+import { ImageToVideoWorkbench } from "./features/image-to-video";
 import {
   buildMaterialLibraryState,
   sanitizeMaterialLibrarySnapshot,
   useMaterialLibrary,
 } from "./features/material-library";
 import type { MaterialLibraryState } from "./features/material-library";
-import { MaterialPanel, useMaterials } from "./features/materials";
+import { useMaterials } from "./features/materials";
 import { MembershipDialog, useMembership } from "./features/membership";
+import { PosterMakerWorkbench } from "./features/poster-maker";
 import {
   BatchResultDrawer,
   formatRemixCanvasLog,
@@ -44,7 +47,9 @@ import {
 } from "./features/project-recovery";
 import type { ProjectStateSnapshot } from "./features/project-recovery";
 import { ScriptLibraryDrawer, useScriptLibrary } from "./features/script-library";
+import { SubtitleEditorWorkbench } from "./features/subtitle-editor";
 import type { ScriptLibraryEntry } from "./features/script-library";
+import { ThemeSettingsDialog, useTheme } from "./features/theme";
 import { useTts } from "./features/tts";
 import { useTaskCenter } from "./features/task-center";
 import {
@@ -60,10 +65,11 @@ import type {
 import { isExistingDirectory, openPathInFileManager } from "./services/fileManagerService";
 import { checkFfmpegEnvironment } from "./services/videoProbeService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
-import type { DrawerKey, ToolKey, WorkspaceMode } from "./types/workbench";
+import type { DrawerKey, FeatureKey, ToolKey, WorkspaceMode } from "./types/workbench";
 
 const environment = ref<FfmpegEnvironmentResult | null>(null);
 const smartCutIconUrl = "/smartcut-icon.svg";
+const isDesktopRuntime = "__TAURI_INTERNALS__" in window;
 const isChecking = ref(true);
 const checkError = ref<string | null>(null);
 const outputDirectory = ref<string | null>(null);
@@ -73,6 +79,7 @@ const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
 const isWorkspaceVisible = ref(false);
 const workspaceMode = ref<WorkspaceMode>("ai");
+const activeFeature = ref<FeatureKey | null>(null);
 const activeTool = ref<ToolKey | null>(null);
 const activeDrawer = ref<DrawerKey | null>(null);
 const isWelcomeVisible = ref(false);
@@ -83,6 +90,12 @@ const isRefreshingReadiness = ref(false);
 const readinessError = ref<string | null>(null);
 const diagnosticFeedback = ref<string | null>(null);
 const isAdvancedMode = ref(false);
+const isThemeSettingsVisible = ref(false);
+const {
+  preference: themePreference,
+  resolvedTheme,
+  setThemePreference,
+} = useTheme();
 
 const {
   activeAction: membershipActiveAction,
@@ -232,6 +245,7 @@ const {
   addRelinkedMaterial,
   coverError,
   coverFrameSeconds,
+  clearImportedVideos,
   generateCoverFrame,
   importError,
   importedVideos,
@@ -575,6 +589,7 @@ const {
   status: projectSaveStatus,
   statusText: projectSaveStatusText,
 } = useProjectRecovery({
+  enabled: isDesktopRuntime,
   projectState,
   hasMeaningfulState() {
     return (
@@ -650,6 +665,11 @@ const homeProjectSummary = computed(() => {
 });
 
 const workspaceModeCopy = computed(() => {
+  if (activeFeature.value === "copyRewrite") return { title: "文案改写", subtitle: "单条与批量AI文案改写" };
+  if (activeFeature.value === "fileRenamer") return { title: "文件批量改名", subtitle: "规则预览与安全批量执行" };
+  if (activeFeature.value === "subtitleEditor") return { title: "字幕识别", subtitle: "语音识别、逐句编辑与字幕导出" };
+  if (activeFeature.value === "posterMaker") return { title: "大字报设计", subtitle: "营销文字排版与PNG素材导出" };
+  if (activeFeature.value === "imageToVideo") return { title: "图片转视频", subtitle: "批量生成可直接混剪的视频素材" };
   if (workspaceMode.value === "batch") {
     return { title: "批量混剪", subtitle: "多素材规则组合与批量生成" };
   }
@@ -659,21 +679,60 @@ const workspaceModeCopy = computed(() => {
   return { title: "AI 智能成片", subtitle: "文案驱动的智能成片流程" };
 });
 
+const batchWorkspaceKind = ref<"remix" | "category">("remix");
+const toolsWorkspaceView = ref<"effects" | "extract">("extract");
+
 const productionWorkspaceMode = computed<"ai" | "batch">(() =>
   workspaceMode.value === "batch" ? "batch" : "ai",
 );
 
-function openWorkspace(mode: WorkspaceMode = "ai") {
+function openWorkspace(mode: WorkspaceMode = "ai", batchKind?: "remix" | "category") {
+  activeFeature.value = null;
   workspaceMode.value = mode;
+  if (mode === "batch" && batchKind) batchWorkspaceKind.value = batchKind;
+  if (mode === "tools") toolsWorkspaceView.value = "extract";
   activeTool.value = null;
   activeDrawer.value = null;
   isWorkspaceVisible.value = true;
 }
 
+function openWorkspaceTool(tool: ToolKey) {
+  activeFeature.value = null;
+  workspaceMode.value = "tools";
+  if (tool === "effects") {
+    toolsWorkspaceView.value = "effects";
+    activeTool.value = null;
+  } else {
+    activeTool.value = tool;
+  }
+  activeDrawer.value = null;
+  isWorkspaceVisible.value = true;
+}
+
 function changeWorkspaceMode(mode: WorkspaceMode) {
+  activeFeature.value = null;
   workspaceMode.value = mode;
   activeTool.value = null;
   activeDrawer.value = null;
+}
+
+function openFeature(feature: FeatureKey) {
+  activeFeature.value = feature;
+  activeTool.value = null;
+  activeDrawer.value = null;
+  isWorkspaceVisible.value = true;
+}
+
+function goHome() {
+  activeFeature.value = null;
+  activeTool.value = null;
+  activeDrawer.value = null;
+  isWorkspaceVisible.value = false;
+}
+
+function useFeatureText(text: string) {
+  aiScript.value = text;
+  openWorkspace("ai");
 }
 
 async function continueHomeProject() {
@@ -1490,6 +1549,10 @@ function toErrorMessage(error: unknown, fallback: string) {
 }
 
 onMounted(() => {
+  if (!isDesktopRuntime) {
+    isChecking.value = false;
+    return;
+  }
   try {
     isWelcomeVisible.value = window.localStorage.getItem("smartcut:first-launch-v2") !== "true";
   } catch {
@@ -1511,26 +1574,20 @@ onMounted(() => {
   <main class="app-shell" :class="{ 'app-shell--home': !isWorkspaceVisible }">
     <header class="top-bar">
       <div class="product-mark">
-        <img class="product-logo" :src="smartCutIconUrl" alt="" />
-        <div class="product-copy">
+        <template v-if="!isWorkspaceVisible">
+          <img class="product-logo" :src="smartCutIconUrl" alt="" />
+          <div class="product-copy">
           <h1>智剪 <span>SmartCut</span></h1>
-          <small>{{ isWorkspaceVisible ? workspaceModeCopy.subtitle : "本地 AI 视频工作台" }}</small>
-        </div>
-        <button v-if="isWorkspaceVisible" class="back-button" type="button" @click="isWorkspaceVisible = false">
-          ← 首页
+            <small>本地 AI 视频工作台</small>
+          </div>
+        </template>
+        <button v-if="isWorkspaceVisible" class="back-button" type="button" @click="goHome">
+          ← 返回首页
         </button>
       </div>
-      <WorkspaceModeNav
-        v-if="isWorkspaceVisible"
-        :active-mode="workspaceMode"
-        @change="changeWorkspaceMode"
-      />
       <div class="top-status">
-        <span class="mode-pill">{{ isWorkspaceVisible ? workspaceModeCopy.title : "数据只保存在这台电脑" }}</span>
-        <span class="health-pill" :class="{ 'health-pill--ok': environment?.available }">
-          {{ environment?.available ? "FFmpeg 就绪" : "FFmpeg 未就绪" }}
-        </span>
-        <ProjectSaveStatus
+        <span v-if="!isWorkspaceVisible" class="mode-pill">数据只保存在这台电脑</span>
+        <ProjectSaveStatus v-if="!isWorkspaceVisible"
           :status="projectSaveStatus"
           :text="projectSaveStatusText"
           :error="projectSaveError"
@@ -1540,9 +1597,17 @@ onMounted(() => {
           :class="{ 'membership-top-button--active': membershipStatus?.memberActive }"
           type="button"
           @click="openMembershipDialog"
-        >{{ membershipTopBarText }}</button>
-        <button class="top-help-button" type="button" @click="openWelcomeGuide()">新手教程</button>
-        <button class="top-help-button" type="button" @click="openDiagnosticGuide">诊断</button>
+        >{{ isWorkspaceVisible ? "♙" : membershipTopBarText }}</button>
+        <button
+          class="top-help-button theme-top-button"
+          type="button"
+          aria-label="打开主题设置"
+          title="主题设置"
+          @click="isThemeSettingsVisible = true"
+        ><span aria-hidden="true">◐</span><span v-if="!isWorkspaceVisible">主题</span></button>
+        <button v-if="isWorkspaceVisible" class="top-help-button top-menu-button" type="button" aria-label="打开菜单" @click="openWelcomeGuide()">≡</button>
+        <button v-else class="top-help-button" type="button" @click="openWelcomeGuide()">新手教程</button>
+        <button v-if="!isWorkspaceVisible" class="top-help-button" type="button" @click="openDiagnosticGuide">诊断</button>
       </div>
     </header>
 
@@ -1560,6 +1625,14 @@ onMounted(() => {
       @change-password="changeMembershipPassword"
       @logout="logoutMembershipAccount"
       @api-config-changed="refreshSpeechConfiguration"
+    />
+
+    <ThemeSettingsDialog
+      :visible="isThemeSettingsVisible"
+      :preference="themePreference"
+      :resolved-theme="resolvedTheme"
+      @close="isThemeSettingsVisible = false"
+      @select="setThemePreference"
     />
 
     <FirstLaunchWizard
@@ -1589,9 +1662,30 @@ onMounted(() => {
       :speech-configured="apiConfigStatus?.ttsConfigured ?? null"
       :diagnostics-available="diagnosticInfo !== null"
       @open-workspace="openWorkspace"
+      @open-tool="openWorkspaceTool"
+      @open-feature="openFeature"
       @continue-project="continueHomeProject"
       @open-welcome="openWelcomeGuide"
     />
+
+    <CopyRewriteWorkbench v-else-if="activeFeature === 'copyRewrite'" @use-text="useFeatureText" />
+    <FileRenamerWorkbench v-else-if="activeFeature === 'fileRenamer'" />
+    <SubtitleEditorWorkbench
+      v-else-if="activeFeature === 'subtitleEditor'"
+      :configured="asrConfig.configured"
+      :source-file-path="asrSourceFilePath"
+      :source-file-name="asrSourceFileName"
+      :is-loading-config="isLoadingAsrConfig"
+      :is-recognizing="isRecognizingAsr"
+      :error="asrError"
+      :result="asrResult"
+      @select-source="selectAsrSourceFile"
+      @recognize="recognizeAsr"
+      @clear="clearAsrSelection"
+      @use-text="useFeatureText"
+    />
+    <PosterMakerWorkbench v-else-if="activeFeature === 'posterMaker'" />
+    <ImageToVideoWorkbench v-else-if="activeFeature === 'imageToVideo'" />
 
     <section
       v-else
@@ -1601,46 +1695,23 @@ onMounted(() => {
         `workbench--${workspaceMode}`,
       ]"
     >
-      <MaterialPanel
-        :is-advanced-mode="isAdvancedMode"
+      <AiSourceSidebar
+        v-if="workspaceMode === 'ai'"
         :imported-videos="importedVideos"
         :selected-video="selectedVideo"
-        :is-importing="isImporting"
-        :import-error="importError"
-        :output-directory="outputDirectory"
-        :output-directory-error="outputDirectoryError"
+        :video-cover-urls="videoCoverUrls"
         :split-segment-paths="splitSegmentPaths"
         :selected-segment-path="selectedSegmentPath"
-        :random-selected-segments="randomSelectedSegments"
-        :segment-categories="segmentCategories"
-        :segment-category-options="segmentCategoryOptions"
-        :prepared-segments="aiPreparedSegments"
-        :is-analyzing-ai-content="isAnalyzingAiContent"
-        :ai-content-analysis-progress-text="aiContentAnalysisProgressText"
-        :ai-content-analysis-error="aiContentAnalysisError"
-        :video-cover-urls="videoCoverUrls"
         :segment-thumbnail-urls="segmentThumbnailUrls"
-        :material-library-status-text="materialLibraryStatusText"
-        :material-library-error="materialLibraryLoadError ?? materialLibrarySaveError"
-        :has-available-material-library="hasAvailableLibrary"
-        :is-loading-material-library="isLoadingMaterialLibrary"
-        :missing-materials="missingMaterials"
-        :missing-segment-count="missingSegmentCount"
-        :relinking-material-path="relinkingMaterialPath"
         :format-duration="formatDuration"
-        :format-resolution="formatResolution"
         :format-file-name="formatFileName"
         @import-videos="importVideos"
         @import-video-folder="importVideoFolder"
+        @clear-videos="clearImportedVideos"
         @select-video="selectVideo"
         @select-segment="selectSegment"
-        @select-output-directory="selectOutputDirectory"
-        @open-output-directory="openOutputDirectory"
-        @update-segment-category="updateSegmentCategory"
-        @analyze-ai-content="analyzePreparedSegmentContent"
-        @update-segment-content-analysis="updateAiSegmentContentAnalysis"
-        @relink-missing-material="relinkMissingMaterial"
-        @load-material-library="loadAvailableLibrary"
+        @open-tool="activeTool = $event"
+        @open-drawer="activeDrawer = $event"
       />
 
       <PreviewPanel
@@ -1704,10 +1775,18 @@ onMounted(() => {
 
       <BatchWorkspacePanel
         v-else-if="workspaceMode === 'batch'"
-        :imported-video-count="importedVideos.length"
+        v-model:script="aiScript"
+        v-model:original-volume="originalVolume"
+        v-model:bgm-enabled="bgmEnabled"
+        :kind="batchWorkspaceKind"
+        :imported-videos="importedVideos"
         :selected-video="selectedVideo"
+        :source-preview-url="watermarkPreviewUrl"
         :preview-url="previewUrl"
-        :split-segment-count="splitSegmentCount"
+        :video-cover-urls="videoCoverUrls"
+        :split-segment-paths="splitSegmentPaths"
+        :selected-segment-path="selectedSegmentPath"
+        :segment-thumbnail-urls="segmentThumbnailUrls"
         :random-selected-count="randomSelectedSegments.length"
         :batch-generate-count="batchGenerateCount"
         :batch-mix-result-count="batchMixResults.length"
@@ -1717,54 +1796,78 @@ onMounted(() => {
         :split-error="splitError || outputDirectoryError"
         :mix-error="mixError"
         :batch-mix-error="batchMixError"
+        :format-duration="formatDuration"
+        :format-resolution="formatResolution"
+        :format-file-name="formatFileName"
+        @import-videos="importVideos"
+        @import-video-folder="importVideoFolder"
+        @select-video="selectVideo"
+        @select-segment="selectSegment"
         @update:batch-generate-count="batchGenerateCount = $event"
         @split-selected-video="splitSelectedVideo"
         @pick-segments-randomly="pickSegmentsRandomly"
         @concat-random-segments="concatRandomSegments"
         @concat-categorized-segments="concatCategorizedSegments"
         @generate-batch-mixes="generateBatchMixes"
+        @open-ai-workspace="changeWorkspaceMode('ai')"
         @open-drawer="activeDrawer = $event"
         @open-tool="activeTool = $event"
       />
 
       <VideoToolsWorkspace
         v-else
+        v-model:output-resolution="outputResolution"
+        v-model:output-frame-rate="outputFrameRate"
+        v-model:output-quality="outputQuality"
+        v-model:output-encoder="outputEncoder"
+        :view="toolsWorkspaceView"
+        :imported-videos="importedVideos"
         :selected-video="selectedVideo"
         :preview-url="previewUrl"
         :imported-video-count="importedVideos.length"
+        :video-cover-urls="videoCoverUrls"
+        :split-segment-paths="splitSegmentPaths"
+        :selected-segment-path="selectedSegmentPath"
+        :segment-thumbnail-urls="segmentThumbnailUrls"
+        :output-directory="outputDirectory"
+        :is-processing="isSplitting || isExporting || isAnalyzingAiContent"
+        :progress-text="aiContentAnalysisProgressText"
+        :error="splitError || aiContentAnalysisError || outputDirectoryError"
+        :format-duration="formatDuration"
+        :format-file-name="formatFileName"
+        @import-videos="importVideos"
+        @import-video-folder="importVideoFolder"
+        @clear-videos="clearImportedVideos"
+        @select-video="selectVideo"
+        @select-segment="selectSegment"
+        @select-output-directory="selectOutputDirectory"
+        @split-selected-video="splitSelectedVideo"
+        @analyze-content="analyzePreparedSegmentContent"
+        @start-processing="exportSelectedVideo"
         @open-drawer="activeDrawer = $event"
         @open-tool="activeTool = $event"
       />
 
       <RightToolPanel
-        v-if="workspaceMode !== 'tools'"
+        v-if="workspaceMode === 'ai'"
         :workspace-mode="productionWorkspaceMode"
         :is-advanced-mode="isAdvancedMode"
         :environment="environment"
         :status-text="statusText"
+        :has-video="Boolean(selectedVideo)"
+        v-model:original-volume="originalVolume"
+        v-model:bgm-enabled="bgmEnabled"
+        v-model:bgm-volume="bgmVolume"
+        v-model:tts-enabled="ttsVideoEnabled"
+        v-model:tts-speaker="ttsSpeaker"
+        v-model:speech-volume="ttsOriginalAudioVolume"
+        v-model:speech-speed="playbackSpeed"
+        v-model:subtitle-enabled="ttsSubtitleEnabled"
+        v-model:subtitle-size="ttsSubtitleSize"
         @open-tool="activeTool = $event"
         @open-drawer="activeDrawer = $event"
         @toggle-advanced-mode="isAdvancedMode = $event"
-      />
-
-      <TaskControlBar
-        :is-advanced-mode="isAdvancedMode"
-        :total-videos="importedVideos.length"
-        :completed-count="exportResultItems.length"
-        :failed-count="totalFailedTaskCount"
-        :output-directory="outputDirectory"
-        :is-processing="isAnyProcessing"
-        :primary-action-label="primaryTaskActionLabel"
-        :primary-action-disabled="primaryTaskActionDisabled"
-        :active-task="activeTask"
-        :can-retry-failures="canRetryFailures"
-        :is-cleaning-temp-files="isCleaning"
-        :temp-cleanup-feedback="tempCleanupFeedback"
-        @start-processing="runPrimaryTaskAction"
-        @cancel-task="cancelActiveTask"
-        @retry-failures="retryFailedTasks"
-        @cleanup-temp-files="cleanupTaskTempFiles"
-        @open-drawer="activeDrawer = $event"
+        @create-task="runPrimaryTaskAction"
       />
     </section>
 

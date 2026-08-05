@@ -1,0 +1,1099 @@
+:root,
+:root[data-theme="dark"] {
+  --theme-page: #17191b;
+  --theme-bar: #191b1d;
+  --theme-panel: #202224;
+  --theme-panel-soft: #252729;
+  --theme-panel-muted: #1b1d1f;
+  --theme-border: #2d3033;
+  --theme-border-strong: #3a3e42;
+  --theme-text: #e6e8e9;
+  --theme-text-soft: #b9bdc0;
+  --theme-muted: #8d9296;
+  --theme-faint: #62676a;
+  --theme-accent: #39c8b5;
+  --theme-accent-soft: rgba(57, 200, 181, 0.16);
+  --theme-shadow: rgba(0, 0, 0, 0.46);
+}
+
+:root[data-theme="light"] {
+  color: #1f2933;
+  background: #eef1f4;
+  --theme-page: #eef1f4;
+  --theme-bar: #ffffff;
+  --theme-panel: #ffffff;
+  --theme-panel-soft: #f5f7f9;
+  --theme-panel-muted: #e9edf1;
+  --theme-border: #d7dde4;
+  --theme-border-strong: #c3cbd4;
+  --theme-text: #1f2933;
+  --theme-text-soft: #4d5965;
+  --theme-muted: #6d7883;
+  --theme-faint: #98a2ac;
+  --theme-accent: #168f82;
+  --theme-accent-soft: rgba(22, 143, 130, 0.11);
+  --theme-shadow: rgba(72, 84, 96, 0.18);
+  --smartcut-bg: #eef1f4;
+  --smartcut-rail: #f5f7f9;
+  --smartcut-panel: #ffffff;
+  --smartcut-panel-2: #f4f6f8;
+  --smartcut-panel-3: #e9edf1;
+  --smartcut-border: #d7dde4;
+  --smartcut-border-strong: #c3cbd4;
+  --smartcut-text: #1f2933;
+  --smartcut-muted: #65717c;
+  --smartcut-faint: #8b96a0;
+  --smartcut-accent: #168f82;
+  --smartcut-accent-hover: #10766c;
+  --smartcut-accent-soft: rgba(22, 143, 130, 0.11);
+  --compact-bg: #eef1f4;
+  --compact-bar: #ffffff;
+  --compact-panel: #ffffff;
+  --compact-panel-soft: #f5f7f9;
+  --compact-panel-active: #e9edf1;
+  --compact-border: #d7dde4;
+  --compact-border-strong: #c3cbd4;
+  --compact-text: #1f2933;
+  --compact-text-soft: #4d5965;
+  --compact-muted: #74808b;
+  --compact-accent: #168f82;
+  --compact-accent-hover: #10766c;
+  --compact-accent-soft: rgba(22, 143, 130, 0.11);
+  --compact-ai: #4c729f;
+  --compact-ai-soft: rgba(76, 114, 159, 0.11);
+  --replica-bg: #eef1f4;
+  --replica-panel: #ffffff;
+  --replica-panel-2: #f5f7f9;
+  --replica-line: #d7dde4;
+  --replica-line-strong: #c3cbd4;
+  --replica-text: #1f2933;
+  --replica-muted: #6d7883;
+  --replica-accent: #168f82;
+  --replica-accent-soft: rgba(22, 143, 130, 0.11);
+}
+
+.theme-top-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.theme-top-button > span:first-child {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.app-shell:not(.app-shell--home) .theme-top-button {
+  width: 30px;
+  padding: 0;
+}
+
+.theme-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(6, 8, 10, 0.68);
+}
+
+.theme-dialog {
+  display: grid;
+  width: min(720px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+  border: 1px solid var(--theme-border-strong);
+  border-radius: 8px;
+  color: var(--theme-text);
+  background: var(--theme-panel);
+  box-shadow: 0 24px 72px var(--theme-shadow);
+}
+
+.theme-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 68px;
+  padding: 0 18px 0 20px;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.theme-dialog__header h2,
+.theme-dialog__header p {
+  margin: 0;
+}
+
+.theme-dialog__header h2 {
+  color: var(--theme-text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.theme-dialog__header p {
+  margin-top: 3px;
+  color: var(--theme-muted);
+  font-size: 11px;
+}
+
+.theme-dialog__close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--theme-muted);
+  background: transparent;
+  font-size: 22px;
+  font-weight: 300;
+  cursor: pointer;
+}
+
+.theme-dialog__close:hover {
+  color: var(--theme-text);
+  background: var(--theme-panel-soft);
+}
+
+.theme-dialog__body {
+  min-height: 0;
+  padding: 22px 20px 24px;
+  overflow: auto;
+}
+
+.theme-dialog__section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 11px;
+}
+
+.theme-dialog__section-heading strong {
+  color: var(--theme-text-soft);
+  font-size: 12px;
+}
+
+.theme-dialog__section-heading span {
+  color: var(--theme-muted);
+  font-size: 10px;
+}
+
+.theme-option-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.theme-option-card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 9px;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  color: var(--theme-text);
+  text-align: left;
+  background: var(--theme-panel-soft);
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease;
+}
+
+.theme-option-card:hover {
+  border-color: var(--theme-border-strong);
+  transform: translateY(-1px);
+}
+
+.theme-option-card:active {
+  transform: scale(0.985);
+}
+
+.theme-option-card.is-selected {
+  border-color: var(--theme-accent);
+  background: var(--theme-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--theme-accent-soft);
+}
+
+.theme-option-card__preview {
+  position: relative;
+  display: block;
+  height: 112px;
+  overflow: hidden;
+  border: 1px solid rgba(127, 137, 147, 0.25);
+  border-radius: 6px;
+  background: #f7f8fa;
+}
+
+.theme-option-card--dark .theme-option-card__preview {
+  background: #172033;
+}
+
+.theme-option-card--system .theme-option-card__preview {
+  background: linear-gradient(90deg, #f7f8fa 0 50%, #172033 50% 100%);
+}
+
+.theme-preview__sidebar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 31%;
+  background: #dfe5ea;
+}
+
+.theme-option-card--dark .theme-preview__sidebar {
+  background: #21304a;
+}
+
+.theme-option-card--system .theme-preview__sidebar {
+  background: linear-gradient(90deg, #dfe5ea 0 100%);
+}
+
+.theme-preview__line {
+  position: absolute;
+  left: 8%;
+  height: 5px;
+  border-radius: 3px;
+  background: #84929e;
+}
+
+.theme-preview__line--one { top: 18px; width: 18%; }
+.theme-preview__line--two { top: 31px; width: 13%; }
+
+.theme-preview__chart {
+  position: absolute;
+  top: 18px;
+  right: 10%;
+  width: 24%;
+  height: 30px;
+  border-radius: 50%;
+  background: conic-gradient(#376da2 0 28%, #dce4eb 28% 100%);
+}
+
+.theme-option-card--dark .theme-preview__chart {
+  background: conic-gradient(#3a75b1 0 28%, #263652 28% 100%);
+}
+
+.theme-preview__canvas {
+  position: absolute;
+  right: 10%;
+  bottom: 12px;
+  width: 52%;
+  height: 44px;
+  border-radius: 3px;
+  background: #e7ecf0;
+}
+
+.theme-option-card--dark .theme-preview__canvas {
+  background: #22334f;
+}
+
+.theme-option-card--system .theme-preview__chart,
+.theme-option-card--system .theme-preview__canvas {
+  filter: brightness(0.74) saturate(1.1);
+}
+
+.theme-option-card__copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 2px 2px;
+}
+
+.theme-option-card__copy strong {
+  color: var(--theme-text);
+  font-size: 12px;
+}
+
+.theme-option-card__copy small {
+  overflow: hidden;
+  color: var(--theme-muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-option-card__check {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 2px solid var(--theme-panel);
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--theme-accent);
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 0 0 1px var(--theme-accent);
+}
+
+.theme-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 54px;
+  padding: 0 20px;
+  border-top: 1px solid var(--theme-border);
+  color: var(--theme-muted);
+  background: var(--theme-panel-soft);
+  font-size: 10px;
+}
+
+.theme-dialog__footer button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--theme-border-strong);
+  border-radius: 5px;
+  color: var(--theme-text-soft);
+  background: var(--theme-panel);
+  cursor: pointer;
+}
+
+.theme-dialog__footer button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.theme-dialog-enter-active,
+.theme-dialog-leave-active {
+  transition: opacity 150ms ease;
+}
+
+.theme-dialog-enter-active .theme-dialog,
+.theme-dialog-leave-active .theme-dialog {
+  transition: transform 150ms ease, opacity 150ms ease;
+}
+
+.theme-dialog-enter-from,
+.theme-dialog-leave-to {
+  opacity: 0;
+}
+
+.theme-dialog-enter-from .theme-dialog,
+.theme-dialog-leave-to .theme-dialog {
+  opacity: 0;
+  transform: translateY(6px) scale(0.99);
+}
+
+/* 浅色主题：应用外壳与首页 */
+:root[data-theme="light"] body {
+  color: var(--theme-text-soft);
+  background: var(--theme-page);
+}
+
+:root[data-theme="light"] ::selection {
+  color: #ffffff;
+  background: var(--theme-accent);
+}
+
+:root[data-theme="light"] * {
+  scrollbar-color: #b8c1ca transparent;
+}
+
+:root[data-theme="light"] .app-shell,
+:root[data-theme="light"] .app-shell--home,
+:root[data-theme="light"] .app-shell:not(.app-shell--home),
+:root[data-theme="light"] .workbench,
+:root[data-theme="light"] .workbench--advanced,
+:root[data-theme="light"] .workbench--ai,
+:root[data-theme="light"] .workbench--batch,
+:root[data-theme="light"] .workbench--tools,
+:root[data-theme="light"] .feature-workspace {
+  color: var(--theme-text-soft);
+  background: var(--theme-page);
+}
+
+:root[data-theme="light"] .top-bar,
+:root[data-theme="light"] .app-shell--home .top-bar,
+:root[data-theme="light"] .app-shell:not(.app-shell--home) .top-bar {
+  border-color: var(--theme-border);
+  color: var(--theme-text-soft);
+  background: var(--theme-bar);
+  box-shadow: 0 1px 0 rgba(96, 108, 120, 0.06);
+}
+
+:root[data-theme="light"] h1,
+:root[data-theme="light"] h2,
+:root[data-theme="light"] h3,
+:root[data-theme="light"] .panel h2,
+:root[data-theme="light"] .panel h3 {
+  color: var(--theme-text);
+}
+
+:root[data-theme="light"] .top-help-button,
+:root[data-theme="light"] .back-button,
+:root[data-theme="light"] .app-shell:not(.app-shell--home) .top-help-button,
+:root[data-theme="light"] .app-shell:not(.app-shell--home) .back-button,
+:root[data-theme="light"] .app-shell:not(.app-shell--home) .membership-top-button,
+:root[data-theme="light"] .app-shell:not(.app-shell--home) .membership-top-button--active {
+  border-color: transparent;
+  color: #5e6974;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-theme="light"] .top-help-button:hover,
+:root[data-theme="light"] .back-button:hover,
+:root[data-theme="light"] .app-shell--home .top-help-button:hover,
+:root[data-theme="light"] .app-shell:not(.app-shell--home) .top-help-button:hover,
+:root[data-theme="light"] .app-shell:not(.app-shell--home) .back-button:hover {
+  color: var(--theme-text);
+  background: #eef2f5;
+}
+
+:root[data-theme="light"] .workspace-mode-nav {
+  border-color: var(--theme-border);
+  background: #edf1f4;
+}
+
+:root[data-theme="light"] .workspace-mode-nav button {
+  color: #68737e;
+}
+
+:root[data-theme="light"] .workspace-mode-nav button:hover,
+:root[data-theme="light"] .workspace-mode-nav button:focus-visible {
+  color: var(--theme-text);
+  background: #dfe5ea;
+}
+
+:root[data-theme="light"] .workspace-mode-nav .workspace-mode-nav__item--active {
+  color: #ffffff;
+  background: var(--theme-accent);
+  box-shadow: none;
+}
+
+:root[data-theme="light"] .replica-home {
+  color: var(--theme-text-soft);
+  background: var(--theme-page);
+  scrollbar-color: #b8c1ca transparent;
+}
+
+:root[data-theme="light"] .replica-home__heading h2 {
+  color: #38506b;
+}
+
+:root[data-theme="light"] .replica-home__heading p,
+:root[data-theme="light"] .replica-home__footer,
+:root[data-theme="light"] .replica-home__footer button {
+  color: var(--theme-muted);
+}
+
+:root[data-theme="light"] .replica-home__tabs {
+  border-color: var(--theme-border);
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(72, 84, 96, 0.07);
+}
+
+:root[data-theme="light"] .replica-home__tabs button {
+  color: #65717c;
+}
+
+:root[data-theme="light"] .replica-home__tabs button span {
+  color: #73808c;
+  background: #e7ecf0;
+}
+
+:root[data-theme="light"] .replica-home__tabs button.is-active {
+  color: #315b55;
+  background: var(--theme-accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(22, 143, 130, 0.12);
+}
+
+:root[data-theme="light"] .replica-home__tabs button.is-active span {
+  color: #ffffff;
+  background: var(--theme-accent);
+}
+
+:root[data-theme="light"] .replica-module-card {
+  border-color: var(--theme-border);
+  color: var(--theme-text-soft);
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(72, 84, 96, 0.1);
+}
+
+:root[data-theme="light"] .replica-module-card:hover:not(:disabled) {
+  border-color: #bbc5ce;
+  background: #fbfcfd;
+  box-shadow: 0 12px 28px rgba(72, 84, 96, 0.14);
+}
+
+:root[data-theme="light"] .replica-module-card__title-row strong {
+  color: var(--theme-text);
+}
+
+:root[data-theme="light"] .replica-module-card__title-row em {
+  border-color: rgba(22, 143, 130, 0.2);
+  color: #217b70;
+  background: var(--theme-accent-soft);
+}
+
+:root[data-theme="light"] .replica-module-card__title-row em.is-pending,
+:root[data-theme="light"] .replica-module-card__tags small {
+  border-color: var(--theme-border);
+  color: #68737e;
+  background: #f3f6f8;
+}
+
+:root[data-theme="light"] .replica-module-card__description {
+  color: #65717c;
+}
+
+/* 浅色主题：工作台面板、列表和设置区 */
+:root[data-theme="light"] .panel,
+:root[data-theme="light"] .right-rail .panel,
+:root[data-theme="light"] .feature-pane,
+:root[data-theme="light"] .replica-source-sidebar,
+:root[data-theme="light"] .replica-settings-rail,
+:root[data-theme="light"] .replica-batch-source,
+:root[data-theme="light"] .replica-batch-settings,
+:root[data-theme="light"] .replica-tools-source,
+:root[data-theme="light"] .replica-tools-settings,
+:root[data-theme="light"] .replica-script-workspace,
+:root[data-theme="light"] .replica-batch-content,
+:root[data-theme="light"] .replica-split-settings,
+:root[data-theme="light"] .replica-extract-results,
+:root[data-theme="light"] .replica-tools-output-bar,
+:root[data-theme="light"] .image-video-control-bar {
+  border-color: var(--theme-border);
+  color: var(--theme-text-soft);
+  background: var(--theme-panel);
+}
+
+:root[data-theme="light"] .feature-pane__title,
+:root[data-theme="light"] .replica-pane-heading,
+:root[data-theme="light"] .replica-script-heading,
+:root[data-theme="light"] .replica-batch-preview > header,
+:root[data-theme="light"] .replica-batch-content > header,
+:root[data-theme="light"] .replica-tools-preview > header,
+:root[data-theme="light"] .replica-extract-results > header {
+  border-color: var(--theme-border);
+  color: var(--theme-text-soft);
+  background: rgba(255, 255, 255, 0.97);
+}
+
+:root[data-theme="light"] .feature-pane__title h2,
+:root[data-theme="light"] .poster-controls h2,
+:root[data-theme="light"] .replica-source-empty strong,
+:root[data-theme="light"] .replica-category-empty strong,
+:root[data-theme="light"] .replica-script-empty strong,
+:root[data-theme="light"] .replica-prepare-row strong,
+:root[data-theme="light"] .replica-setting-block strong,
+:root[data-theme="light"] .replica-setting-block label,
+:root[data-theme="light"] .replica-tools-settings > header strong,
+:root[data-theme="light"] .replica-split-settings strong {
+  color: var(--theme-text);
+}
+
+:root[data-theme="light"] .feature-pane__title span,
+:root[data-theme="light"] .poster-controls small,
+:root[data-theme="light"] .replica-source-empty,
+:root[data-theme="light"] .replica-category-empty,
+:root[data-theme="light"] .replica-script-empty,
+:root[data-theme="light"] .replica-source-empty small,
+:root[data-theme="light"] .replica-category-empty small,
+:root[data-theme="light"] .replica-prepare-row small,
+:root[data-theme="light"] .replica-tools-settings > header small,
+:root[data-theme="light"] .replica-split-settings small {
+  color: var(--theme-muted);
+}
+
+:root[data-theme="light"] .replica-source-toolbar button,
+:root[data-theme="light"] .replica-script-actions button,
+:root[data-theme="light"] .replica-prepare-row button,
+:root[data-theme="light"] .replica-batch-inline-actions button,
+:root[data-theme="light"] .replica-category-empty button,
+:root[data-theme="light"] .replica-settings-footer > div button,
+:root[data-theme="light"] .replica-batch-create > div button,
+:root[data-theme="light"] .replica-split-options button,
+:root[data-theme="light"] .replica-split-options label,
+:root[data-theme="light"] .segmented-tabs button,
+:root[data-theme="light"] .choice-buttons button,
+:root[data-theme="light"] .feature-toolbar button,
+:root[data-theme="light"] .feature-pane__title button,
+:root[data-theme="light"] .rewrite-version button,
+:root[data-theme="light"] .subtitle-export-bar button,
+:root[data-theme="light"] .output-result-list button {
+  border-color: var(--theme-border);
+  color: var(--theme-text-soft);
+  background: #f3f6f8;
+}
+
+:root[data-theme="light"] .replica-source-toolbar button:hover,
+:root[data-theme="light"] .replica-script-actions button:hover,
+:root[data-theme="light"] .feature-toolbar button:hover,
+:root[data-theme="light"] .choice-buttons button:hover,
+:root[data-theme="light"] .segmented-tabs button:hover {
+  background: #e7ecf0;
+}
+
+:root[data-theme="light"] .replica-source-toolbar .is-primary,
+:root[data-theme="light"] .replica-settings-tabs button.is-active,
+:root[data-theme="light"] .replica-mode-switch button.is-active,
+:root[data-theme="light"] .replica-split-options button.is-active,
+:root[data-theme="light"] .segmented-tabs button.is-active,
+:root[data-theme="light"] .choice-buttons button.is-active,
+:root[data-theme="light"] .feature-toolbar button.is-primary,
+:root[data-theme="light"] .rewrite-version button.is-primary,
+:root[data-theme="light"] .subtitle-export-bar button.is-primary,
+:root[data-theme="light"] .feature-pane__title button.is-primary {
+  border-color: rgba(22, 143, 130, 0.25);
+  color: #137a6f;
+  background: var(--theme-accent-soft);
+}
+
+:root[data-theme="light"] .replica-source-list > button,
+:root[data-theme="light"] .replica-source-segments button,
+:root[data-theme="light"] .replica-batch-source-list button,
+:root[data-theme="light"] .replica-tools-file-list button,
+:root[data-theme="light"] .replica-category-grid button,
+:root[data-theme="light"] .replica-extract-grid button,
+:root[data-theme="light"] .rename-preview-items li,
+:root[data-theme="light"] .subtitle-edit-list li,
+:root[data-theme="light"] .output-result-list li,
+:root[data-theme="light"] .selected-source-card,
+:root[data-theme="light"] .rewrite-result-group details,
+:root[data-theme="light"] .rewrite-version {
+  border-color: var(--theme-border);
+  color: var(--theme-text-soft);
+  background: #f7f9fa;
+}
+
+:root[data-theme="light"] .replica-source-list > button.is-active,
+:root[data-theme="light"] .replica-source-segments button.is-active,
+:root[data-theme="light"] .replica-batch-source-list button.is-active,
+:root[data-theme="light"] .replica-tools-file-list button.is-active,
+:root[data-theme="light"] .replica-category-grid button.is-active,
+:root[data-theme="light"] .replica-extract-grid button.is-active {
+  border-color: var(--theme-accent);
+  background: var(--theme-accent-soft);
+}
+
+:root[data-theme="light"] .replica-source-list b,
+:root[data-theme="light"] .replica-batch-source-list b,
+:root[data-theme="light"] .replica-tools-file-list b,
+:root[data-theme="light"] .compact-file-list strong,
+:root[data-theme="light"] .rename-preview-items strong,
+:root[data-theme="light"] .rewrite-version p,
+:root[data-theme="light"] .output-path-button strong,
+:root[data-theme="light"] .output-result-list strong {
+  color: var(--theme-text);
+}
+
+:root[data-theme="light"] .replica-match-mode,
+:root[data-theme="light"] .replica-batch-source-footer {
+  border-color: var(--theme-border);
+  background: #f7f9fa;
+}
+
+:root[data-theme="light"] .replica-match-mode button,
+:root[data-theme="light"] .replica-mode-switch,
+:root[data-theme="light"] .segmented-tabs {
+  border-color: var(--theme-border);
+  color: var(--theme-muted);
+  background: #e9eef2;
+}
+
+:root[data-theme="light"] .replica-settings-tabs,
+:root[data-theme="light"] .replica-setting-block,
+:root[data-theme="light"] .replica-visual-tools > button,
+:root[data-theme="light"] .replica-more-settings,
+:root[data-theme="light"] .replica-effect-list button {
+  border-color: var(--theme-border);
+  color: var(--theme-text-soft);
+  background: #f4f7f9;
+}
+
+:root[data-theme="light"] .replica-file-field,
+:root[data-theme="light"] .replica-setting-link,
+:root[data-theme="light"] .replica-output-path,
+:root[data-theme="light"] .output-path-button,
+:root[data-theme="light"] .image-source-list button {
+  border-color: var(--theme-border);
+  color: var(--theme-muted);
+  background: #edf1f4;
+}
+
+:root[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+:root[data-theme="light"] select,
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] .output-path {
+  border-color: var(--theme-border-strong) !important;
+  color: var(--theme-text) !important;
+  background: #ffffff !important;
+  color-scheme: light;
+}
+
+:root[data-theme="light"] input::placeholder,
+:root[data-theme="light"] textarea::placeholder {
+  color: #929ca6 !important;
+}
+
+:root[data-theme="light"] .tool-modal__body .ghost-button {
+  border-color: var(--theme-border-strong) !important;
+  color: var(--theme-text-soft) !important;
+  background: #f4f6f8 !important;
+}
+
+:root[data-theme="light"] .tool-modal__body .ghost-button:hover:not(:disabled) {
+  border-color: #aeb9c3 !important;
+  color: var(--theme-text) !important;
+  background: #e7ecf0 !important;
+}
+
+:root[data-theme="light"] .feature-settings-row legend,
+:root[data-theme="light"] .feature-settings-row label,
+:root[data-theme="light"] .feature-field,
+:root[data-theme="light"] .feature-form-grid label,
+:root[data-theme="light"] .poster-controls label,
+:root[data-theme="light"] .image-video-control-bar label,
+:root[data-theme="light"] .replica-checkbox-row,
+:root[data-theme="light"] .replica-radio-row,
+:root[data-theme="light"] .replica-voice-row {
+  color: var(--theme-text-soft);
+}
+
+:root[data-theme="light"] .feature-empty-state,
+:root[data-theme="light"] .field-meta,
+:root[data-theme="light"] .compact-file-list small,
+:root[data-theme="light"] .rewrite-result-group details p,
+:root[data-theme="light"] .rewrite-version header span,
+:root[data-theme="light"] .rename-preview-items span,
+:root[data-theme="light"] .selected-source-card small,
+:root[data-theme="light"] .output-path-button,
+:root[data-theme="light"] .replica-tools-output-bar label,
+:root[data-theme="light"] .replica-tools-output-bar > span {
+  color: var(--theme-muted);
+}
+
+:root[data-theme="light"] .feature-empty-state strong,
+:root[data-theme="light"] .rename-example strong,
+:root[data-theme="light"] .selected-source-card span {
+  color: #385e88;
+}
+
+:root[data-theme="light"] .feature-primary-action {
+  border-color: #355f8c;
+  color: #ffffff;
+  background: #466f9c;
+}
+
+:root[data-theme="light"] .replica-create-button,
+:root[data-theme="light"] .replica-batch-create > button,
+:root[data-theme="light"] .replica-analyze-button,
+:root[data-theme="light"] .replica-tools-output-bar > button {
+  border-color: var(--theme-accent);
+  color: #ffffff;
+  background: var(--theme-accent);
+}
+
+/* 视频和图片预览始终保留黑色画布，避免浅色黑边影响画面判断。 */
+:root[data-theme="light"] .replica-video-preview,
+:root[data-theme="light"] .replica-batch-preview,
+:root[data-theme="light"] .replica-tools-preview {
+  border-color: var(--theme-border);
+  background: var(--theme-panel);
+}
+
+:root[data-theme="light"] .replica-video-preview .video-frame,
+:root[data-theme="light"] .replica-video-preview .video-placeholder,
+:root[data-theme="light"] .replica-batch-screen,
+:root[data-theme="light"] .replica-tools-screen,
+:root[data-theme="light"] .media-preview-pane,
+:root[data-theme="light"] .poster-preview-pane,
+:root[data-theme="light"] .video-preview,
+:root[data-theme="light"] .image-main-preview {
+  color: #747a80;
+  background: #090a0b;
+}
+
+/* 浅色主题：弹窗、抽屉和个人中心 */
+:root[data-theme="light"] .tool-modal,
+:root[data-theme="light"] .tool-modal--asr,
+:root[data-theme="light"] .welcome-modal,
+:root[data-theme="light"] .info-drawer,
+:root[data-theme="light"] .membership-dialog {
+  border-color: var(--theme-border-strong);
+  color: var(--theme-text-soft);
+  background: var(--theme-panel);
+  box-shadow: 0 22px 64px rgba(72, 84, 96, 0.22);
+}
+
+:root[data-theme="light"] .tool-modal__header,
+:root[data-theme="light"] .tool-modal__footer,
+:root[data-theme="light"] .drawer-header,
+:root[data-theme="light"] .membership-dialog__header,
+:root[data-theme="light"] .membership-dialog__messages {
+  border-color: var(--theme-border);
+  background: #ffffff;
+}
+
+:root[data-theme="light"] .tool-modal__header h2,
+:root[data-theme="light"] .membership-dialog__header h2,
+:root[data-theme="light"] .account-auth h3,
+:root[data-theme="light"] .account-profile__identity h3 {
+  color: var(--theme-text);
+}
+
+:root[data-theme="light"] .tool-modal__body,
+:root[data-theme="light"] .drawer-body,
+:root[data-theme="light"] .membership-dialog__content,
+:root[data-theme="light"] .membership-dialog__auth-content {
+  color: var(--theme-text-soft);
+  background: var(--theme-panel);
+}
+
+:root[data-theme="light"] .tool-modal__body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-theme="light"] .tool-modal__body select,
+:root[data-theme="light"] .tool-modal__body textarea,
+:root[data-theme="light"] .api-config-panel input,
+:root[data-theme="light"] .api-config-panel select,
+:root[data-theme="light"] .api-secret-input button,
+:root[data-theme="light"] .account-auth input,
+:root[data-theme="light"] .account-profile input {
+  border-color: var(--theme-border-strong);
+  color: var(--theme-text);
+  background: #ffffff;
+}
+
+:root[data-theme="light"] .smart-split-settings,
+:root[data-theme="light"] .output-setting-group,
+:root[data-theme="light"] .encoder-capability-list li,
+:root[data-theme="light"] .api-config-advanced--all,
+:root[data-theme="light"] .account-auth__tabs,
+:root[data-theme="light"] .account-profile__card,
+:root[data-theme="light"] .account-profile__section {
+  border-color: var(--theme-border);
+  background: #f5f7f9;
+}
+
+:root[data-theme="light"] .membership-dialog__nav {
+  border-color: var(--theme-border);
+  background: #f3f6f8;
+}
+
+:root[data-theme="light"] .membership-dialog button {
+  border-color: var(--theme-border-strong);
+  color: var(--theme-text-soft);
+  background: #f4f6f8;
+}
+
+:root[data-theme="light"] .membership-dialog button:hover:not(:disabled) {
+  border-color: #aeb9c3;
+  background: #e9edf1;
+}
+
+:root[data-theme="light"] .membership-dialog__nav button {
+  border-color: transparent;
+  color: var(--theme-muted);
+  background: transparent;
+}
+
+:root[data-theme="light"] .membership-dialog__nav button.is-active,
+:root[data-theme="light"] .account-auth__tabs button[aria-selected="true"] {
+  color: #137a6f;
+  background: var(--theme-accent-soft);
+}
+
+:root[data-theme="light"] .account-auth label span,
+:root[data-theme="light"] .account-profile__password label span,
+:root[data-theme="light"] .account-profile__section summary,
+:root[data-theme="light"] .account-profile dd,
+:root[data-theme="light"] .api-config-platform-field strong,
+:root[data-theme="light"] .api-config-panel > .field > span:first-child {
+  color: var(--theme-text-soft);
+}
+
+:root[data-theme="light"] .account-profile__identity,
+:root[data-theme="light"] .account-profile__section[open] summary {
+  border-color: var(--theme-border);
+}
+
+:root[data-theme="light"] .account-profile__identity small {
+  color: var(--theme-muted);
+  background: #e7ecf0;
+}
+
+:root[data-theme="light"] .account-profile__identity .account-profile__member {
+  color: #137a6f;
+  background: var(--theme-accent-soft);
+}
+
+/* 语音模块使用组件内样式，浅色主题需要以更明确的优先级统一覆盖。 */
+:root[data-theme="light"] .tool-modal__body .tts-config-summary {
+  border-color: var(--theme-border) !important;
+  color: var(--theme-text-soft) !important;
+  background: #f3f6f8 !important;
+}
+
+:root[data-theme="light"] .tool-modal__body .tts-config-summary strong,
+:root[data-theme="light"] .tool-modal__body .voice-quick-heading span,
+:root[data-theme="light"] .tool-modal__body .voice-quick-card strong,
+:root[data-theme="light"] .tool-modal__body .tts-setting-card strong {
+  color: var(--theme-text) !important;
+}
+
+:root[data-theme="light"] .tool-modal__body .tts-config-summary small,
+:root[data-theme="light"] .tool-modal__body .tts-script-field small,
+:root[data-theme="light"] .tool-modal__body .tts-config-help,
+:root[data-theme="light"] .tool-modal__body .tts-video-help,
+:root[data-theme="light"] .tool-modal__body .voice-selector-summary small,
+:root[data-theme="light"] .tool-modal__body .voice-selector-summary em,
+:root[data-theme="light"] .tool-modal__body .voice-selector-card > p,
+:root[data-theme="light"] .tool-modal__body .voice-quick-heading small,
+:root[data-theme="light"] .tool-modal__body .voice-quick-card small,
+:root[data-theme="light"] .tool-modal__body .tts-setting-card small,
+:root[data-theme="light"] .tool-modal__body .tts-setting-card > p,
+:root[data-theme="light"] .tool-modal__body .tts-subtitle-options label,
+:root[data-theme="light"] .tool-modal__body .voice-selector-custom summary {
+  color: var(--theme-muted) !important;
+}
+
+:root[data-theme="light"] .tool-modal__body .tts-script-field textarea,
+:root[data-theme="light"] .tool-modal__body .tts-subtitle-options select {
+  border-color: var(--theme-border-strong) !important;
+  color: var(--theme-text) !important;
+  background: #ffffff !important;
+}
+
+:root[data-theme="light"] .tool-modal__body .voice-selector-card,
+:root[data-theme="light"] .tool-modal__body .tts-setting-card {
+  border-color: var(--theme-border) !important;
+  color: var(--theme-text-soft) !important;
+  background: #f4f7f9 !important;
+}
+
+:root[data-theme="light"] .tool-modal__body .tts-setting-card--enabled {
+  border-color: rgba(22, 143, 130, 0.32) !important;
+  background: var(--theme-accent-soft) !important;
+}
+
+:root[data-theme="light"] .tool-modal__body .voice-quick-card {
+  border-color: var(--theme-border-strong) !important;
+  color: var(--theme-text-soft) !important;
+  background: #ffffff !important;
+}
+
+:root[data-theme="light"] .tool-modal__body .voice-quick-card:hover {
+  border-color: #aeb9c3 !important;
+  background: #f7f9fa !important;
+}
+
+:root[data-theme="light"] .tool-modal__body .voice-quick-card--selected {
+  border-color: var(--theme-accent) !important;
+  background: var(--theme-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px rgba(22, 143, 130, 0.12) !important;
+}
+
+:root[data-theme="light"] .tool-modal__body .voice-selector-custom {
+  border-color: var(--theme-border) !important;
+}
+
+:root[data-theme="light"] .voice-library-dialog {
+  border-color: var(--theme-border-strong) !important;
+  color: var(--theme-text-soft) !important;
+  background: var(--theme-panel) !important;
+  box-shadow: 0 26px 72px rgba(72, 84, 96, 0.24) !important;
+}
+
+:root[data-theme="light"] .voice-library-header,
+:root[data-theme="light"] .voice-library-footer,
+:root[data-theme="light"] .voice-library-controls {
+  border-color: var(--theme-border) !important;
+  background: #f4f7f9 !important;
+}
+
+:root[data-theme="light"] .voice-library-header h3,
+:root[data-theme="light"] .voice-card__title strong,
+:root[data-theme="light"] .voice-library-footer strong,
+:root[data-theme="light"] .voice-library-empty strong {
+  color: var(--theme-text) !important;
+}
+
+:root[data-theme="light"] .voice-library-search input,
+:root[data-theme="light"] .voice-filter-row button,
+:root[data-theme="light"] .voice-card {
+  border-color: var(--theme-border) !important;
+  color: var(--theme-text-soft) !important;
+  background: #ffffff !important;
+}
+
+:root[data-theme="light"] .voice-card:hover {
+  border-color: #aeb9c3 !important;
+  background: #f7f9fa !important;
+}
+
+:root[data-theme="light"] .voice-card--selected {
+  border-color: var(--theme-accent) !important;
+  background: var(--theme-accent-soft) !important;
+}
+
+:root[data-theme="light"] .replica-select-row select,
+:root[data-theme="light"] .replica-batch-source-footer input,
+:root[data-theme="light"] .replica-tools-output-bar select,
+:root[data-theme="light"] .replica-tools-output-bar input {
+  border-color: var(--theme-border-strong) !important;
+  color: var(--theme-text) !important;
+  background: #ffffff !important;
+  color-scheme: light;
+}
+
+:root[data-theme="light"] .tool-modal__header .panel-toggle,
+:root[data-theme="light"] .tool-modal__footer .ghost-button,
+:root[data-theme="light"] .modal-close,
+:root[data-theme="light"] .membership-dialog__close {
+  border-color: var(--theme-border-strong) !important;
+  color: var(--theme-text-soft) !important;
+  background: #f4f6f8 !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="light"] .tool-modal__header .panel-toggle:hover,
+:root[data-theme="light"] .tool-modal__footer .ghost-button:hover:not(:disabled),
+:root[data-theme="light"] .modal-close:hover,
+:root[data-theme="light"] .membership-dialog__close:hover:not(:disabled) {
+  border-color: #aeb9c3 !important;
+  color: var(--theme-text) !important;
+  background: #e7ecf0 !important;
+}
+
+:root[data-theme="light"] .membership-dialog .account-auth input,
+:root[data-theme="light"] .membership-dialog .account-profile input,
+:root[data-theme="light"] .membership-dialog .api-config-panel input,
+:root[data-theme="light"] .membership-dialog .api-config-panel select,
+:root[data-theme="light"] .membership-dialog .api-secret-input button {
+  border-color: var(--theme-border-strong) !important;
+  color: var(--theme-text) !important;
+  background: #ffffff !important;
+  color-scheme: light;
+}
+
+:root[data-theme="light"] .membership-dialog .account-auth input::placeholder,
+:root[data-theme="light"] .membership-dialog .account-profile input::placeholder,
+:root[data-theme="light"] .membership-dialog .api-config-panel input::placeholder {
+  color: #929ca6 !important;
+}
+
+@media (max-width: 760px) {
+  .theme-option-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-option-card {
+    grid-template-columns: 150px minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .theme-option-card__preview {
+    height: 84px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-dialog-backdrop,
+  .theme-dialog,
+  .theme-option-card {
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod canvas;
+pub mod image_video;
 pub mod import;
 pub mod mix;
 pub mod narrated_mix;

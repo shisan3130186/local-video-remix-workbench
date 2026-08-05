@@ -121,6 +121,7 @@ enum AiRequestStage {
     VisualAnalysis,
     ContentExtraction,
     RemixPlanning,
+    ScriptRewrite,
 }
 
 impl AiRequestStage {
@@ -129,6 +130,7 @@ impl AiRequestStage {
             Self::VisualAnalysis => "片段画面理解",
             Self::ContentExtraction => "视频内容提炼",
             Self::RemixPlanning => "固定短句画面匹配",
+            Self::ScriptRewrite => "文案改写",
         }
     }
 
@@ -137,8 +139,122 @@ impl AiRequestStage {
             Self::VisualAnalysis => Duration::from_secs(180),
             Self::ContentExtraction => Duration::from_secs(60),
             Self::RemixPlanning => Duration::from_secs(45),
+            Self::ScriptRewrite => Duration::from_secs(90),
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptRewriteInput {
+    pub scripts: Vec<String>,
+    pub style: String,
+    pub target_length: String,
+    pub custom_prompt: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptRewriteItem {
+    source_index: usize,
+    source_text: String,
+    versions: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptRewriteResult {
+    items: Vec<ScriptRewriteItem>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ScriptRewriteResponse {
+    items: Vec<ScriptRewriteResponseItem>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ScriptRewriteResponseItem {
+    source_index: usize,
+    versions: Vec<String>,
+}
+
+pub async fn rewrite_scripts(input: ScriptRewriteInput) -> Result<ScriptRewriteResult, String> {
+    let scripts = input
+        .scripts
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    if scripts.is_empty() {
+        return Err("请先输入需要改写的文案。".to_string());
+    }
+    if scripts.len() > 30 {
+        return Err("一次最多改写30条文案。".to_string());
+    }
+    if !(1..=10).contains(&input.count) {
+        return Err("每条文案的生成数量需要在1到10之间。".to_string());
+    }
+    if scripts.iter().any(|value| value.chars().count() > 5000) {
+        return Err("单条文案不能超过5000字。".to_string());
+    }
+
+    let request_items = scripts
+        .iter()
+        .enumerate()
+        .map(|(source_index, text)| json!({"sourceIndex": source_index, "text": text}))
+        .collect::<Vec<_>>();
+    let user_content = json!({
+        "style": input.style,
+        "targetLength": input.target_length,
+        "customPrompt": input.custom_prompt.trim(),
+        "versionCount": input.count,
+        "items": request_items,
+    });
+    let response = request_ai_completion(
+        json!([
+            {
+                "role": "system",
+                "content": "你是短视频文案改写助手。保持原文事实和核心卖点，不得凭空增加功效、价格、承诺或数据。根据style、targetLength和customPrompt改写。每个sourceIndex必须返回指定数量的不同版本。只允许返回JSON对象，格式：{\"items\":[{\"sourceIndex\":0,\"versions\":[\"版本一\",\"版本二\"]}]}"
+            },
+            {"role": "user", "content": user_content.to_string()}
+        ]),
+        4000,
+        AiRequestStage::ScriptRewrite,
+    )
+    .await?;
+    let parsed = serde_json::from_str::<ScriptRewriteResponse>(&response)
+        .map_err(|error| format!("文案改写结果无法解析：{error}"))?;
+    if parsed.items.len() != scripts.len() {
+        return Err("AI返回的文案数量与输入不一致，请重试。".to_string());
+    }
+
+    let mut output = Vec::with_capacity(scripts.len());
+    for (index, source_text) in scripts.into_iter().enumerate() {
+        let item = parsed
+            .items
+            .iter()
+            .find(|item| item.source_index == index)
+            .ok_or_else(|| format!("AI遗漏了第{}条文案。", index + 1))?;
+        let versions = item
+            .versions
+            .iter()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .take(input.count)
+            .collect::<Vec<_>>();
+        if versions.len() != input.count {
+            return Err(format!("第{}条文案返回的版本数量不足。", index + 1));
+        }
+        output.push(ScriptRewriteItem {
+            source_index: index,
+            source_text,
+            versions,
+        });
+    }
+    Ok(ScriptRewriteResult { items: output })
 }
 
 pub async fn analyze_ai_remix_segments(

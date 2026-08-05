@@ -86,38 +86,9 @@ const isPortraitPreview = computed(() => {
 </script>
 
 <template>
-  <section class="center-stage" aria-label="AI 混剪工作区">
-    <nav class="workflow-guide" aria-label="AI 混剪步骤">
-      <span :class="{ 'workflow-guide__step--done': selectedVideo }">
-        <b>1</b><small>导入素材</small>
-      </span>
-      <i aria-hidden="true"></i>
-      <span :class="{ 'workflow-guide__step--done': aiPreparedSegments.length >= 2 }">
-        <b>2</b><small>生成片段</small>
-      </span>
-      <i aria-hidden="true"></i>
-      <span :class="{ 'workflow-guide__step--done': aiPlannedShots.length >= 2 }">
-        <b>3</b><small>文案分镜</small>
-      </span>
-      <i aria-hidden="true"></i>
-      <span :class="{ 'workflow-guide__step--active': aiPlannedShots.length >= 2 }">
-        <b>4</b><small>生成视频</small>
-      </span>
-    </nav>
-
-    <section class="panel preview-panel preview-panel--focused">
-      <div class="panel__header preview-panel__header">
-        <div>
-          <p class="panel__label">视频预览</p>
-          <h2>{{ previewTitle }}</h2>
-        </div>
-        <div class="preview-actions">
-          <button class="panel-toggle" type="button" @click="$emit('openTool', 'canvas')">画布</button>
-          <button class="panel-toggle" type="button" @click="$emit('openTool', 'cover')">
-            {{ selectedCoverUrl ? "封面已设置" : "设置封面" }}
-          </button>
-        </div>
-      </div>
+  <section class="center-stage replica-ai-stage" aria-label="AI 混剪工作区">
+    <section class="panel preview-panel preview-panel--focused replica-video-preview">
+      <div class="replica-pane-heading"><strong>ⓘ 使用指引</strong></div>
 
       <div
         v-if="previewUrl"
@@ -159,32 +130,24 @@ const isPortraitPreview = computed(() => {
         </div>
       </div>
       <div v-else class="video-placeholder preview-empty-state">
-        <strong>从左侧导入并选择一个视频</strong>
-        <span>视频会在这里预览，之后即可切片并生成 AI 分镜。</span>
+        <span aria-hidden="true">▧</span>
+        <strong>选择素材后在此预览</strong>
       </div>
     </section>
 
-    <section class="panel ai-workflow-panel">
-      <div class="ai-workflow-panel__toolbar">
-        <div>
-          <p class="panel__label">核心流程</p>
-          <h2>文案与画面分镜</h2>
-        </div>
-        <div class="workflow-stats" aria-label="当前素材统计">
-          <span>片段 {{ splitSegmentCount ?? 0 }}</span>
-          <span>分镜 {{ aiPlannedShots.length }}</span>
+    <section class="panel ai-workflow-panel replica-script-workspace">
+      <div class="replica-script-heading">
+        <strong>视频文案</strong>
+        <div v-if="selectedVideo" class="replica-script-actions">
           <button type="button" @click="$emit('openDrawer', 'scripts')">文案库</button>
           <button type="button" @click="$emit('openDrawer', 'exports')">结果 {{ batchMixResultCount }}</button>
         </div>
       </div>
 
-      <div v-if="!selectedVideo" class="ai-preparation-callout">
-        <span><strong>第一步：选择视频</strong><small>从左侧素材库中选择要处理的视频。</small></span>
-      </div>
-      <div v-else-if="aiPreparedSegments.length < 2" class="ai-preparation-callout">
+      <div v-if="selectedVideo && aiPreparedSegments.length < 2" class="replica-prepare-row">
         <span>
-          <strong>{{ isSplitting || isPreparingAiSegments ? "正在准备全部素材片段" : "第二步：把全部素材切成片段" }}</strong>
-          <small>{{ isSplitting || isPreparingAiSegments ? "会依次切片所有已导入视频，并生成预览图和时长。" : `当前已导入 ${importedVideoCount} 个视频，AI 会在它们的全部片段中匹配画面。` }}</small>
+          <strong>{{ isSplitting || isPreparingAiSegments ? "正在准备素材" : "素材尚未切片" }}</strong>
+          <small>{{ isSplitting || isPreparingAiSegments ? "正在生成可匹配的画面片段。" : `共 ${importedVideoCount} 个视频，切片后即可按文案匹配画面。` }}</small>
           <small v-if="splitError" class="workflow-inline-error" role="alert">{{ splitError }}</small>
           <small v-if="aiPreparationError" class="workflow-inline-error" role="alert">{{ aiPreparationError }}</small>
         </span>
@@ -194,8 +157,33 @@ const isPortraitPreview = computed(() => {
           :disabled="isSplitting || isPreparingAiSegments"
           @click="$emit('splitSelectedVideo')"
         >
-          {{ isSplitting || isPreparingAiSegments ? "正在准备..." : importedVideoCount > 1 ? `切片全部素材（${importedVideoCount} 个）` : "切片当前视频" }}
+          {{ isSplitting || isPreparingAiSegments ? "正在准备..." : "生成素材片段" }}
         </button>
+      </div>
+
+      <label
+        v-if="aiPreparedSegments.length < 2"
+        class="ai-remix-script-field ai-remix-script-field--draft replica-script-field"
+        for="ai-remix-script-draft"
+      >
+        <span v-if="selectedVideo">输入文案或从文案库选择内容</span>
+        <textarea
+          id="ai-remix-script-draft"
+          v-model="aiScript"
+          rows="5"
+          maxlength="4000"
+          :placeholder="selectedVideo ? '在这里输入需要生成视频的文案…' : ''"
+          aria-describedby="ai-remix-script-draft-status"
+        ></textarea>
+        <small v-if="selectedVideo" id="ai-remix-script-draft-status">
+          {{ aiScript.length }} / 4000 字 · {{ aiScript.trim() ? "文案已保留，准备好素材后即可生成分镜" : "等待输入文案" }}
+        </small>
+      </label>
+
+      <div v-if="!selectedVideo" class="replica-script-empty">
+        <span aria-hidden="true">▱</span>
+        <strong>请在左侧选择一个文件夹</strong>
+        <small>选中文件夹后即可输入文案或添加音频</small>
       </div>
 
       <AiRemixPlanner
@@ -223,7 +211,7 @@ const isPortraitPreview = computed(() => {
         @generate="$emit('generateAiRemix')"
       />
 
-      <details v-if="isAdvancedMode" class="secondary-workflows">
+      <details v-if="isAdvancedMode && selectedVideo" class="secondary-workflows">
         <summary>其他混剪方式与高级操作</summary>
         <div class="secondary-workflows__actions">
           <button class="ghost-button" type="button" :disabled="isSplitting" @click="$emit('splitSelectedVideo')">重新切片</button>

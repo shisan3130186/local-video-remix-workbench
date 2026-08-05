@@ -29,6 +29,13 @@ export type DrawerKey = "logs" | "exports" | "batch" | "scripts";
 
 export type WorkspaceMode = "ai" | "batch" | "tools";
 
+export type FeatureKey =
+  | "copyRewrite"
+  | "fileRenamer"
+  | "subtitleEditor"
+  | "posterMaker"
+  | "imageToVideo";
+
 export interface ModuleCard {
   title: string;
   category: string;

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import type { WorkspaceMode } from "../types/workbench";
+import { ref } from "vue";
+import type { FeatureKey, ToolKey, WorkspaceMode } from "../types/workbench";
 
-const smartCutIconUrl = "/smartcut-icon.svg";
+type HubSection = "creation" | "utilities";
 
 defineProps<{
   hasRecentProject: boolean;
@@ -14,137 +15,156 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  openWorkspace: [mode: WorkspaceMode];
+  openWorkspace: [mode: WorkspaceMode, batchKind?: "remix" | "category"];
+  openTool: [tool: ToolKey];
+  openFeature: [feature: FeatureKey];
   continueProject: [];
   openWelcome: [];
 }>();
+
+const activeSection = ref<HubSection>("creation");
+
+const creationModules: Array<{
+  title: string;
+  tags: string[];
+  description: string;
+  action?: () => void;
+  available: boolean;
+}> = [
+  {
+    title: "AI 智能混剪",
+    tags: ["AI智能混剪", "语音合成", "批量成片", "视频理解"],
+    description: "添加文案或音频后，由AI理解素材、匹配镜头并自动生成配音，一次输出多条结构完整的视频。",
+    action: () => emit("openWorkspace", "ai"),
+    available: true,
+  },
+  {
+    title: "视频效果处理",
+    tags: ["批量处理", "画面去重", "智能分割", "差异化处理"],
+    description: "集中完成水印、镜像、变速、画布、画中画和色彩调整，并支持智能或固定间隔切片。",
+    action: () => emit("openTool", "effects"),
+    available: true,
+  },
+  {
+    title: "视频混剪",
+    tags: ["视频混剪", "语音合成", "批量混剪", "随机重组"],
+    description: "从多条原视频中生成片段并随机组合，可叠加配音、字幕和背景音乐，批量生成不同版本。",
+    action: () => emit("openWorkspace", "batch", "remix"),
+    available: true,
+  },
+  {
+    title: "分类混剪",
+    tags: ["分类混剪", "语音合成", "批量混剪", "多分类"],
+    description: "按开头、产品、细节、效果等镜头分类组合，支持规则抽取和结构化批量成片。",
+    action: () => emit("openWorkspace", "batch", "category"),
+    available: true,
+  },
+  {
+    title: "文案改写",
+    tags: ["AI改写", "文案优化", "批量改写"],
+    description: "粘贴一条或多条文案，按指定语气、长度和提示词生成差异化版本。",
+    action: () => emit("openFeature", "copyRewrite"),
+    available: true,
+  },
+  {
+    title: "视频内容提炼",
+    tags: ["视频切片", "精华提取", "内容分析", "AI分类"],
+    description: "批量分析视频内容，提取有价值片段并标记主题、动作、卖点和镜头类型。",
+    action: () => emit("openWorkspace", "tools"),
+    available: true,
+  },
+];
+
+const utilityModules: Array<{
+  title: string;
+  tags: string[];
+  description: string;
+  action?: () => void;
+  available: boolean;
+}> = [
+  {
+    title: "文件批量改名",
+    tags: ["文件管理", "批量改名", "序号命名", "查找替换"],
+    description: "支持统一命名、查找替换、添加前后缀和日期时间，并实时预览改名结果。",
+    action: () => emit("openFeature", "fileRenamer"),
+    available: true,
+  },
+  {
+    title: "字幕识别",
+    tags: ["音频识别", "编辑修正", "SRT导出", "文案导出"],
+    description: "批量导入视频或音频，自动识别语音并生成字幕，可继续编辑或保存到文案库。",
+    action: () => emit("openFeature", "subtitleEditor"),
+    available: true,
+  },
+  {
+    title: "大字报设计",
+    tags: ["文字设计", "营销海报", "样式模板", "一键排版"],
+    description: "粘贴文案后快速生成适合视频贴画和混剪使用的文字海报素材。",
+    action: () => emit("openFeature", "posterMaker"),
+    available: true,
+  },
+  {
+    title: "图片转视频",
+    tags: ["批量处理", "硬件加速", "图片转视频", "素材生产"],
+    description: "把图片批量转换为固定时长的视频片段，生成后可直接加入混剪素材库。",
+    action: () => emit("openFeature", "imageToVideo"),
+    available: true,
+  },
+];
 </script>
 
 <template>
-  <section class="smartcut-home">
-    <main class="smartcut-home__main">
-      <div class="smartcut-home__inner">
-        <header class="smartcut-home__welcome">
-          <div>
-            <small>智剪 SmartCut</small>
-            <h2>开始今天的视频创作</h2>
-            <p>选择一种方式开始，后面的分析、配音和导出由智剪一步步带你完成。</p>
-          </div>
-          <div class="smartcut-home__welcome-actions">
-            <button class="ghost-button" type="button" @click="emit('continueProject')">
-              打开项目
-            </button>
-            <button class="primary-button" type="button" @click="emit('openWorkspace', 'ai')">
-              ＋ 新建项目
-            </button>
-          </div>
-        </header>
-
-        <section class="smartcut-home__section" aria-labelledby="quick-start-title">
-          <div class="smartcut-home__section-heading">
-            <div>
-              <h3 id="quick-start-title">快速开始</h3>
-              <p>不需要先理解全部功能，只选你现在要做的事。</p>
-            </div>
-          </div>
-          <div class="smartcut-start-modes">
-            <button type="button" @click="emit('openWorkspace', 'ai')">
-              <span class="smartcut-start-modes__icon smartcut-start-modes__icon--active">AI</span>
-              <span>
-                <strong>AI 智能成片</strong>
-                <small>导入素材和文案，自动分析、分镜、配音并生成视频。</small>
-              </span>
-            </button>
-            <button type="button" @click="emit('openWorkspace', 'batch')">
-              <span class="smartcut-start-modes__icon">批量</span>
-              <span>
-                <strong>批量混剪</strong>
-                <small>按规则组合多个素材，一次生成多个差异版本。</small>
-              </span>
-            </button>
-            <button type="button" @click="emit('openWorkspace', 'tools')">
-              <span class="smartcut-start-modes__icon">工具</span>
-              <span>
-                <strong>视频工具</strong>
-                <small>水印、字幕、音频识别、画面处理和格式转换。</small>
-              </span>
-            </button>
-          </div>
-        </section>
-
-        <section class="smartcut-home__section" aria-labelledby="recent-project-title">
-          <div class="smartcut-home__section-heading">
-            <div>
-              <h3 id="recent-project-title">最近项目</h3>
-              <p>继续上一次未完成的工作。</p>
-            </div>
-          </div>
-
+  <main class="replica-home">
+    <section class="replica-home__content">
+      <header class="replica-home__heading">
+        <div>
+          <h2>智剪 SmartCut</h2>
+          <p>把重复劳动交给机器，把创造力留给自己。</p>
+        </div>
+        <nav class="replica-home__tabs" aria-label="首页功能分类">
           <button
-            v-if="hasRecentProject"
-            class="smartcut-recent-project"
             type="button"
-            @click="emit('continueProject')"
+            :class="{ 'is-active': activeSection === 'creation' }"
+            :aria-current="activeSection === 'creation' ? 'page' : undefined"
+            @click="activeSection = 'creation'"
           >
-            <span class="smartcut-recent-project__preview" aria-hidden="true"></span>
-            <span class="smartcut-recent-project__copy">
-              <strong>{{ recentProjectTitle }}</strong>
-              <small>{{ recentProjectSummary }}</small>
-            </span>
-            <span class="smartcut-recent-project__action">继续编辑 ›</span>
+            创作中心 <span>6</span>
           </button>
-
-          <div v-else class="smartcut-home__empty">
-            <span aria-hidden="true">＋</span>
-            <div>
-              <strong>还没有最近项目</strong>
-              <small>新建项目后，素材、文案和设置会自动保存。</small>
-            </div>
-            <button class="ghost-button" type="button" @click="emit('openWorkspace', 'ai')">开始第一个项目</button>
-          </div>
-        </section>
-
-        <section class="smartcut-home__section" aria-labelledby="ready-title">
-          <div class="smartcut-home__section-heading">
-            <div>
-              <h3 id="ready-title">本机能力状态</h3>
-              <p>常用功能不需要每次打开终端。</p>
-            </div>
-          </div>
-          <div class="smartcut-ready-list">
-            <span :class="{ 'smartcut-ready-list__item--pending': environmentAvailable !== true }">
-              {{ environmentAvailable === null ? "FFmpeg 检测中" : environmentAvailable ? "FFmpeg 可用" : "FFmpeg 待检查" }}
-            </span>
-            <span :class="{ 'smartcut-ready-list__item--pending': aiConfigured !== true }">
-              {{ aiConfigured === null ? "AI 配置检测中" : aiConfigured ? "AI 已配置" : "AI 待配置" }}
-            </span>
-            <span :class="{ 'smartcut-ready-list__item--pending': speechConfigured !== true }">
-              {{ speechConfigured === null ? "TTS / ASR 检测中" : speechConfigured ? "TTS / ASR 已配置" : "TTS / ASR 待配置" }}
-            </span>
-            <span>项目自动保存</span>
-            <span :class="{ 'smartcut-ready-list__item--pending': !diagnosticsAvailable }">
-              {{ diagnosticsAvailable ? "诊断日志已就绪" : "诊断日志准备中" }}
-            </span>
-          </div>
-        </section>
-      </div>
-    </main>
-
-    <aside class="smartcut-guide" aria-label="新手引导">
-      <header>
-        <img :src="smartCutIconUrl" alt="智剪图标" />
-        <h2>第一次使用？</h2>
-        <p>跟着三步完成第一条视频。引导可以随时跳过，之后也能从帮助中心重新打开。</p>
+          <button
+            type="button"
+            :class="{ 'is-active': activeSection === 'utilities' }"
+            :aria-current="activeSection === 'utilities' ? 'page' : undefined"
+            @click="activeSection = 'utilities'"
+          >
+            效率工具 <span>4</span>
+          </button>
+        </nav>
       </header>
-      <div class="smartcut-guide__steps">
-        <article><b>1</b><span><strong>导入你的素材</strong><small>选择视频、图片或整个素材文件夹。</small></span></article>
-        <article><b>2</b><span><strong>准备内容</strong><small>输入文案，或导入音频自动识别。</small></span></article>
-        <article><b>3</b><span><strong>确认并生成</strong><small>检查分镜、配音和字幕，然后批量输出。</small></span></article>
-      </div>
-      <div class="smartcut-guide__actions">
-        <button class="primary-button" type="button" @click="emit('openWelcome')">开始新手引导</button>
-        <small>内置引导断网也能使用</small>
-      </div>
-    </aside>
-  </section>
+
+      <section class="replica-module-grid" :class="{ 'replica-module-grid--utilities': activeSection === 'utilities' }">
+        <button
+          v-for="module in activeSection === 'creation' ? creationModules : utilityModules"
+          :key="module.title"
+          type="button"
+          :disabled="!module.available"
+          class="replica-module-card"
+          @click="module.action?.()"
+        >
+          <span class="replica-module-card__title-row">
+            <strong>{{ module.title }}</strong>
+            <em :class="{ 'is-pending': !module.available }">{{ module.available ? "功能可用" : "即将接入" }}</em>
+          </span>
+          <span class="replica-module-card__tags">
+            <small v-for="tag in module.tags" :key="tag">{{ tag }}</small>
+          </span>
+          <span class="replica-module-card__description">{{ module.description }}</span>
+        </button>
+      </section>
+
+      <footer class="replica-home__footer">
+        <button v-if="hasRecentProject" type="button" @click="emit('continueProject')">继续上次项目</button>
+        <span>v0.5.0</span>
+      </footer>
+    </section>
+  </main>
 </template>

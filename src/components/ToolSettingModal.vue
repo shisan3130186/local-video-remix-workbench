@@ -50,7 +50,10 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
   <div v-if="activeTool" class="modal-backdrop" @click.self="emit('close')">
     <section
       class="tool-modal"
-      :class="{ 'tool-modal--asr': activeTool === 'asr' }"
+      :class="[
+        `tool-modal--${activeTool}`,
+        { 'tool-modal--asr': activeTool === 'asr' },
+      ]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="tool-setting-title"

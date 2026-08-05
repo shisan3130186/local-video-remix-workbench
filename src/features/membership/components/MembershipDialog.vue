@@ -49,13 +49,13 @@ function forwardPasswordChange(currentPassword: string, newPassword: string) {
     <section class="membership-dialog" :class="{ 'membership-dialog--signed-in': status?.signedIn }" role="dialog" aria-modal="true" aria-labelledby="membership-title">
       <header class="membership-dialog__header">
         <h2 id="membership-title">{{ status?.signedIn ? "个人中心" : "智剪账号" }}</h2>
-        <button type="button" aria-label="关闭账号窗口" @click="emit('close')">关闭</button>
+        <button class="membership-dialog__close" type="button" aria-label="关闭账号窗口" @click="emit('close')">×</button>
       </header>
 
       <template v-if="status?.signedIn">
         <aside class="membership-dialog__nav" aria-label="个人中心导航">
-          <button type="button" :class="{ 'is-active': activePage === 'profile' }" @click="activePage = 'profile'">个人信息</button>
-          <button type="button" :class="{ 'is-active': activePage === 'api' }" @click="activePage = 'api'">API Key</button>
+          <button type="button" :class="{ 'is-active': activePage === 'profile' }" @click="activePage = 'profile'"><span>♙</span>个人信息</button>
+          <button type="button" :class="{ 'is-active': activePage === 'api' }" @click="activePage = 'api'"><span>⌕</span>API Key</button>
         </aside>
         <main class="membership-dialog__content">
           <AccountProfilePanel

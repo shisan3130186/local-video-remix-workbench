@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useApiConfig } from "../useApiConfig";
 import type { ApiCredentialKind } from "../types";
 import SecretInputField from "./SecretInputField.vue";
@@ -22,18 +22,6 @@ const {
 } = useApiConfig();
 
 const pendingDelete = ref<ApiCredentialKind | null>(null);
-
-const aiStatusText = computed(() => {
-  if (status.value?.aiKeyStored) return "已安全保存";
-  if (status.value?.aiEnvironmentFallback) return "使用环境变量";
-  return "尚未配置";
-});
-
-const ttsStatusText = computed(() => {
-  if (status.value?.ttsKeyStored) return "已安全保存";
-  if (status.value?.ttsEnvironmentFallback) return "使用环境变量";
-  return "尚未配置";
-});
 
 onMounted(() => {
   void loadConfiguration();
@@ -71,126 +59,36 @@ function keyPlaceholder(kind: ApiCredentialKind) {
 
 <template>
   <section class="api-config-panel" aria-labelledby="api-config-heading">
-    <div class="api-config-security-note" role="note">
-      <span aria-hidden="true">锁</span>
-      <div>
-        <strong id="api-config-heading">密钥只保存在这台电脑</strong>
-        <small>由 Windows 当前账户加密保护；完整密钥不会回显，也不会写入任务日志。</small>
-      </div>
-    </div>
-
     <label class="field api-config-platform-field" for="api-config-platform">
-      <span>服务平台</span>
+      <strong id="api-config-heading">平台选择</strong>
       <select id="api-config-platform" disabled>
-        <option value="volcengine">火山引擎（方舟 + 豆包语音）</option>
+        <option value="volcengine">火山引擎</option>
       </select>
-      <small>当前版本只接入火山引擎，后续可以继续扩展其他平台。</small>
     </label>
 
     <p v-if="isLoading" class="api-config-feedback" role="status">正在读取本机配置...</p>
 
     <template v-else>
-      <section class="api-config-section" aria-labelledby="api-config-ai-title">
-        <header>
-          <span>
-            <strong id="api-config-ai-title">AI 画面理解与分镜</strong>
-            <small>用于理解视频片段并根据文案匹配画面</small>
-          </span>
-          <em :class="{ 'api-config-status--ready': status?.aiConfigured }">{{ aiStatusText }}</em>
-        </header>
+      <SecretInputField id="api-config-ai-key" v-model="form.aiApiKey" label="Ark API Key" :placeholder="keyPlaceholder('ai')" :disabled="isSaving" />
+      <SecretInputField id="api-config-tts-key" v-model="form.ttsApiKey" label="TTS API Key" :placeholder="keyPlaceholder('tts')" :disabled="isSaving" />
 
-        <SecretInputField
-          id="api-config-ai-key"
-          v-model="form.aiApiKey"
-          label="方舟 API Key"
-          :placeholder="keyPlaceholder('ai')"
-          :disabled="isSaving"
-        />
-
-        <label class="field" for="api-config-ai-model">
-          <span>模型接入点 ID</span>
-          <input
-            id="api-config-ai-model"
-            v-model="form.aiModel"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="例如：ep-2026xxxxxxxx"
-            :disabled="isSaving"
-          />
-        </label>
-
-        <details class="api-config-advanced">
-          <summary>连接地址</summary>
-          <label class="field" for="api-config-ai-base-url">
-            <span>AI Base URL</span>
-            <input
-              id="api-config-ai-base-url"
-              v-model="form.aiBaseUrl"
-              type="url"
-              autocomplete="off"
-              spellcheck="false"
-              :disabled="isSaving"
-            />
-          </label>
-        </details>
-
-        <div v-if="status?.aiKeyStored" class="api-config-delete-row">
-          <button
-            type="button"
-            :class="{ 'api-config-delete--confirm': pendingDelete === 'ai' }"
-            :disabled="isSaving"
-            @click="handleDelete('ai')"
-          >{{ pendingDelete === "ai" ? "再次点击确认删除AI密钥" : "删除本机AI密钥" }}</button>
-          <button v-if="pendingDelete === 'ai'" type="button" :disabled="isSaving" @click="pendingDelete = null">取消</button>
+      <details class="api-config-advanced api-config-advanced--all">
+        <summary>高级连接设置</summary>
+        <label class="field" for="api-config-ai-model"><span>模型接入点 ID</span><input id="api-config-ai-model" v-model="form.aiModel" type="text" autocomplete="off" spellcheck="false" placeholder="例如：ep-2026xxxxxxxx" :disabled="isSaving" /></label>
+        <label class="field" for="api-config-ai-base-url"><span>AI Base URL</span><input id="api-config-ai-base-url" v-model="form.aiBaseUrl" type="url" autocomplete="off" spellcheck="false" :disabled="isSaving" /></label>
+        <label class="field" for="api-config-tts-resource"><span>语音资源 ID</span><input id="api-config-tts-resource" v-model="form.ttsResourceId" type="text" spellcheck="false" :disabled="isSaving" /></label>
+        <label class="field" for="api-config-tts-speaker"><span>默认音色 ID</span><input id="api-config-tts-speaker" v-model="form.ttsSpeaker" type="text" spellcheck="false" :disabled="isSaving" /></label>
+        <div class="api-config-delete-row">
+          <button v-if="status?.aiKeyStored" type="button" :class="{ 'api-config-delete--confirm': pendingDelete === 'ai' }" :disabled="isSaving" @click="handleDelete('ai')">{{ pendingDelete === 'ai' ? '再次点击确认' : '删除 Ark 密钥' }}</button>
+          <button v-if="status?.ttsKeyStored" type="button" :class="{ 'api-config-delete--confirm': pendingDelete === 'tts' }" :disabled="isSaving" @click="handleDelete('tts')">{{ pendingDelete === 'tts' ? '再次点击确认' : '删除 TTS 密钥' }}</button>
         </div>
-      </section>
-
-      <section class="api-config-section" aria-labelledby="api-config-tts-title">
-        <header>
-          <span>
-            <strong id="api-config-tts-title">TTS / ASR 语音密钥</strong>
-            <small>同一个火山语音密钥用于AI配音和语音识别</small>
-          </span>
-          <em :class="{ 'api-config-status--ready': status?.ttsConfigured }">{{ ttsStatusText }}</em>
-        </header>
-
-        <SecretInputField
-          id="api-config-tts-key"
-          v-model="form.ttsApiKey"
-          label="TTS / ASR API Key"
-          :placeholder="keyPlaceholder('tts')"
-          :disabled="isSaving"
-        />
-
-        <details class="api-config-advanced">
-          <summary>语音参数</summary>
-          <label class="field" for="api-config-tts-resource">
-            <span>资源 ID</span>
-            <input id="api-config-tts-resource" v-model="form.ttsResourceId" type="text" spellcheck="false" :disabled="isSaving" />
-          </label>
-          <label class="field" for="api-config-tts-speaker">
-            <span>默认音色 ID</span>
-            <input id="api-config-tts-speaker" v-model="form.ttsSpeaker" type="text" spellcheck="false" :disabled="isSaving" />
-          </label>
-        </details>
-
-        <div v-if="status?.ttsKeyStored" class="api-config-delete-row">
-          <button
-            type="button"
-            :class="{ 'api-config-delete--confirm': pendingDelete === 'tts' }"
-            :disabled="isSaving"
-            @click="handleDelete('tts')"
-          >{{ pendingDelete === "tts" ? "再次点击确认删除语音密钥" : "删除本机TTS/ASR语音密钥" }}</button>
-          <button v-if="pendingDelete === 'tts'" type="button" :disabled="isSaving" @click="pendingDelete = null">取消</button>
-        </div>
-      </section>
+      </details>
 
       <p v-if="error" class="api-config-feedback api-config-feedback--error" role="alert">{{ error }}</p>
       <p v-if="successMessage" class="api-config-feedback api-config-feedback--success" role="status">{{ successMessage }}</p>
 
-      <button class="primary-button primary-button--full" type="button" :disabled="isSaving" @click="handleSave">
-        {{ isSaving ? "正在安全保存..." : "保存并立即使用" }}
+      <button class="primary-button api-config-save" type="button" :disabled="isSaving" @click="handleSave">
+        {{ isSaving ? "保存中..." : "保存" }}
       </button>
     </template>
   </section>
