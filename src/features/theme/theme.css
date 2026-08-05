@@ -742,6 +742,206 @@
   background: #e7ecf0 !important;
 }
 
+/* 浅色主题：水印工具的操作控件；预览画布继续保持深色。 */
+:root[data-theme="light"] .watermark-tool-tabs {
+  border-color: var(--theme-border) !important;
+  background: #eef2f5 !important;
+}
+
+:root[data-theme="light"] .watermark-tool-tabs button {
+  color: var(--theme-muted) !important;
+  background: transparent !important;
+}
+
+:root[data-theme="light"] .watermark-tool-tabs .watermark-tool-tab--active {
+  color: #137a6f !important;
+  background: var(--theme-accent-soft) !important;
+}
+
+:root[data-theme="light"] .watermark-kind button,
+:root[data-theme="light"] .watermark-position button,
+:root[data-theme="light"] .watermark-removal-modes button,
+:root[data-theme="light"] .watermark-removal-sizes button,
+:root[data-theme="light"] .moving-watermark-player-controls button,
+:root[data-theme="light"] .moving-watermark-actions button,
+:root[data-theme="light"] .moving-watermark-keyframes button {
+  border-color: var(--theme-border-strong) !important;
+  color: var(--theme-text-soft) !important;
+  background: #f4f6f8 !important;
+}
+
+:root[data-theme="light"] .watermark-kind .watermark-kind__button--active,
+:root[data-theme="light"] .watermark-position .watermark-position__button--active,
+:root[data-theme="light"] .watermark-removal-modes .watermark-removal-mode--active,
+:root[data-theme="light"] .watermark-removal-sizes .watermark-removal-size--active,
+:root[data-theme="light"] .moving-watermark-keyframes__item--active > button:first-child {
+  border-color: var(--theme-accent) !important;
+  color: #137a6f !important;
+  background: var(--theme-accent-soft) !important;
+}
+
+:root[data-theme="light"] .watermark-position legend,
+:root[data-theme="light"] .watermark-help,
+:root[data-theme="light"] .moving-watermark-player-controls span,
+:root[data-theme="light"] .moving-watermark-keyframes small {
+  color: var(--theme-muted) !important;
+}
+
+:root[data-theme="light"] .watermark-removal-note {
+  border-left-color: #b7863f !important;
+  color: #765b32 !important;
+  background: #fbf5e9 !important;
+}
+
+:root[data-theme="light"] .moving-watermark-empty,
+:root[data-theme="light"] .moving-watermark-keyframes-empty {
+  border-color: var(--theme-border-strong) !important;
+  color: var(--theme-muted) !important;
+  background: #f4f6f8 !important;
+}
+
+/* 浅色主题：新手教程与诊断共用的四步向导。 */
+:root[data-theme="light"] .first-launch-backdrop {
+  background: rgba(44, 54, 64, 0.34);
+}
+
+:root[data-theme="light"] .first-launch-wizard {
+  border-color: var(--theme-border-strong);
+  color: var(--theme-text-soft);
+  background: var(--theme-panel);
+  box-shadow: 0 28px 80px rgba(45, 57, 68, 0.24);
+}
+
+:root[data-theme="light"] .first-launch-wizard__rail {
+  border-color: var(--theme-border);
+  background: #f3f6f8;
+}
+
+:root[data-theme="light"] .first-launch-wizard__brand strong,
+:root[data-theme="light"] .first-launch-wizard__body h2,
+:root[data-theme="light"] .first-launch-intro h3,
+:root[data-theme="light"] .readiness-grid strong,
+:root[data-theme="light"] .cloud-readiness-list strong,
+:root[data-theme="light"] .privacy-points strong,
+:root[data-theme="light"] .license-strip strong,
+:root[data-theme="light"] .diagnostic-card strong,
+:root[data-theme="light"] .first-launch-note strong {
+  color: var(--theme-text);
+}
+
+:root[data-theme="light"] .first-launch-wizard__brand small,
+:root[data-theme="light"] .first-launch-wizard__rail > p,
+:root[data-theme="light"] .first-launch-intro p,
+:root[data-theme="light"] .readiness-grid small,
+:root[data-theme="light"] .cloud-readiness-list small,
+:root[data-theme="light"] .privacy-points small,
+:root[data-theme="light"] .license-strip small,
+:root[data-theme="light"] .diagnostic-card small,
+:root[data-theme="light"] .first-launch-note span,
+:root[data-theme="light"] .first-launch-wizard__body > footer > span,
+:root[data-theme="light"] .readiness-grid em,
+:root[data-theme="light"] .cloud-readiness-list em {
+  color: var(--theme-muted);
+}
+
+:root[data-theme="light"] .first-launch-wizard__rail li {
+  color: var(--theme-muted);
+}
+
+:root[data-theme="light"] .first-launch-wizard__rail li b {
+  border-color: var(--theme-border-strong);
+}
+
+:root[data-theme="light"] .first-launch-wizard__rail .first-launch-step--active {
+  color: #137a6f;
+  background: var(--theme-accent-soft);
+}
+
+:root[data-theme="light"] .first-launch-wizard__body > header,
+:root[data-theme="light"] .first-launch-wizard__body > footer {
+  border-color: var(--theme-border);
+  background: #ffffff;
+}
+
+:root[data-theme="light"] .first-launch-close {
+  color: var(--theme-muted);
+}
+
+:root[data-theme="light"] .first-launch-close:hover,
+:root[data-theme="light"] .first-launch-close:focus-visible {
+  border-color: var(--theme-border-strong);
+  color: var(--theme-text);
+  background: #eef2f5;
+}
+
+:root[data-theme="light"] .readiness-grid article,
+:root[data-theme="light"] .cloud-readiness-list article,
+:root[data-theme="light"] .privacy-points article,
+:root[data-theme="light"] .final-readiness > span {
+  border-color: var(--theme-border);
+  color: var(--theme-text-soft);
+  background: #f7f9fa;
+}
+
+:root[data-theme="light"] .readiness-grid article > span,
+:root[data-theme="light"] .cloud-readiness-list b,
+:root[data-theme="light"] .privacy-points b {
+  color: var(--theme-muted);
+  background: #e7ecf0;
+}
+
+:root[data-theme="light"] .readiness-grid .readiness-card--ok,
+:root[data-theme="light"] .cloud-readiness-list .cloud-readiness--ok {
+  border-color: rgba(22, 143, 130, 0.4);
+  background: var(--theme-accent-soft);
+}
+
+:root[data-theme="light"] .readiness-grid .readiness-card--ok em,
+:root[data-theme="light"] .cloud-readiness-list .cloud-readiness--ok em,
+:root[data-theme="light"] .diagnostic-card > p,
+:root[data-theme="light"] .final-readiness .final-readiness--ok b {
+  color: #137a6f;
+}
+
+:root[data-theme="light"] .first-launch-note,
+:root[data-theme="light"] .license-strip,
+:root[data-theme="light"] .diagnostic-card {
+  border-color: var(--theme-border);
+  background: #f3f6f8;
+}
+
+:root[data-theme="light"] .first-launch-note {
+  border-left-color: var(--theme-muted);
+}
+
+:root[data-theme="light"] .first-launch-note--ok {
+  border-left-color: var(--theme-accent);
+}
+
+:root[data-theme="light"] .final-readiness .final-readiness--ok {
+  border-color: rgba(22, 143, 130, 0.4);
+  color: #137a6f;
+  background: var(--theme-accent-soft);
+}
+
+:root[data-theme="light"] .first-launch-wizard .ghost-button {
+  border-color: var(--theme-border-strong) !important;
+  color: var(--theme-text-soft) !important;
+  background: #f4f6f8 !important;
+}
+
+:root[data-theme="light"] .first-launch-wizard .ghost-button:hover:not(:disabled) {
+  border-color: #aeb9c3 !important;
+  color: var(--theme-text) !important;
+  background: #e7ecf0 !important;
+}
+
+:root[data-theme="light"] .first-launch-error {
+  border-color: #d79b9f;
+  color: #9d323a;
+  background: #fff1f2;
+}
+
 :root[data-theme="light"] .feature-settings-row legend,
 :root[data-theme="light"] .feature-settings-row label,
 :root[data-theme="light"] .feature-field,

@@ -681,6 +681,7 @@ const workspaceModeCopy = computed(() => {
 
 const batchWorkspaceKind = ref<"remix" | "category">("remix");
 const toolsWorkspaceView = ref<"effects" | "extract">("extract");
+const homeSection = ref<"creation" | "utilities">("creation");
 
 const productionWorkspaceMode = computed<"ai" | "batch">(() =>
   workspaceMode.value === "batch" ? "batch" : "ai",
@@ -1654,6 +1655,7 @@ onMounted(() => {
 
     <HomePage
       v-if="!isWorkspaceVisible"
+      v-model:active-section="homeSection"
       :has-recent-project="hasHomeProject"
       :recent-project-title="homeProjectTitle"
       :recent-project-summary="homeProjectSummary"

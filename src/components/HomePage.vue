@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import type { FeatureKey, ToolKey, WorkspaceMode } from "../types/workbench";
 
 type HubSection = "creation" | "utilities";
 
 defineProps<{
+  activeSection: HubSection;
   hasRecentProject: boolean;
   recentProjectTitle: string;
   recentProjectSummary: string;
@@ -15,14 +15,13 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
+  "update:activeSection": [section: HubSection];
   openWorkspace: [mode: WorkspaceMode, batchKind?: "remix" | "category"];
   openTool: [tool: ToolKey];
   openFeature: [feature: FeatureKey];
   continueProject: [];
   openWelcome: [];
 }>();
-
-const activeSection = ref<HubSection>("creation");
 
 const creationModules: Array<{
   title: string;
@@ -126,7 +125,7 @@ const utilityModules: Array<{
             type="button"
             :class="{ 'is-active': activeSection === 'creation' }"
             :aria-current="activeSection === 'creation' ? 'page' : undefined"
-            @click="activeSection = 'creation'"
+            @click="emit('update:activeSection', 'creation')"
           >
             创作中心 <span>6</span>
           </button>
@@ -134,7 +133,7 @@ const utilityModules: Array<{
             type="button"
             :class="{ 'is-active': activeSection === 'utilities' }"
             :aria-current="activeSection === 'utilities' ? 'page' : undefined"
-            @click="activeSection = 'utilities'"
+            @click="emit('update:activeSection', 'utilities')"
           >
             效率工具 <span>4</span>
           </button>
