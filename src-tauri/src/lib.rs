@@ -71,6 +71,7 @@ use task_runtime::{
 use temp_storage::{cleanup_workspace_temp_files, TempCleanupResult};
 use tts::{
     cleanup_tts_session as remove_tts_session, get_tts_config_status as read_tts_config_status,
+    synthesize_preview_audio,
     synthesize_tts as create_tts_audio, synthesize_tts_shot as create_tts_shot_audio,
     TtsConfigStatus, TtsSynthesisResult,
 };
@@ -573,6 +574,7 @@ pub fn run() {
             split_video_by_scenes,
             synthesize_tts,
             synthesize_tts_shot,
+            synthesize_preview_audio,
             update_task_progress,
             write_base64_file,
             write_utf8_text_file

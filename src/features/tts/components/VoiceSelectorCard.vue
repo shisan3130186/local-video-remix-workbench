@@ -19,6 +19,36 @@ const quickVoices = TTS_VOICE_CATALOG.filter(
   (voice) => voice.recommended && voice.languages.includes("zh"),
 ).slice(0, 4);
 
+const AVATAR_PALETTES = [
+  ["#3b6b58", "#65c5a3"],
+  ["#315e78", "#6ab3da"],
+  ["#7c6031", "#e0b264"],
+  ["#7c4857", "#e07a99"],
+  ["#5f507f", "#9c8bce"],
+  ["#4c5a56", "#9eafaa"],
+];
+
+function avatarGradient(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  const [a, b] = AVATAR_PALETTES[hash % AVATAR_PALETTES.length];
+  return `linear-gradient(135deg, ${a}, ${b})`;
+}
+
+function avatarLabel(name: string): string {
+  if (!name) return "?";
+  const first = name.charAt(0);
+  if (/[\u4e00-\u9fff]/.test(first)) return first;
+  return name.substring(0, 2).toUpperCase();
+}
+
+const avatarFailures = ref<Set<string>>(new Set());
+
+function onAvatarError(id: string) {
+  avatarFailures.value.add(id);
+  avatarFailures.value = new Set(avatarFailures.value);
+}
+
 function updateCustomSpeaker(event: Event) {
   emit("update:speaker", (event.target as HTMLInputElement).value);
 }
@@ -43,10 +73,19 @@ function closeLibrary() {
     <div class="voice-selector-summary">
       <span
         class="voice-selector-avatar"
-        :class="selectedVoice ? `voice-selector-avatar--${selectedVoice.tone}` : 'voice-selector-avatar--custom'"
+        :style="selectedVoice ? { background: avatarGradient(selectedVoice.id) } : { background: '#5f507f' }"
         aria-hidden="true"
-      >{{ selectedVoice?.name.slice(0, 2) ?? "自定" }}</span>
-      <span>
+      >
+        <img
+          v-if="selectedVoice && !avatarFailures.has(selectedVoice.id)"
+          :src="selectedVoice.avatarUrl"
+          :alt="selectedVoice.name"
+          loading="lazy"
+          @error="onAvatarError(selectedVoice.id)"
+        />
+        <span v-else>{{ avatarLabel(selectedVoice?.name ?? '自定') }}</span>
+      </span>
+      <div>
         <small>当前音色</small>
         <strong>{{ selectedVoice?.name ?? "自定义音色" }}</strong>
         <em v-if="selectedVoice">
@@ -54,7 +93,7 @@ function closeLibrary() {
           {{ selectedVoice.languages.map((item) => TTS_LANGUAGE_LABELS[item]).join(" / ") }}
         </em>
         <em v-else>{{ speaker }}</em>
-      </span>
+      </div>
       <button
         ref="selectButton"
         class="ghost-button"
@@ -81,13 +120,24 @@ function closeLibrary() {
         :aria-pressed="voice.id === speaker"
         @click="selectQuickSpeaker(voice.id)"
       >
-        <span class="voice-selector-avatar" :class="`voice-selector-avatar--${voice.tone}`" aria-hidden="true">
-          {{ voice.name.slice(0, 2) }}
+        <span
+          class="voice-selector-avatar voice-selector-avatar--sm"
+          :style="{ background: avatarGradient(voice.id) }"
+          aria-hidden="true"
+        >
+          <img
+            v-if="!avatarFailures.has(voice.id)"
+            :src="voice.avatarUrl"
+            :alt="voice.name"
+            loading="lazy"
+            @error="onAvatarError(voice.id)"
+          />
+          <span v-else>{{ avatarLabel(voice.name) }}</span>
         </span>
-        <span>
+        <div>
           <strong>{{ voice.name }}</strong>
           <small>{{ TTS_GENDER_LABELS[voice.gender] }} · {{ TTS_SCENE_LABELS[voice.scenes[0]] }}</small>
-        </span>
+        </div>
       </button>
     </div>
 

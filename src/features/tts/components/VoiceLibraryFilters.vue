@@ -2,78 +2,82 @@
 import { TTS_LANGUAGE_LABELS, TTS_SCENE_LABELS } from "../voiceCatalog";
 import type { TtsVoiceLanguage, TtsVoiceScene } from "../voiceCatalog";
 
-type LanguageFilter = TtsVoiceLanguage | "all" | "multilingual";
-type SceneFilter = TtsVoiceScene | "all";
-
 defineProps<{
   searchText: string;
-  language: LanguageFilter;
-  scene: SceneFilter;
+  language: TtsVoiceLanguage | "all" | "multilingual";
+  scene: TtsVoiceScene | "all";
+  onlyFavored: boolean;
+  favoredCount: number;
 }>();
 
 const emit = defineEmits<{
   "update:searchText": [value: string];
-  "update:language": [value: LanguageFilter];
-  "update:scene": [value: SceneFilter];
+  "update:language": [value: TtsVoiceLanguage | "all" | "multilingual"];
+  "update:scene": [value: TtsVoiceScene | "all"];
+  "update:onlyFavored": [value: boolean];
 }>();
 
-const languageOptions: Array<{ key: LanguageFilter; label: string }> = [
-  { key: "all", label: "全部" },
-  { key: "multilingual", label: "多语种" },
-  ...Object.entries(TTS_LANGUAGE_LABELS).map(([key, label]) => ({
-    key: key as TtsVoiceLanguage,
-    label,
-  })),
+const LANGUAGES: { value: TtsVoiceLanguage | "all" | "multilingual"; label: string }[] = [
+  { value: "all", label: "全部语言" },
+  { value: "multilingual", label: "多语种" },
+  { value: "zh", label: TTS_LANGUAGE_LABELS.zh },
+  { value: "en", label: TTS_LANGUAGE_LABELS.en },
+  { value: "ja", label: TTS_LANGUAGE_LABELS.ja },
 ];
 
-const sceneOptions: Array<{ key: SceneFilter; label: string }> = [
-  { key: "all", label: "全部" },
-  ...Object.entries(TTS_SCENE_LABELS).map(([key, label]) => ({
-    key: key as TtsVoiceScene,
-    label,
-  })),
+const SCENES: { value: TtsVoiceScene | "all"; label: string }[] = [
+  { value: "all", label: "全部场景" },
+  { value: "general", label: TTS_SCENE_LABELS.general },
+  { value: "narration", label: TTS_SCENE_LABELS.narration },
+  { value: "commercial", label: TTS_SCENE_LABELS.commercial },
+  { value: "character", label: TTS_SCENE_LABELS.character },
+  { value: "youth", label: TTS_SCENE_LABELS.youth },
+  { value: "customer-service", label: TTS_SCENE_LABELS["customer-service"] },
 ];
-
-function updateSearch(event: Event) {
-  emit("update:searchText", (event.target as HTMLInputElement).value);
-}
 </script>
 
 <template>
-  <div class="voice-library-controls">
-    <label class="voice-library-search">
-      <span class="sr-only">搜索音色</span>
+  <div class="voice-library-filters">
+    <div class="voice-library-filters__search">
       <input
-        :value="searchText"
-        type="search"
-        placeholder="搜索音色名称、风格或音色ID"
         data-voice-search
-        @input="updateSearch"
+        type="search"
+        placeholder="搜索音色名称、语言、场景…"
+        :value="searchText"
+        @input="emit('update:searchText', ($event.target as HTMLInputElement).value)"
       />
-    </label>
-
-    <div class="voice-filter-row" aria-label="语言筛选">
-      <strong>语言</strong>
-      <button
-        v-for="option in languageOptions"
-        :key="option.key"
-        type="button"
-        :aria-pressed="language === option.key"
-        :class="{ 'voice-filter-chip--active': language === option.key }"
-        @click="emit('update:language', option.key)"
-      >{{ option.label }}</button>
     </div>
 
-    <div class="voice-filter-row" aria-label="使用场景筛选">
-      <strong>场景</strong>
+    <div class="voice-library-filters__chips">
       <button
-        v-for="option in sceneOptions"
-        :key="option.key"
+        v-for="lang in LANGUAGES"
+        :key="lang.value"
+        class="voice-library-filter-chip"
+        :class="{ 'voice-library-filter-chip--active': language === lang.value }"
         type="button"
-        :aria-pressed="scene === option.key"
-        :class="{ 'voice-filter-chip--active': scene === option.key }"
-        @click="emit('update:scene', option.key)"
-      >{{ option.label }}</button>
+        @click="emit('update:language', lang.value)"
+      >{{ lang.label }}</button>
     </div>
+
+    <div class="voice-library-filters__chips">
+      <button
+        v-for="s in SCENES"
+        :key="s.value"
+        class="voice-library-filter-chip"
+        :class="{ 'voice-library-filter-chip--active': scene === s.value }"
+        type="button"
+        @click="emit('update:scene', s.value)"
+      >{{ s.label }}</button>
+    </div>
+
+    <button
+      class="voice-library-filters__fav"
+      :class="{ 'voice-library-filters__fav--active': onlyFavored }"
+      type="button"
+      @click="emit('update:onlyFavored', !onlyFavored)"
+    >
+      ★ 我的收藏
+      <span class="voice-library-filters__fav-count">{{ favoredCount }}</span>
+    </button>
   </div>
 </template>

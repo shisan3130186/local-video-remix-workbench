@@ -133,6 +133,24 @@ pub fn cleanup_tts_session(session_id: String) -> Result<(), String> {
     fs::remove_dir_all(session_dir).map_err(|error| format!("无法清理临时配音文件：{error}"))
 }
 
+/// 合成试听样本（base64 mp3），用于音色库"未提供官方试听"时的实时合成
+#[tauri::command]
+pub async fn synthesize_preview_audio(
+    text: String,
+    speaker: Option<String>,
+) -> Result<String, String> {
+    let normalized_text = text.trim();
+    if normalized_text.is_empty() {
+        return Err("试听文案不能为空。".to_string());
+    }
+    let config = load_tts_config(speaker)?;
+    let parsed = request_tts_audio(normalized_text, &config).await?;
+    if parsed.audio.is_empty() {
+        return Err("火山语音服务已返回结果，但没有收到音频数据。".to_string());
+    }
+    Ok(STANDARD.encode(&parsed.audio))
+}
+
 async fn request_tts_audio(
     normalized_text: &str,
     config: &TtsConfig,

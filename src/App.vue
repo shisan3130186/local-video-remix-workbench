@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, ref, watch } from "vue";
 import type { CSSProperties } from "vue";
 import ExportResultDrawer from "./components/ExportResultDrawer.vue";
+import TaskQueuePanel from "./components/TaskQueuePanel.vue";
 import AiSourceSidebar from "./components/AiSourceSidebar.vue";
 import BatchWorkspacePanel from "./components/BatchWorkspacePanel.vue";
 import HomePage from "./components/HomePage.vue";
@@ -145,11 +146,23 @@ const {
   cancelActiveTask,
   cleanupError,
   cleanupStaleTempFiles,
+  clearTaskHistory,
   isCleaning,
   isTaskRunning,
   runTask,
+  taskHistory,
 } = useTaskCenter();
 const tempCleanupFeedback = ref<string | null>(null);
+const isTaskQueuePanelVisible = ref<boolean>(false);
+const userClosedTaskQueuePanel = ref<boolean>(false);
+watch(isTaskRunning, (running, previous) => {
+  if (running && !previous) {
+    // 任务一启动就自动展开队列面板（用户已手动关闭过的会话不再强制展开）
+    if (!userClosedTaskQueuePanel.value) {
+      isTaskQueuePanelVisible.value = true;
+    }
+  }
+});
 
 const {
   asrConfig,
@@ -1661,6 +1674,15 @@ onMounted(() => {
         <button v-if="isWorkspaceVisible" class="top-help-button top-menu-button" type="button" aria-label="打开菜单" @click="openWelcomeGuide()">≡</button>
         <button v-else class="top-help-button" type="button" @click="openWelcomeGuide()">新手教程</button>
         <button v-if="!isWorkspaceVisible" class="top-help-button" type="button" @click="openDiagnosticGuide">诊断</button>
+        <button
+          v-if="isWorkspaceVisible"
+          class="top-help-button task-queue-top-button"
+          :class="{ 'task-queue-top-button--active': isTaskQueuePanelVisible }"
+          type="button"
+          aria-label="打开任务队列面板"
+          title="任务队列"
+          @click="isTaskQueuePanelVisible = !isTaskQueuePanelVisible; if (isTaskQueuePanelVisible) userClosedTaskQueuePanel = false"
+        >任务队列</button>
       </div>
     </header>
 
@@ -2144,6 +2166,14 @@ onMounted(() => {
       :batch-mix-results="batchMixResults"
       :format-file-name="formatFileName"
       @close="activeDrawer = null"
+    />
+    <TaskQueuePanel
+      :active-task="activeTask"
+      :task-history="taskHistory"
+      :is-task-running="isTaskRunning"
+      :is-visible="isTaskQueuePanelVisible"
+      @close="isTaskQueuePanelVisible = false; userClosedTaskQueuePanel = true"
+      @clear-history="clearTaskHistory"
     />
   </main>
 </template>

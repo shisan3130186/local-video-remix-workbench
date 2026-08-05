@@ -81,12 +81,19 @@ $env:TTS_SPEAKER="zh_female_vv_uranus_bigtts"
 
 ## 启动方式
 
-最简单方式：
+日常开发测试最快方式：
 
-双击项目根目录中的 `启动验收.bat`。
+**双击桌面上的「智剪 SmartCut 开发测试.cmd」**——打开终端窗口并自动启动 Tauri dev。
+
+也可以双击项目根目录中的 `启动验收.bat` 或 `start-acceptance.bat`。
 
 说明：
-这个脚本内部使用英文输出，是为了避免 Windows `cmd` 把中文批处理内容解析成乱码命令。
+- 桌面 `.cmd` 文件用系统 ANSI（GBK）编码，含中文项目路径，由 cmd.exe 直接解析，无 BOM 问题。
+- 桌面启动器依赖固定项目根路径（`E:\Workspace\Project_03_本地短视频批量混剪工作台`），如果项目搬迁请用文本编辑器修改该 cmd 的 `PROJECT_ROOT` 行。
+- 启动脚本会优先使用 `corepack pnpm`，不可用时回退到 `pnpm` 或 `npx`，然后执行 `tauri dev` 启动开发环境（带热更新）。
+- 首次启动会编译 Rust 后端，耗时较长属正常；之后增量编译很快。
+- 保持黑色终端窗口开着，关闭应用窗口即停止开发服务器。
+- 开发期用 `tauri dev` 测试，正式发布才打包安装包（`pnpm tauri build`）。
 
 开发启动：
 

@@ -14,10 +14,26 @@ echo Project folder:
 echo %CD%
 echo.
 
+REM Resolve package manager: corepack pnpm > pnpm > npx tauri
+set "PM_CMD="
 where corepack >nul 2>nul
-if errorlevel 1 (
-  echo [ERROR] corepack was not found.
-  echo Please check Node.js and corepack first.
+if not errorlevel 1 (
+  set "PM_CMD=corepack pnpm tauri dev"
+) else (
+  where pnpm >nul 2>nul
+  if not errorlevel 1 (
+    set "PM_CMD=pnpm tauri dev"
+  ) else (
+    where npx >nul 2>nul
+    if not errorlevel 1 (
+      set "PM_CMD=npx tauri dev"
+    )
+  )
+)
+
+if not defined PM_CMD (
+  echo [ERROR] No package manager found.
+  echo Please install Node.js with corepack, or run: npm install -g pnpm
   echo.
   pause
   exit /b 1
@@ -43,7 +59,7 @@ echo Keep this window open while the app is running.
 echo Close the app window to stop the development server.
 echo.
 
-corepack pnpm tauri dev
+%PM_CMD%
 set EXIT_CODE=%ERRORLEVEL%
 
 echo.

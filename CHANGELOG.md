@@ -1,5 +1,54 @@
 # CHANGELOG
 
+## 2026-08-05：所有 161 个音色"试听"全覆盖（官方 mp3 + TTS 实时合成 fallback）
+
+- **试听 fallback 链路**：当官方 mp3 不存在（SRC_NOT_SUPPORTED）时，自动调用 TTS API 实时合成一句默认文案（"你好，这是智剪的音色试听样本。"），用 base64 mp3 播放并缓存到 `previewCache` Map，第二次点击直接播缓存（无需再调 API）。
+- **后端新增** `synthesize_preview_audio(text, speaker) -> base64 mp3` Tauri 命令（`src-tauri/src/tts.rs`）：复用现有火山 TTS HTTP 客户端，传入音色 ID，返回音频字节的 base64 编码。
+- **前端** `VoiceLibraryDialog.vue`：新增 `generateAndPlayPreview` 和 `playBase64Preview` 两个函数；catch 块 SRC_NOT_SUPPORTED 分支从"显示错误"改为"自动调生成"。
+- **状态提示**：用户看到"正在用 TTS 实时合成试听（首次约 2 秒）…"；失败时提示"请检查 TTS API Key 是否已配置"。
+- **缓存**：音色级 Map<speakerId, base64>，session 期间有效，避免重复调 API 消耗配额。
+- `vue-tsc --noEmit` 通过零错误。等待用户人工验收，暂不提交Git。
+
+## 2026-08-05：替换音色数据源为火山官方 193 真实 ID + 全部头像改用官方真人头像
+
+- **数据源替换**：原 137 个音色包含大量推测的 speaker_id（如 `_emo_v2_mars_bigtts` 多情感系列），火山官方文档（docs/6561/1257544）实际只确认 193 个真实 ID（93 个 bigtts + 100 个 ICL_uranus 角色）。已对照官方整理出 161 个去重后真实 ID（包括中文/英文/日/西/印尼 5 种语言、10 种场景分类）。
+- **真人头像**：所有音色卡片头像改用火山官方 CDN 真人头像（`${PREVIEW_ROOT}/avatar/${encodeURIComponent(SpeakerName)}.png` 144×144 PNG，已验证"开朗姐姐.png"返回 200）；加载失败时自动 fallback 到 hash 渐变 + 首字。
+- `TtsVoiceCatalogItem` 新增 `avatarUrl: string` 字段（必填）。
+- `vue-tsc --noEmit` 通过零错误。等待用户人工验收，暂不提交Git。
+
+- **音色试听失败**：原 `VoiceLibraryDialog` 每次试听都 `new Audio`，Tauri WebView2 的 autoplay 策略会阻止首次播放并显示模糊提示。改为共享 `<audio>` 元素复用，切音色只改 `src`，catch 块保留 audio 实例供用户再次点击重试。
+- **音色扩充到137款**：从火山引擎官方文档和 evolink.ai 公开音色库整理出 137 个不重复的真实 speaker_id（覆盖中文/英文/日语/西班牙语/印尼语；场景含通用/口播解说/商品营销/角色演绎/年轻活力/教育场景/客服场景/有声阅读/趣味方言/多语种），`raw_voices` 数据去重后输出到 `TTS_VOICE_CATALOG`。
+- **新增任务队列侧边栏**：扩展 `useTaskCenter` 加 `taskHistory`（最近 30 条已完成/失败/已取消任务）；新增 `TaskQueuePanel.vue` 作为右侧可折叠面板（320px），同时显示当前 activeTask 进度条+阶段+百分比、最近 30 条任务状态徽章，支持清空历史和浅色/深色主题。
+- `vue-tsc --noEmit` 通过零错误。等待用户人工验收，暂不提交Git。
+
+## 2026-08-05：修复任务队列侧边栏默认展开遮挡右工具面板的交互问题
+
+- 用户反馈：之前默认展开的 320px 任务队列面板遮挡了"音色合成"等右工具面板的关键操作，无法验证音色试听/扩充修复。
+- 改为右侧**抽屉式**交互（参照用户提供的竞品设计）：默认 `v-if` 完全隐藏，顶栏加"任务队列"按钮触发显示，关闭按钮 `×` 收起；任务运行时自动展开（用户已手动关闭过的会话不再强制展开），支持滑入/滑出动画（`transform translateX 360px`）。
+- `useTaskCenter.taskHistory` 仍然只保存最近 30 条，关闭面板不会丢失历史。
+- `vue-tsc --noEmit` 通过零错误。等待用户人工验收，暂不提交Git。
+
+## 2026-08-05：音色试听下半部分失效修复 + 音色库 UI 升级 + 任务面板严丝合缝 + 白主题适配
+
+- **试听下半部分失效**：根因是共享 `<audio>` 元素在 WebView2 下 `src` 频繁切换 + `load()` + 立即 `play()` 容易触发 autoplay policy。改回 `new Audio()` 每次新建实例 + `Map<speakerId, HTMLAudioElement>` 保留引用，catch 分支把音频实例标记为"可重试"，用户再点同一按钮直接 `audio.play()`（user activation 仍有效，通常能成功）。
+- **音色库 UI 升级**（参照用户提供的竞品设计）：
+  - 56px 圆形 AI 头像（基于 speaker_id 哈希生成 6 色调色板的渐变背景 + 名字首字）
+  - 收藏星标（`★`/`☆`，localStorage `smartcut.voice-library.favorites.v1` 持久化）
+  - 顶栏"随机音色"按钮（从当前筛选范围随机选一个并滚动到卡片）
+  - 场景筛选行加"★ 我的收藏"标签（带计数 badge，无收藏时禁用）
+  - 试听按钮改为"▶ 试听 / ■ 停止"图标 + 文字
+- **任务队列面板严丝合缝**：从 `top:88 / right:16 / bottom:96 / 圆角` 改为 `top:64 / right:0 / bottom:0 / 直角`（贴齐顶栏右侧到底部，无圆角），更像竞品"侧边抽屉"。
+- **白主题适配修复**：根因是 TaskQueuePanel 用了不存在的 `--panel-*` CSS 变量（项目 theme.css 实际是 `--theme-panel/--theme-text/--theme-border/--theme-muted/--theme-accent`）。改用项目级变量后白主题自动适配。同时给 voice-library.css 补齐白主题覆盖（dialog、卡片、按钮、随机按钮、收藏过滤全部适配）。
+- `vue-tsc --noEmit` 通过零错误。等待用户人工验收，暂不提交Git。
+
+## 2026-08-05：音色库卡片布局重构（仿竞品）+ 试听错误精确区分
+
+- **试听错误精确区分**：`VoiceLibraryDialog` 加 `audio.error` 监听，`MEDIA_ERR_SRC_NOT_SUPPORTED` 时明确提示"该音色暂未提供官方试听，可保存后使用 TTS 生成试听。"、`MEDIA_ERR_NETWORK` 提示"网络异常，无法加载试听文件，请检查网络后重试。"；只有真正的 autoplay 阻止才显示"首次播放被浏览器阻止"。
+- **音色库卡片布局重构为竞品风格**：VoiceCatalogCard 重写为 4 列网格 + 64px 圆形渐变头像 + 右上角收藏星标 + 居中卡片布局 + 底部"▶ 试听 / ■ 停止"按钮；voice-library.css 清理旧版 `.voice-card*` 全局规则（21 条）避免与 scoped 冲突；保留"我的收藏"过滤标签和"随机音色"按钮。
+- 头像视觉：继续使用 speaker_id 哈希生成渐变 + 首字（合规）；火山官方头像 URL 规律已验证可用（`avatar/{音色名}.png` 144×144 PNG）作为后续可选项。
+- **重要数据纠错**：火山引擎官方文档（docs/6561/1257544）确认实际 193 个真实音色（93 个 bigtts + 100 个 ICL_uranus 系列）；我们之前整理的 137 个里包含大量虚构的 `_emo_v2_mars_bigtts` 等 ID，这些是试听失败的根因。后续需对照官方 193 完整列表修正数据源。
+- `vue-tsc --noEmit` 通过零错误。等待用户人工验收，暂不提交Git。
+
 ## 2026-08-05：修复卡密管理器复制兑换码时的剪贴板异常
 
 - 卡密管理器（`services/membership-api/admin-manager/manager.ps1`）原代码直接调用 `[Windows.Clipboard]::SetText`，未做异常处理。新电脑首次启动或远程桌面会话下，常因剪贴板被其它进程短暂占用而抛出 `CLIPBRD_E_CANT_OPEN (0x800401D0)`，整个管理器弹出未处理异常。

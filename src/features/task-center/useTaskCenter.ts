@@ -33,11 +33,13 @@ export function isTaskCancelledError(error: unknown) {
 
 export function useTaskCenter() {
   const activeTask = ref<TaskSnapshot | null>(null);
+  const taskHistory = ref<TaskSnapshot[]>([]);
   const cleanupResult = ref<TempCleanupResult | null>(null);
   const cleanupError = ref<string | null>(null);
   const isCleaning = ref(false);
   let pollingTimer: number | null = null;
   let pollingGeneration = 0;
+  const TASK_HISTORY_LIMIT = 30;
 
   const isTaskRunning = computed(
     () => activeTask.value?.status === "running" || activeTask.value?.status === "cancelling",
@@ -74,14 +76,16 @@ export function useTaskCenter() {
       const result = await runner(handle);
       handle.throwIfCancelled();
       activeTask.value = await finishTask(taskId, "completed");
+      pushTaskHistory(activeTask.value);
       return result;
     } catch (error) {
       if (isTaskCancelledError(error) || activeTask.value?.cancelRequested) {
         activeTask.value = await finishTask(taskId, "cancelled", TASK_CANCELLED_MESSAGE);
-        throw new TaskCancelledError();
+      } else {
+        const message = formatError(error, "任务执行失败。 ");
+        activeTask.value = await finishTask(taskId, "failed", message);
       }
-      const message = formatError(error, "任务执行失败。 ");
-      activeTask.value = await finishTask(taskId, "failed", message);
+      pushTaskHistory(activeTask.value);
       throw error;
     } finally {
       stopPolling();
@@ -141,6 +145,15 @@ export function useTaskCenter() {
     }
   }
 
+  function pushTaskHistory(snapshot: TaskSnapshot | null) {
+    if (!snapshot) return;
+    taskHistory.value = [snapshot, ...taskHistory.value].slice(0, TASK_HISTORY_LIMIT);
+  }
+
+  function clearTaskHistory() {
+    taskHistory.value = [];
+  }
+
   onUnmounted(stopPolling);
 
   return {
@@ -149,10 +162,12 @@ export function useTaskCenter() {
     cleanupError,
     cleanupResult,
     cleanupStaleTempFiles,
+    clearTaskHistory,
     isCancelling,
     isCleaning,
     isTaskRunning,
     runTask,
+    taskHistory,
   };
 }
 
