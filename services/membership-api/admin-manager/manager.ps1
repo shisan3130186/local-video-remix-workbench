@@ -90,6 +90,43 @@ function Show-OperationError($ErrorRecord) {
   [Windows.MessageBox]::Show($message, 'SmartCut', 'OK', 'Error') | Out-Null
 }
 
+function Copy-ToClipboardWithRetry([string]$Text) {
+  $delays = @(0, 100, 250, 500)
+  $lastError = $null
+  foreach ($delay in $delays) {
+    if ($delay -gt 0) { Start-Sleep -Milliseconds $delay }
+    try {
+      [Windows.Clipboard]::SetText($Text)
+      return $true
+    }
+    catch {
+      $lastError = $_
+    }
+  }
+  $statusText.Text = "剪贴板复制失败：$($lastError.Exception.Message)"
+  return $false
+}
+
+function Show-CodeFallback([string]$Code) {
+  $statusText.Text = '剪贴板暂不可用，请手动复制下方兑换码。'
+  [Windows.MessageBox]::Show(
+    "Windows 剪贴板暂时被其他程序占用，自动复制失败。`n`n请按 Ctrl+C 复制下方兑换码：`n`n$Code",
+    'SmartCut',
+    'OK',
+    'Warning'
+  ) | Out-Null
+}
+
+function Copy-RedemptionCode([string]$Code) {
+  if ([string]::IsNullOrWhiteSpace($Code)) { return }
+  if (Copy-ToClipboardWithRetry $Code) {
+    $statusText.Text = '兑换码已复制到剪贴板。'
+  }
+  else {
+    Show-CodeFallback $Code
+  }
+}
+
 function Refresh-Codes {
   Set-Busy $true '正在刷新兑换码记录...'
   try {
@@ -121,10 +158,7 @@ foreach ($preset in @(
 (Find-Control 'ClearButton').Add_Click({ $daysInput.Text = ''; $labelInput.Text = ''; $daysInput.Focus() })
 $closeButton.Add_Click({ $window.Close() })
 $copyButton.Add_Click({
-  if (-not [string]::IsNullOrWhiteSpace($script:latestCode)) {
-    [Windows.Clipboard]::SetText($script:latestCode)
-    $statusText.Text = '兑换码已复制到剪贴板。'
-  }
+  Copy-RedemptionCode $script:latestCode
 })
 $filterCombo.Add_SelectionChanged({ if ($null -ne $filterCombo.SelectedItem) { Update-Grid; Update-SelectionActions } })
 $codesGrid.Add_SelectionChanged({ Update-SelectionActions })
@@ -143,8 +177,8 @@ $generateButton.Add_Click({
     $script:latestCode = [string]$result.redemptionCode
     $codeText.Text = $script:latestCode
     $copyButton.IsEnabled = $true
-    [Windows.Clipboard]::SetText($script:latestCode)
-    $statusText.Text = "生成成功：$days 天会员码已复制。"
+    $statusText.Text = "生成成功：$days 天会员码已生成。"
+    Copy-RedemptionCode $script:latestCode
     Refresh-Codes
   }
   catch { Show-OperationError $_ }
