@@ -8,14 +8,12 @@ defineProps<{
   isAdvancedMode: boolean;
   environment: FfmpegEnvironmentResult | null;
   statusText: string;
-  hasVideo: boolean;
 }>();
 
 const emit = defineEmits<{
   openTool: [tool: ToolKey];
   openDrawer: [drawer: DrawerKey];
   toggleAdvancedMode: [enabled: boolean];
-  createTask: [];
 }>();
 
 const originalVolume = defineModel<number>("originalVolume", { required: true });
@@ -88,9 +86,5 @@ const subtitleColors = ["#f3f3f3", "#f4d22f", "#50d7b0", "#f08c57", "#76a9ff", "
       </details>
     </div>
 
-    <div class="replica-settings-footer">
-      <button class="replica-create-button" type="button" :disabled="!hasVideo" @click="emit('createTask')">{{ hasVideo ? '创建任务' : '请先导入视频素材' }}</button>
-      <div><button type="button" @click="emit('openDrawer', 'logs')">任务日志</button><button type="button" @click="emit('openDrawer', 'exports')">导出结果</button></div>
-    </div>
   </aside>
 </template>

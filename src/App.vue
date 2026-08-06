@@ -10,6 +10,7 @@ import BatchWorkspacePanel from "./components/BatchWorkspacePanel.vue";
 import HomePage from "./components/HomePage.vue";
 import PreviewPanel from "./components/PreviewPanel.vue";
 import RightToolPanel from "./components/RightToolPanel.vue";
+import TaskControlBar from "./components/TaskControlBar.vue";
 import TaskLogDrawer from "./components/TaskLogDrawer.vue";
 import ToolSettingModal from "./components/ToolSettingModal.vue";
 import VideoToolsWorkspace from "./components/VideoToolsWorkspace.vue";
@@ -1735,7 +1736,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="app-shell" :class="{ 'app-shell--home': !isWorkspaceVisible }">
+  <main class="app-shell" :class="{ 'app-shell--home': !isWorkspaceVisible, 'app-shell--workspace': isWorkspaceVisible }">
     <header class="top-bar">
       <div class="product-mark">
         <template v-if="!isWorkspaceVisible">
@@ -2055,7 +2056,6 @@ onMounted(() => {
         :is-advanced-mode="isAdvancedMode"
         :environment="environment"
         :status-text="statusText"
-        :has-video="Boolean(selectedVideo)"
         v-model:original-volume="originalVolume"
         v-model:bgm-enabled="bgmEnabled"
         v-model:bgm-volume="bgmVolume"
@@ -2068,9 +2068,29 @@ onMounted(() => {
         @open-tool="activeTool = $event"
         @open-drawer="activeDrawer = $event"
         @toggle-advanced-mode="isAdvancedMode = $event"
-        @create-task="runPrimaryTaskAction"
       />
     </section>
+
+    <TaskControlBar
+      v-if="isWorkspaceVisible"
+      :is-advanced-mode="isAdvancedMode"
+      :total-videos="importedVideos.length"
+      :completed-count="currentAiGenerationSuccessCount + batchMixResults.length + exportResultItems.length"
+      :failed-count="totalFailedTaskCount"
+      :output-directory="outputDirectory"
+      :is-processing="isAnyProcessing"
+      :primary-action-label="primaryTaskActionLabel"
+      :primary-action-disabled="primaryTaskActionDisabled"
+      :active-task="activeTask"
+      :can-retry-failures="canRetryFailures"
+      :is-cleaning-temp-files="isCleaning"
+      :temp-cleanup-feedback="tempCleanupFeedback"
+      @start-processing="runPrimaryTaskAction"
+      @cancel-task="cancelActiveTask"
+      @retry-failures="retryFailedTasks"
+      @cleanup-temp-files="cleanupTaskTempFiles"
+      @open-drawer="activeDrawer = $event"
+    />
 
     <ToolSettingModal
       :active-tool="activeTool"
