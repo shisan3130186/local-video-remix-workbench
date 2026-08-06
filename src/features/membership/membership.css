@@ -446,6 +446,15 @@
   background: #3a201d !important;
 }
 
+.account-profile__device--warning { color: #f1aaa2 !important; }
+.account-profile__confirm { position: fixed; inset: 0; z-index: 150; display: grid; place-items: center; padding: 20px; background: rgba(4, 5, 6, 0.68); }
+.account-profile__confirm-card { width: min(390px, 100%); padding: 20px; border: 1px solid var(--smartcut-border-strong); border-radius: 8px; background: var(--smartcut-panel-2); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45); }
+.account-profile__confirm-card h3, .account-profile__confirm-card p { margin: 0; }
+.account-profile__confirm-card h3 { font-size: 15px; }
+.account-profile__confirm-card p { margin-top: 9px; color: var(--smartcut-muted); font-size: 12px; line-height: 1.65; }
+.account-profile__confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.account-profile__confirm-primary { border-color: var(--smartcut-accent) !important; color: #071214 !important; background: var(--smartcut-accent) !important; font-weight: 700; }
+
 @media (max-width: 640px) {
   .membership-backdrop { padding: 10px; }
   .membership-dialog--signed-in { grid-template-columns: 1fr; grid-template-rows: auto; }

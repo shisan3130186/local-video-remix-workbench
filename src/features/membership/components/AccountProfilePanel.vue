@@ -8,7 +8,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  redeem: [code: string];
+  redeem: [code: string, allowDeviceRebind: boolean];
   changePassword: [currentPassword: string, newPassword: string];
   refresh: [];
   logout: [];
@@ -20,6 +20,7 @@ const newPassword = ref("");
 const confirmPassword = ref("");
 const passwordError = ref<string | null>(null);
 const pendingLogout = ref(false);
+const pendingRedemption = ref<string | null>(null);
 
 const memberLabel = computed(() => props.status.memberActive ? "智剪会员" : "普通用户");
 const expiryLabel = computed(() => {
@@ -35,7 +36,13 @@ const expiryState = computed(() => {
 function submitRedeem() {
   const code = redemptionCode.value.trim();
   if (!code) return;
-  emit("redeem", code);
+  pendingRedemption.value = code;
+}
+
+function confirmRedeem() {
+  if (!pendingRedemption.value) return;
+  emit("redeem", pendingRedemption.value, true);
+  pendingRedemption.value = null;
 }
 
 function submitPassword() {
@@ -56,7 +63,17 @@ function requestLogout() {
 }
 
 function formatTime(value: number) {
-  return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value * 1000));
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(value * 1000));
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}/${values.month}/${values.day} ${values.hour}:${values.minute}:${values.second}`;
 }
 </script>
 
@@ -84,6 +101,12 @@ function formatTime(value: number) {
             >{{ expiryState.label }}</span>
           </dd>
         </div>
+        <div>
+          <dt>设备绑定</dt>
+          <dd :class="{ 'account-profile__device--warning': status.deviceBound && !status.deviceMatch }">
+            {{ !status.deviceBound ? "兑换后绑定当前设备" : status.deviceMatch ? "当前设备已绑定" : "当前设备未绑定，兑换后可换绑" }}
+          </dd>
+        </div>
       </dl>
     </div>
 
@@ -99,6 +122,17 @@ function formatTime(value: number) {
         <small>兑换成功后，会员天数会直接增加到当前账号。</small>
       </form>
     </details>
+
+    <div v-if="pendingRedemption" class="account-profile__confirm" role="dialog" aria-modal="true" aria-labelledby="device-binding-title">
+      <div class="account-profile__confirm-card">
+        <h3 id="device-binding-title">确认兑换并绑定设备</h3>
+        <p>兑换后会员账号将绑定到此设备，如需在其他设备使用需进行换绑（每月限2次），确定要继续吗？</p>
+        <div class="account-profile__confirm-actions">
+          <button type="button" @click="pendingRedemption = null">取消</button>
+          <button type="button" class="account-profile__confirm-primary" :disabled="activeAction !== null" @click="confirmRedeem">确定继续</button>
+        </div>
+      </div>
+    </div>
 
     <details class="account-profile__section">
       <summary>修改密码</summary>

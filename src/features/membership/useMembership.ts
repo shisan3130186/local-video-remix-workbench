@@ -55,9 +55,9 @@ export function useMembership() {
     });
   }
 
-  async function redeem(code: string) {
+  async function redeem(code: string, allowDeviceRebind = false) {
     return run("redeem", async () => {
-      status.value = await redeemMembership(code);
+      status.value = await redeemMembership(code, allowDeviceRebind);
       feedback.value = "兑换成功，会员有效期已更新。";
       return true;
     });

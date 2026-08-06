@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 pub const DEFAULT_AI_BASE_URL: &str = "https://ark.cn-beijing.volces.com/api/v3";
 pub const DEFAULT_TTS_RESOURCE_ID: &str = "seed-tts-2.0";
 pub const DEFAULT_TTS_SPEAKER: &str = "zh_female_vv_uranus_bigtts";
+pub const DEFAULT_AI_MODEL: &str = "doubao-seed-1-6-250615";
 
 const CONFIG_VERSION: u8 = 1;
 const CONFIG_DIRECTORY: &str = "com.shisan.local-video-remix-workbench";
@@ -114,9 +115,7 @@ pub fn load_ai_service_config() -> Result<AiServiceConfig, String> {
     let model = stored
         .ai_model
         .or_else(|| environment_value("AI_MODEL"))
-        .ok_or_else(|| {
-            "尚未配置AI模型接入点ID。请打开右侧“API 密钥”设置填写模型接入点。".to_string()
-        })?;
+        .unwrap_or_else(|| DEFAULT_AI_MODEL.to_string());
 
     Ok(AiServiceConfig {
         api_key,
@@ -173,7 +172,7 @@ fn build_status(stored: &StoredApiConfig) -> Result<ApiConfigStatus, String> {
         .ai_model
         .clone()
         .or_else(|| environment_value("AI_MODEL"))
-        .unwrap_or_default();
+        .unwrap_or_else(|| DEFAULT_AI_MODEL.to_string());
     let tts_environment_key = environment_value("TTS_API_KEY");
     let tts_api_key = stored.tts_api_key.clone().or(tts_environment_key.clone());
     let tts_resource_id = stored
@@ -219,13 +218,12 @@ fn merge_input(stored: &mut StoredApiConfig, input: ApiConfigInput) -> Result<()
     validate_base_url(&ai_base_url)?;
     stored.ai_base_url = Some(ai_base_url);
 
-    stored.ai_model = normalize_optional_text(&input.ai_model);
+    stored.ai_model = normalize_optional_text(&input.ai_model)
+        .or_else(|| stored.ai_model.clone())
+        .or_else(|| environment_value("AI_MODEL"))
+        .or_else(|| Some(DEFAULT_AI_MODEL.to_string()));
     if let Some(model) = &stored.ai_model {
         validate_length("AI模型接入点ID", model, MAX_IDENTIFIER_CHARACTERS)?;
-    }
-
-    if stored.ai_api_key.is_some() && stored.ai_model.is_none() {
-        return Err("保存AI API Key时必须同时填写模型接入点ID。".to_string());
     }
 
     let resource_id = normalize_optional_text(&input.tts_resource_id)
@@ -427,7 +425,7 @@ mod tests {
     use super::{
         build_status, load_stored_config_from_path, merge_input, protect_data,
         save_stored_config_to_path, unprotect_data, ApiConfigInput, StoredApiConfig,
-        DEFAULT_AI_BASE_URL, DEFAULT_TTS_RESOURCE_ID, DEFAULT_TTS_SPEAKER,
+        DEFAULT_AI_BASE_URL, DEFAULT_AI_MODEL, DEFAULT_TTS_RESOURCE_ID, DEFAULT_TTS_SPEAKER,
     };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -475,13 +473,13 @@ mod tests {
     }
 
     #[test]
-    fn rejects_ai_key_without_model_endpoint() {
+    fn applies_default_model_without_model_endpoint() {
         let mut stored = StoredApiConfig::default();
         let mut input = empty_input();
         input.ai_api_key = "new-ai-key".to_string();
 
-        let error = merge_input(&mut stored, input).unwrap_err();
-        assert!(error.contains("模型接入点ID"));
+        merge_input(&mut stored, input).unwrap();
+        assert_eq!(stored.ai_model.as_deref(), Some(DEFAULT_AI_MODEL));
     }
 
     #[test]

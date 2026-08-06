@@ -52,6 +52,9 @@ test("签名账号的离线时间不能超过会员到期时间", () => {
     expiresAt: 200,
     now: 100,
     graceHours: 72,
+    deviceBound: false,
+    deviceMatch: true,
+    rebindsRemaining: 2,
   });
   assert.equal(account.offlineUntil, 200);
 });
@@ -65,6 +68,9 @@ test("普通用户没有离线会员权限", () => {
     expiresAt: null,
     now: 100,
     graceHours: 72,
+    deviceBound: false,
+    deviceMatch: true,
+    rebindsRemaining: 2,
   });
   assert.equal(account.offlineUntil, 100);
 });

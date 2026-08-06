@@ -9,6 +9,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 const STORAGE_VERSION: u8 = 2;
 const CONFIG_DIRECTORY: &str = "com.shisan.local-video-remix-workbench";
@@ -22,6 +23,7 @@ const PUBLIC_KEY_ENV: &str = "SMARTCUT_MEMBERSHIP_PUBLIC_KEY_BASE64";
 #[serde(rename_all = "camelCase", default)]
 struct StoredAccount {
     version: u8,
+    device_id: Option<String>,
     session_token: Option<String>,
     signed_account: Option<SignedAccountPayload>,
     signature: Option<String>,
@@ -39,6 +41,19 @@ struct SignedAccountPayload {
     issued_at: u64,
     offline_until: u64,
     server_time: u64,
+    #[serde(default)]
+    device_bound: bool,
+    #[serde(default = "default_device_match")]
+    device_match: bool,
+    #[serde(default = "default_rebinds_remaining")]
+    rebinds_remaining: u8,
+}
+
+fn default_device_match() -> bool {
+    true
+}
+fn default_rebinds_remaining() -> u8 {
+    2
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -87,6 +102,9 @@ pub struct AccountStatus {
     pub expires_at: Option<u64>,
     pub offline_until: Option<u64>,
     pub last_validated_at: Option<u64>,
+    pub device_bound: bool,
+    pub device_match: bool,
+    pub rebinds_remaining: u8,
     pub message: String,
 }
 
@@ -111,6 +129,7 @@ pub async fn register_account(
             "email": email.trim(),
             "password": password,
             "displayName": display_name.trim(),
+            "deviceId": device_id()?,
             "appVersion": env!("CARGO_PKG_VERSION")
         }),
     )
@@ -126,6 +145,7 @@ pub async fn login_account(email: String, password: String) -> Result<AccountSta
         json!({
             "email": email.trim(),
             "password": password,
+            "deviceId": device_id()?,
             "appVersion": env!("CARGO_PKG_VERSION")
         }),
     )
@@ -173,7 +193,10 @@ pub async fn refresh_account() -> Result<AccountStatus, String> {
     }
 }
 
-pub async fn redeem_membership(redemption_code: String) -> Result<AccountStatus, String> {
+pub async fn redeem_membership(
+    redemption_code: String,
+    allow_device_rebind: bool,
+) -> Result<AccountStatus, String> {
     if redemption_code.trim().chars().count() > 96 {
         return Err("兑换码内容过长，请检查后重新输入。".to_string());
     }
@@ -188,6 +211,7 @@ pub async fn redeem_membership(redemption_code: String) -> Result<AccountStatus,
         &session_token,
         Some(json!({
             "redemptionCode": redemption_code.trim(),
+            "allowDeviceRebind": allow_device_rebind,
             "appVersion": env!("CARGO_PKG_VERSION")
         })),
     )
@@ -267,6 +291,8 @@ async fn send_request(
     let mut request = client
         .request(method, endpoint)
         .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECONDS));
+    let device_id = device_id().map_err(configuration_error)?;
+    request = request.header("x-smartcut-device-id", device_id);
     if let Some(token) = session_token {
         request = request.bearer_auth(token);
     }
@@ -317,10 +343,8 @@ async fn parse_account_response(
 }
 
 fn store_authenticated_response(response: AccountServerResponse) -> Result<AccountStatus, String> {
-    let mut stored = StoredAccount {
-        version: STORAGE_VERSION,
-        ..StoredAccount::default()
-    };
+    let mut stored = normalize_storage(load_storage()?)?;
+    clear_authentication(&mut stored);
     apply_account_response(&mut stored, response, true)?;
     save_storage(&stored)?;
     Ok(mark_online(status_from_storage(&stored, unix_now()?, true)))
@@ -414,6 +438,9 @@ fn status_from_storage(stored: &StoredAccount, now: u64, configured: bool) -> Ac
             expires_at: payload.expires_at,
             offline_until: Some(payload.offline_until),
             last_validated_at: Some(payload.issued_at),
+            device_bound: payload.device_bound,
+            device_match: payload.device_match,
+            rebinds_remaining: payload.rebinds_remaining,
             message: "本机账号缓存校验失败，请重新登录。".to_string(),
         };
     }
@@ -422,6 +449,12 @@ fn status_from_storage(stored: &StoredAccount, now: u64, configured: bool) -> Ac
         MembershipState::Active if payload.expires_at.is_some_and(|expires| now > expires) => {
             (false, "expired", "cached", "会员已到期。")
         }
+        MembershipState::Active if payload.device_bound && !payload.device_match => (
+            false,
+            "verification_required",
+            "blocked",
+            "当前会员已绑定其他设备，请兑换后确认换绑当前设备。",
+        ),
         MembershipState::Active if now <= payload.offline_until => (
             true,
             "active",
@@ -454,6 +487,9 @@ fn status_from_storage(stored: &StoredAccount, now: u64, configured: bool) -> Ac
         expires_at: payload.expires_at,
         offline_until: Some(payload.offline_until),
         last_validated_at: Some(payload.issued_at),
+        device_bound: payload.device_bound,
+        device_match: payload.device_match,
+        rebinds_remaining: payload.rebinds_remaining,
         message: message.to_string(),
     }
 }
@@ -470,6 +506,9 @@ fn signed_out_status(configured: bool) -> AccountStatus {
         expires_at: None,
         offline_until: None,
         last_validated_at: None,
+        device_bound: false,
+        device_match: true,
+        rebinds_remaining: 2,
         message: if configured {
             "登录账号后可以兑换会员并在其他电脑恢复状态。".to_string()
         } else {
@@ -507,7 +546,18 @@ fn normalize_storage(mut stored: StoredAccount) -> Result<StoredAccount, String>
         };
         save_storage(&stored)?;
     }
+    if stored.device_id.as_deref().is_none_or(str::is_empty) {
+        stored.device_id = Some(Uuid::new_v4().to_string());
+        save_storage(&stored)?;
+    }
     Ok(stored)
+}
+
+fn device_id() -> Result<String, String> {
+    let stored = normalize_storage(load_storage()?)?;
+    stored
+        .device_id
+        .ok_or_else(|| "Unable to generate a local device identifier.".to_string())
 }
 
 fn load_storage() -> Result<StoredAccount, String> {
@@ -699,6 +749,9 @@ mod tests {
             issued_at: 1_000,
             offline_until: 2_000,
             server_time: 1_000,
+            device_bound: false,
+            device_match: true,
+            rebinds_remaining: 2,
         };
         let signature: Signature = signing_key.sign(&serde_json::to_vec(&payload).unwrap());
         let public_der = signing_key.verifying_key().to_public_key_der().unwrap();
@@ -723,6 +776,7 @@ mod tests {
         std::env::set_var("SMARTCUT_MEMBERSHIP_PUBLIC_KEY_BASE64", public_key);
         let stored = StoredAccount {
             version: 2,
+            device_id: Some("test-device".to_string()),
             session_token: Some("session-token-with-enough-characters-123456".to_string()),
             signed_account: Some(payload),
             signature: Some(signature),
@@ -742,6 +796,7 @@ mod tests {
         std::env::set_var("SMARTCUT_MEMBERSHIP_PUBLIC_KEY_BASE64", public_key);
         let stored = StoredAccount {
             version: 2,
+            device_id: Some("test-device".to_string()),
             session_token: Some("session-token-with-enough-characters-123456".to_string()),
             signed_account: Some(payload),
             signature: Some(BASE64.encode(signature.to_bytes())),

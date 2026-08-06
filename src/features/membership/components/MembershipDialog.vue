@@ -22,7 +22,7 @@ const emit = defineEmits<{
   login: [email: string, password: string];
   register: [email: string, password: string, displayName: string];
   refresh: [];
-  redeem: [code: string];
+  redeem: [code: string, allowDeviceRebind: boolean];
   changePassword: [currentPassword: string, newPassword: string];
   logout: [];
   apiConfigChanged: [];
@@ -45,6 +45,10 @@ function forwardRegister(email: string, password: string, displayName: string) {
 function forwardPasswordChange(currentPassword: string, newPassword: string) {
   emit("changePassword", currentPassword, newPassword);
 }
+
+function forwardRedeem(code: string, allowDeviceRebind: boolean) {
+  emit("redeem", code, allowDeviceRebind);
+}
 </script>
 
 <template>
@@ -65,7 +69,7 @@ function forwardPasswordChange(currentPassword: string, newPassword: string) {
             v-if="activePage === 'profile'"
             :status="status"
             :active-action="activeAction"
-            @redeem="emit('redeem', $event)"
+            @redeem="forwardRedeem"
             @change-password="forwardPasswordChange"
             @refresh="emit('refresh')"
             @logout="emit('logout')"

@@ -10,6 +10,9 @@ export interface SignedAccountPayload {
   issuedAt: number;
   offlineUntil: number;
   serverTime: number;
+  deviceBound: boolean;
+  deviceMatch: boolean;
+  rebindsRemaining: number;
 }
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -114,6 +117,9 @@ export function buildSignedAccount(input: {
   expiresAt: number | null;
   now: number;
   graceHours: number;
+  deviceBound: boolean;
+  deviceMatch: boolean;
+  rebindsRemaining: number;
 }): SignedAccountPayload {
   const offlineUntil = input.membershipStatus === "active" && input.expiresAt !== null
     ? Math.min(input.expiresAt, input.now + input.graceHours * 60 * 60)
@@ -128,6 +134,9 @@ export function buildSignedAccount(input: {
     issuedAt: input.now,
     offlineUntil,
     serverTime: input.now,
+    deviceBound: input.deviceBound,
+    deviceMatch: input.deviceMatch,
+    rebindsRemaining: input.rebindsRemaining,
   };
 }
 

@@ -45,6 +45,13 @@
   margin: 0;
 }
 
+.api-config-note {
+  margin: -2px 0 0;
+  color: #91a39d;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .api-config-section {
   display: grid;
   gap: 10px;

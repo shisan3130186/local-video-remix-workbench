@@ -40,6 +40,7 @@ interface SessionDocument {
   expires_at: number;
   created_at: number;
   last_seen_at: number;
+  device_hash?: string;
 }
 
 interface MembershipDocument {
@@ -48,6 +49,9 @@ interface MembershipDocument {
   status: MembershipStatus;
   expires_at: number;
   updated_at: number;
+  bound_device_hash?: string | null;
+  rebind_month?: string | null;
+  rebind_count?: number;
 }
 
 interface RedemptionCodeDocument {
@@ -70,6 +74,10 @@ interface AccountRow {
   user_status: "active" | "disabled";
   membership_status: MembershipStatus | null;
   expires_at: number | null;
+  bound_device_hash: string | null;
+  rebind_month: string | null;
+  rebind_count: number;
+  current_device_hash?: string | null;
 }
 
 interface SessionAccountRow extends AccountRow {
@@ -82,6 +90,7 @@ interface AuthInput {
   password?: string;
   displayName?: string;
   appVersion?: string;
+  deviceId?: string;
 }
 
 class HttpError extends Error {
@@ -179,6 +188,7 @@ async function register(request: Request, response: Response): Promise<void> {
   }
 
   const now = unixNow();
+  const currentDeviceHash = await hashDeviceId(input.deviceId);
   const userId = crypto.randomUUID();
   const displayName = validateInput(() => normalizeDisplayName(String(input.displayName ?? ""), `智剪用户${userId.slice(-4)}`));
   const passwordData = await hashPassword(password);
@@ -205,9 +215,9 @@ async function register(request: Request, response: Response): Promise<void> {
     throw error;
   }
 
-  const sessionToken = await createSession(user, now);
+  const sessionToken = await createSession(user, now, currentDeviceHash);
   await recordEvent(user.id, "register", "success", input.appVersion);
-  await sendSignedAccount(response, await loadAccount(userDocId), sessionToken, "注册成功。", 201);
+  await sendSignedAccount(response, { ...(await loadAccount(userDocId)), current_device_hash: currentDeviceHash }, sessionToken, "注册成功。", 201);
 }
 
 async function login(request: Request, response: Response): Promise<void> {
@@ -225,9 +235,10 @@ async function login(request: Request, response: Response): Promise<void> {
   if (user.status === "disabled") throw new HttpError(403, "account_disabled", "此账号已被停用。");
 
   const now = unixNow();
-  const sessionToken = await createSession(user, now);
+  const currentDeviceHash = await hashDeviceId(input.deviceId);
+  const sessionToken = await createSession(user, now, currentDeviceHash);
   await recordEvent(user.id, "login", "success", input.appVersion);
-  await sendSignedAccount(response, await loadAccount(userDocId), sessionToken, "登录成功。");
+  await sendSignedAccount(response, { ...(await loadAccount(userDocId)), current_device_hash: currentDeviceHash }, sessionToken, "登录成功。");
 }
 
 async function logout(request: Request, response: Response): Promise<void> {
@@ -239,18 +250,21 @@ async function logout(request: Request, response: Response): Promise<void> {
 
 async function getAccount(request: Request, response: Response): Promise<void> {
   const session = await requireSession(request);
-  await sendSignedAccount(response, session, null, "账号状态正常。");
+  await sendSignedAccount(response, session, null, "账号状态正常。", 200, session.current_device_hash);
 }
 
 async function redeem(request: Request, response: Response): Promise<void> {
   const session = await requireSession(request);
-  const body = request.body as { redemptionCode?: string; appVersion?: string };
+  const body = request.body as { redemptionCode?: string; appVersion?: string; allowDeviceRebind?: boolean };
   const normalized = normalizeRedemptionCode(String(body.redemptionCode ?? ""));
   if (normalized.length !== 20 || !normalized.startsWith("SCUT")) {
     throw new HttpError(400, "invalid_code", "兑换码格式不正确。");
   }
   const codeHash = await sha256Hex(normalized);
   const now = unixNow();
+  const currentDeviceHash = session.current_device_hash;
+  if (!currentDeviceHash) throw new HttpError(400, "device_required", "无法识别当前设备，请重新启动软件后重试。");
+  const month = monthKey(now);
 
   const durationDays = Number(await db.runTransaction(async (transaction: any) => {
     const codeReference = transaction.collection("redemption_codes").doc(codeHash);
@@ -261,6 +275,17 @@ async function redeem(request: Request, response: Response): Promise<void> {
     if (code.status === "disabled") throw new HttpError(403, "code_disabled", "这个兑换码已被停用。");
 
     const membership = normalizeDocument<MembershipDocument>((await membershipReference.get()).data);
+    let boundDeviceHash = membership?.bound_device_hash ?? currentDeviceHash;
+    let rebindMonth = membership?.rebind_month ?? month;
+    let rebindCount = membership?.rebind_count ?? 0;
+    if (membership?.bound_device_hash && membership.bound_device_hash !== currentDeviceHash) {
+      if (!body.allowDeviceRebind) throw new HttpError(409, "device_rebind_required", "兑换后会员账号将绑定到此设备，如需在其他设备使用需进行换绑（每月限2次），确定要继续吗？");
+      if (rebindMonth !== month) rebindCount = 0;
+      if (rebindCount >= 2) throw new HttpError(429, "device_rebind_limit", "本月换绑次数已用完，请下月再试。");
+      boundDeviceHash = currentDeviceHash;
+      rebindMonth = month;
+      rebindCount += 1;
+    }
     const baseTime = Math.max(now, membership?.expires_at ?? now);
     const expiresAt = baseTime + code.duration_days * 24 * 60 * 60;
 
@@ -275,6 +300,9 @@ async function redeem(request: Request, response: Response): Promise<void> {
       user_id: session.id,
       status: "active",
       expires_at: expiresAt,
+      bound_device_hash: boundDeviceHash,
+      rebind_month: rebindMonth,
+      rebind_count: rebindCount,
       updated_at: now,
     });
     return code.duration_days;
@@ -286,6 +314,8 @@ async function redeem(request: Request, response: Response): Promise<void> {
     await loadAccount(session.user_doc_id),
     null,
     `兑换成功，会员已增加${durationDays}天。`,
+    200,
+    currentDeviceHash,
   );
 }
 
@@ -318,7 +348,7 @@ async function changePassword(request: Request, response: Response): Promise<voi
     last_seen_at: now,
   });
   await recordEvent(session.id, "change_password", "success", body.appVersion);
-  await sendSignedAccount(response, await loadAccount(session.user_doc_id), null, "密码修改成功，其他设备已退出登录。");
+  await sendSignedAccount(response, { ...(await loadAccount(session.user_doc_id)), current_device_hash: session.current_device_hash }, null, "密码修改成功，其他设备已退出登录。");
 }
 
 async function createCode(request: Request, response: Response): Promise<void> {
@@ -385,7 +415,7 @@ async function updateCode(request: Request, response: Response, codeId: string):
   response.json({ ok: true, codeId, status: nextStatus });
 }
 
-async function createSession(user: UserDocument, now: number): Promise<string> {
+async function createSession(user: UserDocument, now: number, deviceHash: string): Promise<string> {
   const token = createRandomToken();
   const tokenHash = await sha256Hex(token);
   const session: SessionDocument = {
@@ -396,6 +426,7 @@ async function createSession(user: UserDocument, now: number): Promise<string> {
     expires_at: now + 30 * 24 * 60 * 60,
     created_at: now,
     last_seen_at: now,
+    device_hash: deviceHash,
   };
   await db.collection("sessions").add(session);
   return token;
@@ -424,6 +455,7 @@ async function requireSession(request: Request): Promise<SessionAccountRow> {
     ...(await accountFromUser(user)),
     session_doc_id: sessionDocId,
     user_doc_id: user._id,
+    current_device_hash: session.device_hash ?? null,
   };
 }
 
@@ -442,6 +474,9 @@ async function accountFromUser(user: UserDocument): Promise<AccountRow> {
     user_status: user.status,
     membership_status: membership?.status ?? null,
     expires_at: membership?.expires_at ?? null,
+    bound_device_hash: membership?.bound_device_hash ?? null,
+    rebind_month: membership?.rebind_month ?? null,
+    rebind_count: membership?.rebind_count ?? 0,
   };
 }
 
@@ -451,6 +486,7 @@ async function sendSignedAccount(
   sessionToken: string | null,
   message: string,
   status = 200,
+  currentDeviceHash: string | null = account.current_device_hash ?? null,
 ): Promise<void> {
   const signingKey = requiredEnvironment("SIGNING_PRIVATE_KEY_PKCS8_BASE64");
   const now = unixNow();
@@ -461,6 +497,10 @@ async function sendSignedAccount(
     now,
   );
   const graceHours = Math.min(168, Math.max(1, Number(process.env.OFFLINE_GRACE_HOURS ?? 72) || 72));
+  const currentMonth = monthKey(now);
+  const deviceBound = Boolean(account.bound_device_hash);
+  const deviceMatch = !deviceBound || Boolean(currentDeviceHash && currentDeviceHash === account.bound_device_hash);
+  const rebindsUsed = account.rebind_month === currentMonth ? account.rebind_count : 0;
   const payload = buildSignedAccount({
     userId: account.id,
     email: account.email,
@@ -469,6 +509,9 @@ async function sendSignedAccount(
     expiresAt: account.expires_at,
     now,
     graceHours,
+    deviceBound,
+    deviceMatch,
+    rebindsRemaining: Math.max(0, 2 - rebindsUsed),
   });
   const signature = await signAccount(payload, signingKey);
   response.status(status).set("cache-control", "no-store").json({
@@ -533,4 +576,14 @@ function isDuplicateDocumentError(error: unknown): boolean {
 
 function unixNow(): number {
   return Math.floor(Date.now() / 1000);
+}
+
+async function hashDeviceId(value: unknown): Promise<string> {
+  const normalized = String(value ?? "").trim();
+  if (!normalized || normalized.length > 128) throw new HttpError(400, "device_required", "无法识别当前设备，请重新启动软件后重试。");
+  return sha256Hex(normalized);
+}
+
+function monthKey(now: number): string {
+  return new Date(now * 1000).toISOString().slice(0, 7);
 }

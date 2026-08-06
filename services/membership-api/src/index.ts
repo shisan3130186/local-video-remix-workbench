@@ -38,10 +38,15 @@ interface AccountRow {
   user_status: "active" | "disabled";
   membership_status: "active" | "disabled" | null;
   expires_at: number | null;
+  bound_device_hash: string | null;
+  rebind_month: string | null;
+  rebind_count: number;
+  current_device_hash?: string | null;
 }
 
 interface SessionAccountRow extends AccountRow {
   session_id: string;
+  current_device_hash: string | null;
 }
 
 interface RedemptionCodeRow {
@@ -55,6 +60,7 @@ interface AuthInput {
   password?: string;
   displayName?: string;
   appVersion?: string;
+  deviceId?: string;
 }
 
 class HttpError extends Error {
@@ -113,6 +119,7 @@ async function register(request: Request, env: Env): Promise<Response> {
   if (exists) throw new HttpError(409, "email_exists", "这个邮箱已经注册，请直接登录。" );
 
   const now = unixNow();
+  const currentDeviceHash = await hashDeviceId(input.deviceId);
   const userId = crypto.randomUUID();
   const displayName = normalizeDisplayName(String(input.displayName ?? ""), `智剪用户${userId.slice(-4)}`);
   const passwordData = await hashPassword(password);
@@ -121,10 +128,10 @@ async function register(request: Request, env: Env): Promise<Response> {
       (id, email, display_name, password_hash, password_salt, password_iterations, created_at, updated_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)`,
   ).bind(userId, email, displayName, passwordData.hash, passwordData.salt, passwordData.iterations, now).run();
-  const sessionToken = await createSession(env, userId, now);
+  const sessionToken = await createSession(env, userId, now, currentDeviceHash);
   await recordEvent(env, userId, "register", "success", input.appVersion);
   const account = await loadAccount(env, userId);
-  return await signedAccountResponse(env, account, sessionToken, "注册成功。", 201);
+  return await signedAccountResponse(env, { ...account, current_device_hash: currentDeviceHash }, sessionToken, "注册成功。", 201);
 }
 
 async function login(request: Request, env: Env): Promise<Response> {
@@ -142,9 +149,10 @@ async function login(request: Request, env: Env): Promise<Response> {
   }
   if (user.status === "disabled") throw new HttpError(403, "account_disabled", "此账号已被停用。" );
   const now = unixNow();
-  const sessionToken = await createSession(env, user.id, now);
+  const currentDeviceHash = await hashDeviceId(input.deviceId);
+  const sessionToken = await createSession(env, user.id, now, currentDeviceHash);
   await recordEvent(env, user.id, "login", "success", input.appVersion);
-  return await signedAccountResponse(env, await loadAccount(env, user.id), sessionToken, "登录成功。");
+  return await signedAccountResponse(env, { ...(await loadAccount(env, user.id)), current_device_hash: currentDeviceHash }, sessionToken, "登录成功。");
 }
 
 async function logout(request: Request, env: Env): Promise<Response> {
@@ -156,12 +164,12 @@ async function logout(request: Request, env: Env): Promise<Response> {
 
 async function getAccount(request: Request, env: Env): Promise<Response> {
   const session = await requireSession(request, env);
-  return await signedAccountResponse(env, session, null, "账号状态正常。" );
+  return await signedAccountResponse(env, session, null, "账号状态正常。" , 200, session.current_device_hash);
 }
 
 async function redeem(request: Request, env: Env): Promise<Response> {
   const session = await requireSession(request, env);
-  const body = await readJson<{ redemptionCode?: string; appVersion?: string }>(request);
+  const body = await readJson<{ redemptionCode?: string; appVersion?: string; allowDeviceRebind?: boolean }>(request);
   const normalized = normalizeRedemptionCode(String(body.redemptionCode ?? ""));
   if (normalized.length !== 20 || !normalized.startsWith("SCUT")) {
     throw new HttpError(400, "invalid_code", "兑换码格式不正确。" );
@@ -175,6 +183,23 @@ async function redeem(request: Request, env: Env): Promise<Response> {
   if (code.status === "disabled") throw new HttpError(403, "code_disabled", "这个兑换码已被停用。" );
 
   const now = unixNow();
+  const currentDeviceHash = session.current_device_hash;
+  if (!currentDeviceHash) throw new HttpError(400, "device_required", "无法识别当前设备，请重新启动软件后重试。" );
+  const membership = await env.DB.prepare(
+    "SELECT expires_at, bound_device_hash, rebind_month, rebind_count FROM memberships WHERE user_id = ?1",
+  ).bind(session.id).first<{ expires_at: number; bound_device_hash: string | null; rebind_month: string | null; rebind_count: number }>();
+  const month = monthKey(now);
+  let boundDeviceHash = membership?.bound_device_hash ?? currentDeviceHash;
+  let rebindMonth = membership?.rebind_month ?? month;
+  let rebindCount = membership?.rebind_count ?? 0;
+  if (membership?.bound_device_hash && membership.bound_device_hash !== currentDeviceHash) {
+    if (!body.allowDeviceRebind) throw new HttpError(409, "device_rebind_required", "兑换后会员账号将绑定到此设备，如需在其他设备使用需进行换绑（每月限2次），确定要继续吗？" );
+    if (rebindMonth !== month) rebindCount = 0;
+    if (rebindCount >= 2) throw new HttpError(429, "device_rebind_limit", "本月换绑次数已用完，请下月再试。" );
+    boundDeviceHash = currentDeviceHash;
+    rebindMonth = month;
+    rebindCount += 1;
+  }
   const claimed = await env.DB.prepare(
     `UPDATE redemption_codes
      SET status = 'redeemed', redeemed_by_user_id = ?1, redeemed_at = ?2, updated_at = ?2
@@ -184,17 +209,17 @@ async function redeem(request: Request, env: Env): Promise<Response> {
     throw new HttpError(409, "code_redeemed", "这个兑换码刚刚已被使用。" );
   }
 
-  const membership = await env.DB.prepare("SELECT expires_at FROM memberships WHERE user_id = ?1")
-    .bind(session.id).first<{ expires_at: number }>();
   const baseTime = Math.max(now, membership?.expires_at ?? now);
   const expiresAt = baseTime + code.duration_days * 24 * 60 * 60;
   await env.DB.prepare(
-    `INSERT INTO memberships (user_id, status, expires_at, updated_at)
-     VALUES (?1, 'active', ?2, ?3)
-     ON CONFLICT(user_id) DO UPDATE SET status = 'active', expires_at = excluded.expires_at, updated_at = excluded.updated_at`,
-  ).bind(session.id, expiresAt, now).run();
+    `INSERT INTO memberships (user_id, status, expires_at, bound_device_hash, rebind_month, rebind_count, updated_at)
+     VALUES (?1, 'active', ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT(user_id) DO UPDATE SET status = 'active', expires_at = excluded.expires_at,
+       bound_device_hash = excluded.bound_device_hash, rebind_month = excluded.rebind_month,
+       rebind_count = excluded.rebind_count, updated_at = excluded.updated_at`,
+  ).bind(session.id, expiresAt, boundDeviceHash, rebindMonth, rebindCount, now).run();
   await recordEvent(env, session.id, "redeem", `success_${code.duration_days}_days`, body.appVersion);
-  return await signedAccountResponse(env, await loadAccount(env, session.id), null, `兑换成功，会员已增加${code.duration_days}天。`);
+  return await signedAccountResponse(env, { ...(await loadAccount(env, session.id)), current_device_hash: currentDeviceHash }, null, `兑换成功，会员已增加${code.duration_days}天。`);
 }
 
 async function changePassword(request: Request, env: Env): Promise<Response> {
@@ -219,7 +244,7 @@ async function changePassword(request: Request, env: Env): Promise<Response> {
   await env.DB.prepare("DELETE FROM sessions WHERE user_id = ?1 AND id <> ?2")
     .bind(session.id, session.session_id).run();
   await recordEvent(env, session.id, "change_password", "success", body.appVersion);
-  return await signedAccountResponse(env, await loadAccount(env, session.id), null, "密码修改成功，其他设备已退出登录。" );
+  return await signedAccountResponse(env, { ...(await loadAccount(env, session.id)), current_device_hash: session.current_device_hash }, null, "密码修改成功，其他设备已退出登录。" );
 }
 
 async function createCode(request: Request, env: Env): Promise<Response> {
@@ -261,13 +286,13 @@ async function updateCode(request: Request, env: Env, codeId: string): Promise<R
   return json({ ok: true, codeId, status: nextStatus });
 }
 
-async function createSession(env: Env, userId: string, now: number): Promise<string> {
+async function createSession(env: Env, userId: string, now: number, deviceHash: string): Promise<string> {
   const token = createRandomToken();
   const tokenHash = await sha256Hex(token);
   const expiresAt = now + 30 * 24 * 60 * 60;
   await env.DB.prepare(
-    "INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at, last_seen_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
-  ).bind(crypto.randomUUID(), userId, tokenHash, expiresAt, now).run();
+    "INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at, last_seen_at, device_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6)",
+  ).bind(crypto.randomUUID(), userId, tokenHash, expiresAt, now, deviceHash).run();
   return token;
 }
 
@@ -278,7 +303,8 @@ async function requireSession(request: Request, env: Env): Promise<SessionAccoun
   const now = unixNow();
   const session = await env.DB.prepare(
     `SELECT s.id AS session_id, u.id, u.email, u.display_name, u.status AS user_status,
-      m.status AS membership_status, m.expires_at
+      m.status AS membership_status, m.expires_at, m.bound_device_hash, m.rebind_month, m.rebind_count,
+      s.device_hash AS current_device_hash
      FROM sessions s
      JOIN users u ON u.id = s.user_id
      LEFT JOIN memberships m ON m.user_id = u.id
@@ -292,7 +318,7 @@ async function requireSession(request: Request, env: Env): Promise<SessionAccoun
 async function loadAccount(env: Env, userId: string): Promise<AccountRow> {
   const account = await env.DB.prepare(
     `SELECT u.id, u.email, u.display_name, u.status AS user_status,
-      m.status AS membership_status, m.expires_at
+      m.status AS membership_status, m.expires_at, m.bound_device_hash, m.rebind_month, m.rebind_count
      FROM users u LEFT JOIN memberships m ON m.user_id = u.id WHERE u.id = ?1`,
   ).bind(userId).first<AccountRow>();
   if (!account) throw new HttpError(404, "account_not_found", "账号不存在。" );
@@ -305,6 +331,7 @@ async function signedAccountResponse(
   sessionToken: string | null,
   message: string,
   status = 200,
+  currentDeviceHash: string | null = account.current_device_hash ?? null,
 ): Promise<Response> {
   const now = unixNow();
   const membershipStatus = resolveMembershipState(
@@ -314,6 +341,10 @@ async function signedAccountResponse(
     now,
   );
   const graceHours = Math.min(168, Math.max(1, Number(env.OFFLINE_GRACE_HOURS ?? 72) || 72));
+  const currentMonth = monthKey(now);
+  const deviceBound = Boolean(account.bound_device_hash);
+  const deviceMatch = !deviceBound || Boolean(currentDeviceHash && currentDeviceHash === account.bound_device_hash);
+  const rebindsUsed = account.rebind_month === currentMonth ? account.rebind_count : 0;
   const payload = buildSignedAccount({
     userId: account.id,
     email: account.email,
@@ -322,6 +353,9 @@ async function signedAccountResponse(
     expiresAt: account.expires_at,
     now,
     graceHours,
+    deviceBound,
+    deviceMatch,
+    rebindsRemaining: Math.max(0, 2 - rebindsUsed),
   });
   const signature = await signAccount(payload, env.SIGNING_PRIVATE_KEY_PKCS8_BASE64);
   return json({ ok: true, message, sessionToken, account: payload, signature }, status);
@@ -355,6 +389,16 @@ async function readJson<T>(request: Request): Promise<T> {
 
 function unixNow(): number {
   return Math.floor(Date.now() / 1000);
+}
+
+async function hashDeviceId(value: unknown): Promise<string> {
+  const normalized = String(value ?? "").trim();
+  if (!normalized || normalized.length > 128) throw new HttpError(400, "device_required", "无法识别当前设备，请重新启动软件后重试。" );
+  return sha256Hex(normalized);
+}
+
+function monthKey(now: number): string {
+  return new Date(now * 1000).toISOString().slice(0, 7);
 }
 
 function json(value: unknown, status = 200): Response {

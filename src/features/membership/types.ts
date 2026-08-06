@@ -9,6 +9,9 @@ export interface AccountStatus {
   expiresAt: number | null;
   offlineUntil: number | null;
   lastValidatedAt: number | null;
+  deviceBound: boolean;
+  deviceMatch: boolean;
+  rebindsRemaining: number;
   message: string;
 }
 

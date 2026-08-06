@@ -17,8 +17,8 @@ export function refreshAccount() {
   return invoke<AccountStatus>("refresh_account");
 }
 
-export function redeemMembership(redemptionCode: string) {
-  return invoke<AccountStatus>("redeem_membership", { redemptionCode });
+export function redeemMembership(redemptionCode: string, allowDeviceRebind: boolean) {
+  return invoke<AccountStatus>("redeem_membership", { redemptionCode, allowDeviceRebind });
 }
 
 export function changeAccountPassword(currentPassword: string, newPassword: string) {

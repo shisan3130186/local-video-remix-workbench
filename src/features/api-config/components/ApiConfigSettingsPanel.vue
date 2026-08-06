@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted } from "vue";
 import { useApiConfig } from "../useApiConfig";
-import type { ApiCredentialKind } from "../types";
 import SecretInputField from "./SecretInputField.vue";
 import "../api-config.css";
 
@@ -15,13 +14,10 @@ const {
   isLoading,
   isSaving,
   loadConfiguration,
-  removeCredential,
   saveConfiguration,
   status,
   successMessage,
 } = useApiConfig();
-
-const pendingDelete = ref<ApiCredentialKind | null>(null);
 
 onMounted(() => {
   void loadConfiguration();
@@ -33,19 +29,7 @@ async function handleSave() {
   }
 }
 
-async function handleDelete(kind: ApiCredentialKind) {
-  if (pendingDelete.value !== kind) {
-    pendingDelete.value = kind;
-    return;
-  }
-
-  if (await removeCredential(kind)) {
-    pendingDelete.value = null;
-    emit("changed");
-  }
-}
-
-function keyPlaceholder(kind: ApiCredentialKind) {
+function keyPlaceholder(kind: "ai" | "tts") {
   const keyStored = kind === "ai" ? status.value?.aiKeyStored : status.value?.ttsKeyStored;
   const environmentFallback = kind === "ai"
     ? status.value?.aiEnvironmentFallback
@@ -72,17 +56,7 @@ function keyPlaceholder(kind: ApiCredentialKind) {
       <SecretInputField id="api-config-ai-key" v-model="form.aiApiKey" label="Ark API Key" :placeholder="keyPlaceholder('ai')" :disabled="isSaving" />
       <SecretInputField id="api-config-tts-key" v-model="form.ttsApiKey" label="TTS API Key" :placeholder="keyPlaceholder('tts')" :disabled="isSaving" />
 
-      <details class="api-config-advanced api-config-advanced--all">
-        <summary>高级连接设置</summary>
-        <label class="field" for="api-config-ai-model"><span>模型接入点 ID</span><input id="api-config-ai-model" v-model="form.aiModel" type="text" autocomplete="off" spellcheck="false" placeholder="例如：ep-2026xxxxxxxx" :disabled="isSaving" /></label>
-        <label class="field" for="api-config-ai-base-url"><span>AI Base URL</span><input id="api-config-ai-base-url" v-model="form.aiBaseUrl" type="url" autocomplete="off" spellcheck="false" :disabled="isSaving" /></label>
-        <label class="field" for="api-config-tts-resource"><span>语音资源 ID</span><input id="api-config-tts-resource" v-model="form.ttsResourceId" type="text" spellcheck="false" :disabled="isSaving" /></label>
-        <label class="field" for="api-config-tts-speaker"><span>默认音色 ID</span><input id="api-config-tts-speaker" v-model="form.ttsSpeaker" type="text" spellcheck="false" :disabled="isSaving" /></label>
-        <div class="api-config-delete-row">
-          <button v-if="status?.aiKeyStored" type="button" :class="{ 'api-config-delete--confirm': pendingDelete === 'ai' }" :disabled="isSaving" @click="handleDelete('ai')">{{ pendingDelete === 'ai' ? '再次点击确认' : '删除 Ark 密钥' }}</button>
-          <button v-if="status?.ttsKeyStored" type="button" :class="{ 'api-config-delete--confirm': pendingDelete === 'tts' }" :disabled="isSaving" @click="handleDelete('tts')">{{ pendingDelete === 'tts' ? '再次点击确认' : '删除 TTS 密钥' }}</button>
-        </div>
-      </details>
+      <p class="api-config-note">平台已固定为火山引擎。模型、语音资源和默认音色由软件统一配置，你只需要填写下面两个 Key。</p>
 
       <p v-if="error" class="api-config-feedback api-config-feedback--error" role="alert">{{ error }}</p>
       <p v-if="successMessage" class="api-config-feedback api-config-feedback--success" role="status">{{ successMessage }}</p>

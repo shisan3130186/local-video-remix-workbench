@@ -423,8 +423,11 @@ async fn refresh_account() -> Result<AccountStatus, String> {
 }
 
 #[tauri::command]
-async fn redeem_membership(redemption_code: String) -> Result<AccountStatus, String> {
-    redeem_remote_membership(redemption_code).await
+async fn redeem_membership(
+    redemption_code: String,
+    allow_device_rebind: bool,
+) -> Result<AccountStatus, String> {
+    redeem_remote_membership(redemption_code, allow_device_rebind).await
 }
 
 #[tauri::command]
