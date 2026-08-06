@@ -27,6 +27,7 @@ import type { TaskRunHandle } from "../task-center";
 
 interface UseAiRemixOptions {
   outputDirectory: Readonly<Ref<string | null>>;
+  generationOutputDirectory: Readonly<Ref<string | null>>;
   remixExportSettings: Readonly<Ref<RemixExportSettings>>;
   appendAiRemixLog: (message: string, level: TaskLogLevel) => void;
   appendSplitLog: (message: string, level: TaskLogLevel) => void;
@@ -419,7 +420,7 @@ export function useAiRemix(options: UseAiRemixOptions) {
             try {
               const result = await concatSelectedSegments(
                 variant.shots.map((shot) => shot.segment.path),
-                options.outputDirectory.value as string,
+                options.generationOutputDirectory.value ?? options.outputDirectory.value as string,
                 options.remixExportSettings.value,
                 task.progress(
                   (index / variants.length) * 100,

@@ -28,6 +28,8 @@ import type { TaskRunHandle } from "../task-center";
 interface UseTtsOptions {
   text: Ref<string>;
   outputDirectory: Ref<string | null>;
+  generationOutputDirectory: Readonly<Ref<string | null>>;
+  narrationOutputDirectory: Readonly<Ref<string | null>>;
   appendLog: (message: string, level: "info" | "success" | "error") => void;
   clearLogs: () => void;
   validateExportSettings: () => string | null;
@@ -120,7 +122,7 @@ export function useTts(options: UseTtsOptions) {
         () =>
           synthesizeTts(
             normalizedText,
-            options.outputDirectory.value as string,
+            options.generationOutputDirectory.value ?? options.outputDirectory.value as string,
             normalizedSpeaker,
           ),
         {
@@ -238,6 +240,7 @@ export function useTts(options: UseTtsOptions) {
               normalizedSpeaker,
               sessionId,
               index + 1,
+              options.narrationOutputDirectory.value,
             ),
           {
             onRetry({ nextAttempt, maxAttempts, delayMs, message }) {

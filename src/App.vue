@@ -63,7 +63,12 @@ import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
 } from "./services/videoMixService";
-import { isExistingDirectory, openPathInFileManager } from "./services/fileManagerService";
+import {
+  createAiRemixOutputDirectory,
+  exportJianyingDraftPackage,
+  isExistingDirectory,
+  openPathInFileManager,
+} from "./services/fileManagerService";
 import { checkFfmpegEnvironment } from "./services/videoProbeService";
 import type { FfmpegEnvironmentResult, ImportedVideo } from "./types/videoProbe";
 import type { DrawerKey, FeatureKey, ToolKey, WorkspaceMode } from "./types/workbench";
@@ -74,8 +79,17 @@ const isDesktopRuntime = "__TAURI_INTERNALS__" in window;
 const isChecking = ref(true);
 const checkError = ref<string | null>(null);
 const outputDirectory = ref<string | null>(null);
+const generationOutputDirectory = ref<string | null>(null);
+const generationVideoOutputDirectory = computed(() =>
+  generationOutputDirectory.value
+    ? `${generationOutputDirectory.value}\\视频成片`
+    : null,
+);
 const outputDirectoryError = ref<string | null>(null);
 const fileManagerError = ref<string | null>(null);
+const generationOutputError = ref<string | null>(null);
+const aiRemixInputMode = ref<"custom" | "script" | "audio">("custom");
+const draftExportFeedback = ref<string | null>(null);
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
 const isWorkspaceVisible = ref(false);
@@ -385,6 +399,7 @@ const {
   updateAiSegmentContentAnalysis,
 } = useAiRemix({
   outputDirectory,
+  generationOutputDirectory: generationVideoOutputDirectory,
   remixExportSettings,
   appendAiRemixLog,
   appendSplitLog,
@@ -443,6 +458,8 @@ const {
 } = useTts({
   text: aiScript,
   outputDirectory,
+  generationOutputDirectory: generationVideoOutputDirectory,
+  narrationOutputDirectory: generationOutputDirectory,
   appendLog: appendTtsLog,
   clearLogs: clearTtsLogs,
   validateExportSettings() {
@@ -990,6 +1007,10 @@ async function generateCurrentAiRemixVideo() {
     return;
   }
 
+  if (!(await ensureAiGenerationOutputDirectory())) {
+    return;
+  }
+
   if (!ttsVideoEnabled.value) {
     await generateAiRemixVideos(variants);
     return;
@@ -1009,6 +1030,78 @@ async function generateCurrentAiRemixVideo() {
     ),
     remixExportSettings.value,
   );
+}
+
+async function ensureAiGenerationOutputDirectory() {
+  generationOutputError.value = null;
+  draftExportFeedback.value = null;
+  if (generationOutputDirectory.value) {
+    try {
+      if (await isExistingDirectory(generationOutputDirectory.value)) {
+        return true;
+      }
+    } catch (error) {
+      generationOutputError.value = toErrorMessage(error, "无法检查本次任务目录。");
+      return false;
+    }
+    generationOutputDirectory.value = null;
+  }
+
+  if (!outputDirectory.value) {
+    generationOutputError.value = "请先选择输出目录。";
+    return false;
+  }
+
+  try {
+    generationOutputDirectory.value = await createAiRemixOutputDirectory(
+      outputDirectory.value,
+      selectedVideo.value?.fileName?.replace(/\.[^.]+$/, "") || "AI混剪任务",
+    );
+    return true;
+  } catch (error) {
+    generationOutputError.value = toErrorMessage(error, "无法创建本次 AI 混剪任务目录。");
+    return false;
+  }
+}
+
+async function openAiGenerationDirectory() {
+  if (!generationOutputDirectory.value) {
+    fileManagerError.value = "本次任务还没有生成结果。";
+    return;
+  }
+  await openPath(generationOutputDirectory.value);
+}
+
+async function exportAiJianyingDraft() {
+  draftExportFeedback.value = null;
+  if (!generationOutputDirectory.value) {
+    draftExportFeedback.value = "本次任务还没有生成结果。";
+    return;
+  }
+  const paths = [...aiGeneratedResults.value, ...narratedVideoResults.value];
+  try {
+    const folder = await exportJianyingDraftPackage(
+      generationOutputDirectory.value,
+      selectedVideo.value?.fileName?.replace(/\.[^.]+$/, "") || "AI混剪草稿",
+      paths,
+      aiScript.value,
+    );
+    draftExportFeedback.value = `剪映草稿已整理到：${folder}`;
+  } catch (error) {
+    draftExportFeedback.value = toErrorMessage(error, "剪映草稿导出失败。");
+  }
+}
+
+function useAudioAsRemixScript() {
+  if (!asrResult.value?.text.trim()) {
+    generationOutputError.value = "请先选择音频并完成语音识别。";
+    activeTool.value = "asr";
+    return;
+  }
+  aiScript.value = asrResult.value.text.trim();
+  aiRemixInputMode.value = "audio";
+  generationOutputError.value = null;
+  activeTool.value = null;
 }
 
 const statusText = computed(() => {
@@ -1170,6 +1263,7 @@ async function runEnvironmentCheck() {
 
 async function importVideos() {
   if (await importMaterialVideos()) {
+    generationOutputDirectory.value = null;
     resetAiRemixState(true);
     resetRandomPickState();
   }
@@ -1177,6 +1271,7 @@ async function importVideos() {
 
 async function importVideoFolder() {
   if (await importMaterialFolder()) {
+    generationOutputDirectory.value = null;
     resetAiRemixState(true);
     resetRandomPickState();
   }
@@ -1184,6 +1279,7 @@ async function importVideoFolder() {
 
 function selectVideo(video: ImportedVideo) {
   selectMaterialVideo(video);
+  generationOutputDirectory.value = null;
   resetAiRemixState(true);
   resetRandomPickState();
 }
@@ -1203,6 +1299,7 @@ async function selectOutputDirectory() {
     }
 
     outputDirectory.value = selected;
+    generationOutputDirectory.value = null;
     return true;
   } catch (error) {
     outputDirectoryError.value =
@@ -1822,7 +1919,7 @@ onMounted(() => {
         :split-segment-count="splitSegmentCount"
         :split-error="splitError || outputDirectoryError"
         :random-selected-count="randomSelectedSegments.length"
-        :batch-mix-result-count="batchMixResults.length"
+        :batch-mix-result-count="batchMixResults.length + aiGeneratedResults.length + narratedVideoResults.length"
         :mix-error="mixError"
         :batch-mix-error="batchMixError"
         :ai-prepared-segments="aiPreparedSegments"
@@ -1833,6 +1930,12 @@ onMounted(() => {
         :ai-planning-progress-text="aiPlanningProgressText"
         :is-generating-ai-remix="isGeneratingCurrentAiVideo"
         :tts-video-enabled="ttsVideoEnabled"
+        :ai-remix-input-mode="aiRemixInputMode"
+        :asr-source-file-name="asrSourceFileName"
+        :asr-result-text="asrResult?.text ?? null"
+        :generation-output-directory="generationOutputDirectory"
+        :generation-output-error="generationOutputError"
+        :draft-export-feedback="draftExportFeedback"
         :generation-progress-text="currentAiGenerationProgressText"
         :generation-summary-text="currentAiGenerationSummaryText"
         :generation-success-count="currentAiGenerationSuccessCount"
@@ -1857,6 +1960,12 @@ onMounted(() => {
         @remove-ai-shot="removeAiRemixShot"
         @replace-ai-shot-segment="replaceAiRemixShotSegment"
         @generate-ai-remix="generateCurrentAiRemixVideo"
+        @update-ai-remix-input-mode="aiRemixInputMode = $event"
+        @select-audio-source="selectAsrSourceFile"
+        @recognize-audio="recognizeAsr"
+        @use-recognized-audio="useAudioAsRemixScript"
+        @open-generation-directory="openAiGenerationDirectory"
+        @export-jianying-draft="exportAiJianyingDraft"
       />
 
       <BatchWorkspacePanel
@@ -2164,8 +2273,12 @@ onMounted(() => {
     <BatchResultDrawer
       :open="activeDrawer === 'batch'"
       :batch-mix-results="batchMixResults"
+      :generated-results="[...aiGeneratedResults, ...narratedVideoResults]"
+      :generation-output-directory="generationOutputDirectory"
       :format-file-name="formatFileName"
       @close="activeDrawer = null"
+      @open-location="openAiGenerationDirectory"
+      @export-jianying-draft="exportAiJianyingDraft"
     />
     <TaskQueuePanel
       :active-task="activeTask"

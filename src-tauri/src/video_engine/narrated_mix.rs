@@ -6,6 +6,7 @@ use crate::video_engine::subtitle::{
 };
 use crate::video_engine::tool_paths::{background_command, ffprobe_program};
 use serde::Deserialize;
+use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Deserialize)]
@@ -111,6 +112,13 @@ fn prepare_and_concat_narrated_segments(
     task_context: Option<TaskProgressContext>,
 ) -> Result<MixVideoResult, String> {
     let mut prepared_paths = Vec::with_capacity(segments.len());
+    let subtitle_output_directory = Path::new(&output_directory)
+        .parent()
+        .map(|parent| parent.join("配音与字幕"));
+    if let Some(directory) = &subtitle_output_directory {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("无法创建配音与字幕目录：{error}"))?;
+    }
 
     for (index, segment) in segments.iter().enumerate() {
         let output_path = session_dir.join(format!("narrated_{index:03}.mp4"));
@@ -126,6 +134,7 @@ fn prepare_and_concat_narrated_segments(
             &output_path,
             audio_settings,
             subtitle_settings,
+            subtitle_output_directory.as_deref(),
             segment_context.as_ref(),
         )
         .map_err(|error| format!("第 {} 个分镜处理失败：{error}", index + 1))?;
@@ -143,6 +152,7 @@ fn create_narrated_segment(
     output_path: &Path,
     audio_settings: NarratedAudioSettings,
     subtitle_settings: NarratedSubtitleSettings,
+    subtitle_output_directory: Option<&Path>,
     task_context: Option<&TaskProgressContext>,
 ) -> Result<(), String> {
     let narration_duration = probe_media_duration(&segment.narration_path, "分镜配音")?;
@@ -158,6 +168,14 @@ fn create_narrated_segment(
         narration_duration,
         subtitle_settings,
     )? {
+        if let Some(directory) = subtitle_output_directory {
+            let archive_name = output_path
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .unwrap_or("segment");
+            let archive_path = directory.join(format!("{archive_name}.ass"));
+            let _ = fs::copy(&subtitle_path, archive_path);
+        }
         video_filter.push(',');
         video_filter.push_str(&subtitle_filter);
     }

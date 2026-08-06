@@ -30,12 +30,14 @@ export function synthesizeTtsShot(
   speaker: string,
   sessionId: string,
   shotIndex: number,
+  outputDirectory?: string | null,
 ): Promise<TtsSynthesisResult> {
   return invoke<TtsSynthesisResult>("synthesize_tts_shot", {
     text,
     speaker,
     sessionId,
     shotIndex,
+    outputDirectory: outputDirectory ?? null,
   });
 }
 

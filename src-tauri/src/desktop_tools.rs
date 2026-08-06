@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -132,6 +133,119 @@ pub fn write_base64_file(path: String, data: String) -> Result<(), String> {
         .decode(payload.trim())
         .map_err(|error| format!("图片数据无法解析：{error}"))?;
     fs::write(target, bytes).map_err(|error| format!("无法保存图片文件：{error}"))
+}
+
+pub fn create_ai_remix_output_directory(
+    output_directory: String,
+    label: String,
+) -> Result<String, String> {
+    let root = Path::new(output_directory.trim());
+    if !root.is_dir() {
+        return Err("请选择有效的输出目录。".to_string());
+    }
+
+    let safe_label = label
+        .trim()
+        .chars()
+        .map(|character| match character {
+            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            value => value,
+        })
+        .collect::<String>();
+    let safe_label = if safe_label.is_empty() {
+        "AI混剪任务".to_string()
+    } else {
+        safe_label
+    };
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("无法生成任务目录名称：{error}"))?
+        .as_millis();
+    let task_directory = root.join(format!("{safe_label}_{timestamp}"));
+    fs::create_dir_all(&task_directory)
+        .map_err(|error| format!("无法创建 AI 混剪任务目录：{error}"))?;
+    fs::create_dir_all(task_directory.join("视频成片"))
+        .map_err(|error| format!("无法创建视频成片目录：{error}"))?;
+    fs::create_dir_all(task_directory.join("剪映草稿"))
+        .map_err(|error| format!("无法创建剪映草稿目录：{error}"))?;
+    fs::create_dir_all(task_directory.join("配音与字幕"))
+        .map_err(|error| format!("无法创建配音与字幕目录：{error}"))?;
+    fs::write(
+        task_directory.join("任务说明.txt"),
+        "AI 混剪任务输出目录\r\n视频成片：生成的视频文件\r\n剪映草稿：草稿工程包\r\n配音与字幕：配音和字幕中间文件\r\n",
+    )
+    .map_err(|error| format!("无法写入任务说明：{error}"))?;
+    Ok(task_directory.to_string_lossy().to_string())
+}
+
+pub fn export_jianying_draft_package(
+    output_directory: String,
+    project_name: String,
+    video_paths: Vec<String>,
+    script: String,
+) -> Result<String, String> {
+    let root = Path::new(output_directory.trim());
+    if !root.is_dir() {
+        return Err("任务输出目录不存在。".to_string());
+    }
+    if video_paths.is_empty() {
+        return Err("没有可导出的成片。".to_string());
+    }
+
+    let safe_name = project_name
+        .trim()
+        .chars()
+        .map(|character| match character {
+            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            value => value,
+        })
+        .collect::<String>();
+    let folder = root.join("剪映草稿").join(if safe_name.is_empty() {
+        "AI混剪草稿"
+    } else {
+        safe_name.as_str()
+    });
+    fs::create_dir_all(&folder).map_err(|error| format!("无法创建剪映草稿目录：{error}"))?;
+
+    let materials = video_paths
+        .iter()
+        .enumerate()
+        .map(|(index, path)| serde_json::json!({
+            "index": index + 1,
+            "path": path,
+            "fileName": Path::new(path).file_name().and_then(|value| value.to_str()).unwrap_or(path),
+        }))
+        .collect::<Vec<_>>();
+    let content = serde_json::json!({
+        "format": "smartcut-jianying-draft-package",
+        "version": 1,
+        "projectName": project_name,
+        "script": script,
+        "materials": materials,
+        "note": "此工程包保留成片素材路径和文案，可用于导入剪映前的工程整理。"
+    });
+    let meta = serde_json::json!({
+        "projectName": project_name,
+        "materialCount": video_paths.len(),
+        "createdAt": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs(),
+    });
+    fs::write(
+        folder.join("draft_content.json"),
+        serde_json::to_vec_pretty(&content)
+            .map_err(|error| format!("无法生成草稿内容：{error}"))?,
+    )
+    .map_err(|error| format!("无法写入草稿内容：{error}"))?;
+    fs::write(
+        folder.join("draft_meta_info.json"),
+        serde_json::to_vec_pretty(&meta).map_err(|error| format!("无法生成草稿信息：{error}"))?,
+    )
+    .map_err(|error| format!("无法写入草稿信息：{error}"))?;
+    fs::write(
+        folder.join("使用说明.txt"),
+        "这是智剪生成的剪映草稿工程包，包含成片素材路径、文案和工程信息。\r\n",
+    )
+    .map_err(|error| format!("无法写入草稿说明：{error}"))?;
+    Ok(folder.to_string_lossy().to_string())
 }
 
 fn validate_output_file(path: &str) -> Result<&Path, String> {

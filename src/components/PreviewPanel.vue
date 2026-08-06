@@ -36,6 +36,12 @@ const props = defineProps<{
   aiPlanningProgressText: string | null;
   isGeneratingAiRemix: boolean;
   ttsVideoEnabled: boolean;
+  aiRemixInputMode: "custom" | "script" | "audio";
+  asrSourceFileName: string | null;
+  asrResultText: string | null;
+  generationOutputDirectory: string | null;
+  generationOutputError: string | null;
+  draftExportFeedback: string | null;
   generationProgressText: string | null;
   generationSummaryText: string | null;
   generationSuccessCount: number;
@@ -63,6 +69,12 @@ defineEmits<{
   removeAiShot: [index: number];
   replaceAiShotSegment: [index: number, segmentId: string];
   generateAiRemix: [];
+  updateAiRemixInputMode: [mode: "custom" | "script" | "audio"];
+  selectAudioSource: [];
+  recognizeAudio: [];
+  useRecognizedAudio: [];
+  openGenerationDirectory: [];
+  exportJianyingDraft: [];
 }>();
 
 const previewVideoRef = defineModel<HTMLVideoElement | null>("previewVideoRef");
@@ -144,6 +156,22 @@ const isPortraitPreview = computed(() => {
         </div>
       </div>
 
+      <div class="ai-remix-mode-tabs" role="tablist" aria-label="AI 混剪输入方式">
+        <button v-for="mode in ([['custom', '自定义'], ['script', '文案'], ['audio', '音频']] as const)" :key="mode[0]" type="button" :class="{ 'is-active': aiRemixInputMode === mode[0] }" role="tab" :aria-selected="aiRemixInputMode === mode[0]" @click="$emit('updateAiRemixInputMode', mode[0])">{{ mode[1] }}</button>
+      </div>
+
+      <div v-if="aiRemixInputMode === 'audio'" class="ai-remix-audio-source">
+        <div>
+          <strong>{{ asrSourceFileName || "尚未选择音频" }}</strong>
+          <small>{{ asrResultText ? "已识别，可直接用于匹配画面" : "选择音频后识别文案" }}</small>
+        </div>
+        <div class="ai-remix-audio-source__actions">
+          <button type="button" @click="$emit('selectAudioSource')">选择音频</button>
+          <button type="button" :disabled="!asrSourceFileName" @click="$emit('recognizeAudio')">识别文案</button>
+          <button class="primary-button" type="button" :disabled="!asrResultText" @click="$emit('useRecognizedAudio')">使用识别结果</button>
+        </div>
+      </div>
+
       <div v-if="selectedVideo && aiPreparedSegments.length < 2" class="replica-prepare-row">
         <span>
           <strong>{{ isSplitting || isPreparingAiSegments ? "正在准备素材" : "素材尚未切片" }}</strong>
@@ -162,7 +190,8 @@ const isPortraitPreview = computed(() => {
       </div>
 
       <label
-        v-if="aiPreparedSegments.length < 2"
+        v-if="aiRemixInputMode !== 'audio'"
+        v-show="aiPreparedSegments.length < 2"
         class="ai-remix-script-field ai-remix-script-field--draft replica-script-field"
         for="ai-remix-script-draft"
       >
@@ -225,6 +254,13 @@ const isPortraitPreview = computed(() => {
       </details>
 
       <p v-if="mixError || batchMixError" class="workflow-error" role="alert">{{ mixError || batchMixError }}</p>
+      <p v-if="generationOutputError" class="workflow-error" role="alert">{{ generationOutputError }}</p>
+      <div v-if="generationOutputDirectory || draftExportFeedback" class="ai-remix-output-bar">
+        <span><strong>本次任务</strong><small>{{ generationOutputDirectory || "等待创建任务目录" }}</small></span>
+        <button type="button" :disabled="!generationOutputDirectory" @click="$emit('openGenerationDirectory')">打开目录</button>
+        <button type="button" :disabled="!generationOutputDirectory || generationSuccessCount === 0" @click="$emit('exportJianyingDraft')">导出剪映草稿</button>
+      </div>
+      <p v-if="draftExportFeedback" class="workflow-success" role="status">{{ draftExportFeedback }}</p>
     </section>
   </section>
 </template>

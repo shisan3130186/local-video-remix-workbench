@@ -106,6 +106,7 @@ pub async fn synthesize_tts_shot(
     speaker: Option<String>,
     session_id: String,
     shot_index: usize,
+    output_directory: Option<String>,
 ) -> Result<TtsSynthesisResult, String> {
     let normalized_text = text.trim();
 
@@ -118,7 +119,16 @@ pub async fn synthesize_tts_shot(
 
     let config = load_tts_config(speaker)?;
     let parsed = request_tts_audio(normalized_text, &config).await?;
-    let output_path = session_dir.join(format!("shot_{shot_index:03}.mp3"));
+    let output_path = if let Some(output_directory) = output_directory {
+        let output_dir = Path::new(output_directory.trim()).join("配音与字幕");
+        if !output_dir.is_dir() {
+            fs::create_dir_all(&output_dir)
+                .map_err(|error| format!("无法创建配音与字幕目录：{error}"))?;
+        }
+        output_dir.join(format!("shot_{shot_index:03}.mp3"))
+    } else {
+        session_dir.join(format!("shot_{shot_index:03}.mp3"))
+    };
 
     save_tts_result(normalized_text, output_path, config, parsed)
 }

@@ -30,7 +30,8 @@ use asr::{
     AsrConfigStatus, AsrRecognitionResult,
 };
 use desktop_tools::{
-    batch_rename_files as rename_files, list_files_in_folder as read_files_in_folder,
+    batch_rename_files as rename_files, create_ai_remix_output_directory,
+    export_jianying_draft_package, list_files_in_folder as read_files_in_folder,
     write_base64_file as store_base64_file, write_utf8_text_file as store_utf8_text_file,
     RenameFileInput, RenameFileResult,
 };
@@ -71,9 +72,8 @@ use task_runtime::{
 use temp_storage::{cleanup_workspace_temp_files, TempCleanupResult};
 use tts::{
     cleanup_tts_session as remove_tts_session, get_tts_config_status as read_tts_config_status,
-    synthesize_preview_audio,
-    synthesize_tts as create_tts_audio, synthesize_tts_shot as create_tts_shot_audio,
-    TtsConfigStatus, TtsSynthesisResult,
+    synthesize_preview_audio, synthesize_tts as create_tts_audio,
+    synthesize_tts_shot as create_tts_shot_audio, TtsConfigStatus, TtsSynthesisResult,
 };
 use video_engine::image_video::{
     convert_images_to_videos as create_image_videos, ImageVideoBatchResult,
@@ -181,6 +181,24 @@ fn write_utf8_text_file(path: String, content: String) -> Result<(), String> {
 #[tauri::command]
 fn write_base64_file(path: String, data: String) -> Result<(), String> {
     store_base64_file(path, data)
+}
+
+#[tauri::command]
+fn create_ai_remix_output_directory_command(
+    output_directory: String,
+    label: String,
+) -> Result<String, String> {
+    create_ai_remix_output_directory(output_directory, label)
+}
+
+#[tauri::command]
+fn export_jianying_draft_package_command(
+    output_directory: String,
+    project_name: String,
+    video_paths: Vec<String>,
+    script: String,
+) -> Result<String, String> {
+    export_jianying_draft_package(output_directory, project_name, video_paths, script)
 }
 
 #[tauri::command]
@@ -479,8 +497,9 @@ async fn synthesize_tts_shot(
     speaker: Option<String>,
     session_id: String,
     shot_index: usize,
+    output_directory: Option<String>,
 ) -> Result<TtsSynthesisResult, String> {
-    create_tts_shot_audio(text, speaker, session_id, shot_index).await
+    create_tts_shot_audio(text, speaker, session_id, shot_index, output_directory).await
 }
 
 #[tauri::command]
@@ -534,6 +553,7 @@ pub fn run() {
             concat_selected_segments,
             convert_images_to_videos,
             create_task,
+            create_ai_remix_output_directory_command,
             create_diagnostic_report,
             delete_api_credential,
             change_account_password,
@@ -541,6 +561,7 @@ pub fn run() {
             delete_script_library_entry,
             extract_ai_remix_segment_content,
             export_current_video,
+            export_jianying_draft_package_command,
             finish_task,
             generate_thumbnail,
             get_asr_config_status,
