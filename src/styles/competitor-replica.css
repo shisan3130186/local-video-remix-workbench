@@ -217,7 +217,14 @@
 .ai-remix-output-bar small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7d8285; font-size: 9px; }
 .workflow-success { margin: 6px 12px; color: #65d7b1; font-size: 10px; }
 .batch-result-drawer__actions { display: flex; gap: 6px; margin-bottom: 12px; }
-.batch-result-item { display: flex; align-items: center; gap: 10px; }
+.batch-result-preview { display: grid; gap: 7px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--replica-line); }
+.batch-result-preview video { width: 100%; max-height: 260px; aspect-ratio: 16 / 9; object-fit: contain; border-radius: 4px; background: #090a0b; }
+.batch-result-preview strong { overflow: hidden; color: var(--replica-text); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.batch-result-list { display: grid; gap: 5px; }
+.batch-result-list li { min-width: 0; }
+.batch-result-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 5px; border: 1px solid transparent; border-radius: 4px; color: inherit; text-align: left; background: transparent; cursor: pointer; }
+.batch-result-item:hover,
+.batch-result-item.is-active { border-color: rgba(57,200,181,.45); background: var(--replica-accent-soft); }
 .batch-result-item video { width: 92px; height: 54px; flex: 0 0 auto; object-fit: cover; border-radius: 3px; background: #111; }
 .batch-result-item span { min-width: 0; display: grid; gap: 3px; }
 .batch-result-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

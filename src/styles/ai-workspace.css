@@ -884,6 +884,14 @@
   box-shadow: 0 0 0 4px rgba(53, 216, 181, 0.12);
 }
 
+.task-state-dot--done {
+  background: #65cfa2;
+}
+
+.task-state-dot--error {
+  background: #e27d72;
+}
+
 .task-counts,
 .task-quick-actions {
   display: flex;
