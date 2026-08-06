@@ -220,6 +220,31 @@
 
 .replica-settings-rail,
 .replica-batch-settings { display: flex; flex-direction: column; }
+
+/* 结果与日志占用右侧完整工作区，避免浮层盖住预览和参数。 */
+.workspace-drawer.info-drawer {
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  width: min(420px, calc(100vw - 24px));
+  max-height: none;
+  border-radius: 0;
+  border-right: 0;
+  border-top: 1px solid var(--replica-line);
+  border-bottom: 0;
+  border-left: 1px solid var(--replica-line);
+  background: var(--replica-panel);
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.28);
+}
+
+.workspace-drawer.info-drawer--wide {
+  width: min(560px, calc(100vw - 24px));
+}
+
+.workspace-drawer .drawer-body {
+  padding: 12px;
+}
+
 .replica-settings-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin: 14px 12px 4px; padding: 3px; border: 1px solid #313437; border-radius: 4px; background: #242628; }
 .replica-settings-tabs button { min-height: 27px; border: 0; border-radius: 3px; color: #b8bbbe; background: transparent; font-size: 10px; cursor: pointer; }
 .replica-settings-tabs button.is-active { color: #55d6c4; background: rgba(57,200,181,.18); }

@@ -12,7 +12,7 @@ defineEmits<{
 </script>
 
 <template>
-  <aside v-if="open" class="info-drawer info-drawer--wide" aria-label="任务日志">
+  <aside v-if="open" class="info-drawer workspace-drawer info-drawer--wide" aria-label="任务日志">
     <header class="drawer-header">
       <div>
         <p class="panel__label">任务日志</p>

@@ -17,7 +17,7 @@ defineEmits<{
 </script>
 
 <template>
-  <aside v-if="open" class="info-drawer" aria-label="批量生成结果">
+  <aside v-if="open" class="info-drawer workspace-drawer workspace-drawer--results" aria-label="批量生成结果">
     <header class="drawer-header">
       <div>
         <p class="panel__label">批量生成结果</p>
