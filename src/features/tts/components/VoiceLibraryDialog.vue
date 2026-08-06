@@ -23,6 +23,7 @@ const pendingSpeaker = ref(props.currentSpeaker);
 const playingSpeaker = ref<string | null>(null);
 const previewError = ref<string | null>(null);
 const randomTargetId = ref<string | null>(null);
+const previewRequestVersion = ref(0);
 
 const FAVORITES_KEY = "smartcut.voice-library.favorites.v1";
 const favoriteIds = ref<Set<string>>(new Set());
@@ -135,6 +136,7 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 function stopAllPreviews() {
+  previewRequestVersion.value += 1;
   for (const audio of audioPool.values()) {
     try {
       audio.pause();
@@ -164,6 +166,8 @@ function stopPreviewExcept(targetId: string) {
 
 async function togglePreview(speakerId: string, previewUrl: string) {
   previewError.value = null;
+  const requestVersion = previewRequestVersion.value + 1;
+  previewRequestVersion.value = requestVersion;
 
   // 同一音色当前在播放：停止
   if (playingSpeaker.value === speakerId) {
@@ -190,17 +194,10 @@ async function togglePreview(speakerId: string, previewUrl: string) {
       if (playingSpeaker.value === speakerId) playingSpeaker.value = null;
     });
     audio.addEventListener("error", () => {
-      const mediaErr = audio?.error;
-      if (mediaErr?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
-        previewError.value = "该音色暂未提供官方试听，可保存后使用 TTS 生成试听。";
-      } else if (mediaErr?.code === MediaError.MEDIA_ERR_NETWORK) {
-        previewError.value = "网络异常，无法加载试听文件，请检查网络后重试。";
-      } else {
-        previewError.value = "官方样音暂时无法播放，请检查网络后重试。";
-      }
       if (playingSpeaker.value === speakerId) playingSpeaker.value = null;
       audioPool.delete(speakerId);
       audioPoolRetried.delete(speakerId);
+      void generateAndPlayPreview(speakerId, requestVersion);
     });
     audioPool.set(speakerId, audio);
   } else if (audioPoolRetried.has(speakerId)) {
@@ -220,13 +217,13 @@ async function togglePreview(speakerId: string, previewUrl: string) {
       audioPool.delete(speakerId);
       audioPoolRetried.delete(speakerId);
       playingSpeaker.value = null;
-      void generateAndPlayPreview(speakerId);
+      void generateAndPlayPreview(speakerId, requestVersion);
       return;
     }
-    // 网络失败但 src 还能加载的情况不算 autoplay 阻止——直接报错
+    // 网络失败也自动改走 TTS，确保每个可用音色都有试听路径。
     if (mediaErr?.code === MediaError.MEDIA_ERR_NETWORK) {
-      previewError.value = "网络异常，无法加载试听文件，请检查网络后重试。";
       playingSpeaker.value = null;
+      void generateAndPlayPreview(speakerId, requestVersion);
       return;
     }
     // 真正的 autoplay 阻止：标记为可重试
@@ -240,23 +237,26 @@ async function togglePreview(speakerId: string, previewUrl: string) {
 
 const PREVIEW_DEFAULT_TEXT = "你好，这是智剪的音色试听样本。";
 
-async function generateAndPlayPreview(speakerId: string) {
+async function generateAndPlayPreview(speakerId: string, requestVersion: number) {
+  if (requestVersion !== previewRequestVersion.value) return;
   // 命中缓存直接播
   const cached = previewCache.get(speakerId);
   if (cached) {
-    playBase64Preview(speakerId, cached);
+    playBase64Preview(speakerId, cached, requestVersion);
     return;
   }
   if (generatingPreviewFor.value === speakerId) return;
   generatingPreviewFor.value = speakerId;
-  previewError.value = "正在用 TTS 实时合成试听（首次约 2 秒）…";
+  previewError.value = "官方样音不可用，正在用豆包实时合成试听…";
   try {
     const base64 = await invoke<string>("synthesize_preview_audio", {
       text: PREVIEW_DEFAULT_TEXT,
       speaker: speakerId,
     });
     previewCache.set(speakerId, base64);
-    playBase64Preview(speakerId, base64);
+    if (requestVersion === previewRequestVersion.value) {
+      playBase64Preview(speakerId, base64, requestVersion);
+    }
   } catch (error) {
     const message = typeof error === "string" ? error : (error as Error)?.message ?? String(error);
     if (/not\s*found|couldn't\s+find|no\s+such\s+command/i.test(message)) {
@@ -271,7 +271,8 @@ async function generateAndPlayPreview(speakerId: string) {
   }
 }
 
-function playBase64Preview(speakerId: string, base64: string) {
+function playBase64Preview(speakerId: string, base64: string, requestVersion: number) {
+  if (requestVersion !== previewRequestVersion.value) return;
   stopPreviewExcept(speakerId);
   const audio = new Audio(`data:audio/mp3;base64,${base64}`);
   audio.preload = "auto";
@@ -329,7 +330,7 @@ function applySelection() {
         <div class="voice-library-header__title">
           <p class="panel__label">火山TTS 2.0</p>
           <h3 id="voice-library-title">选择AI音色</h3>
-          <small id="voice-library-description">官方样音试听不消耗你的TTS额度</small>
+          <small id="voice-library-description">官方样音优先，加载失败时自动切换豆包实时试听</small>
         </div>
         <div class="voice-library-header__actions">
           <button

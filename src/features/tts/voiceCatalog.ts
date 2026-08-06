@@ -399,6 +399,83 @@ export const TTS_VOICE_CATALOG: TtsVoiceCatalogItem[] = [
   { id: "ICL_uranus_zh_female_tianmeitaozi_tob", name: "甜美桃子 ICL", gender: "female", languages: ["zh"], scenes: ["general", "character"], tone: "amber", description: "ICL 优化版代口。", previewUrl: mp3ById("ICL_uranus_zh_female_tianmeitaozi_tob"), avatarUrl: resolveAvatarUrl("ICL_uranus_zh_female_tianmeitaozi_tob", "甜美桃子 ICL") },
 ];
 
+// 火山公开音色目录同时包含 2.0、1.0 和客服/角色音色。样音文件不是稳定接口，
+// 因此扩展目录只保存 speaker ID，样音失败时统一交给 Rust TTS 实时合成。
+const EXPANDED_VOICE_SEEDS = [
+  ["zh_female_cancan_mars_bigtts", "灿灿"], ["zh_female_qingxinnvsheng_mars_bigtts", "清新女声"],
+  ["zh_female_shuangkuaisisi_moon_bigtts", "爽快思思"], ["zh_male_wennuanahu_moon_bigtts", "温暖阿虎"],
+  ["zh_male_shaonianzixin_moon_bigtts", "少年梓辛"], ["zh_female_zhixingnvsheng_mars_bigtts", "知性女声"],
+  ["zh_male_qingshuangnanda_mars_bigtts", "清爽男大"], ["zh_female_linjianvhai_moon_bigtts", "邻家女孩"],
+  ["zh_male_yuanboxiaoshu_moon_bigtts", "渊博小叔"], ["zh_male_yangguangqingnian_moon_bigtts", "阳光青年"],
+  ["zh_female_tianmeixiaoyuan_moon_bigtts", "甜美小源"], ["zh_female_qingchezizi_moon_bigtts", "清澈梓梓"],
+  ["zh_male_jieshuoxiaoming_moon_bigtts", "解说小明"], ["zh_female_kailangjiejie_moon_bigtts", "开朗姐姐"],
+  ["zh_male_linjiananhai_moon_bigtts", "邻家男孩"], ["zh_female_tianmeiyueyue_moon_bigtts", "甜美悦悦"],
+  ["zh_female_xinlingjitang_moon_bigtts", "心灵鸡汤"], ["en_male_smith_mars_bigtts", "Smith"],
+  ["en_female_anna_mars_bigtts", "Anna"], ["en_male_adam_mars_bigtts", "Adam"],
+  ["en_female_sarah_mars_bigtts", "Sarah"], ["en_male_dryw_mars_bigtts", "Dryw"],
+  ["multi_male_jingqiangkanye_moon_bigtts", "京腔侃爷"], ["multi_female_shuangkuaisisi_moon_bigtts", "多语思思"],
+  ["multi_male_wanqudashu_moon_bigtts", "顽酷大叔"], ["multi_female_gaolengyujie_moon_bigtts", "多语御姐"],
+  ["zh_male_jingqiangkanye_moon_bigtts", "京腔侃爷"], ["zh_female_wanwanxiaohe_moon_bigtts", "弯弯小何"],
+  ["zh_female_wanqudashu_moon_bigtts", "顽酷大叔"], ["zh_female_daimengchuanmei_moon_bigtts", "呆萌川妹"],
+  ["zh_male_guozhoudege_moon_bigtts", "果州大哥"], ["zh_male_beijingxiaoye_moon_bigtts", "北京小爷"],
+  ["zh_male_haoyuxiaoge_moon_bigtts", "皓宇小哥"], ["zh_male_guangxiyuanzhou_moon_bigtts", "广西远舟"],
+  ["zh_female_meituojieer_moon_bigtts", "美妥姐儿"], ["zh_male_yuzhouzixuan_moon_bigtts", "宇宙梓轩"],
+  ["zh_male_naiqimengwa_mars_bigtts", "奶气萌娃"], ["zh_female_popo_mars_bigtts", "婆婆"],
+  ["zh_female_gaolengyujie_moon_bigtts", "高冷御姐"], ["zh_male_aojiaobazong_moon_bigtts", "傲娇霸总"],
+  ["zh_female_meilinvyou_moon_bigtts", "魅力女友"], ["zh_male_shenyeboke_moon_bigtts", "深夜播客"],
+  ["zh_female_sajiaonvyou_moon_bigtts", "撒娇女友"], ["zh_female_yuanqinvyou_moon_bigtts", "元气女友"],
+  ["ICL_zh_female_bingruoshaonv_tob", "冰若少女"], ["ICL_zh_female_huoponvhai_tob", "活泼女孩"],
+  ["zh_male_dongfanghaoran_moon_bigtts", "东方浩然"], ["ICL_zh_female_heainainai_tob", "和蔼奶奶"],
+  ["ICL_zh_female_linjuayi_tob", "邻家依依"], ["zh_female_wenrouxiaoya_moon_bigtts", "温柔小雅"],
+  ["zh_male_tiancaitongsheng_mars_bigtts", "天才童声"], ["zh_male_sunwukong_mars_bigtts", "孙悟空"],
+  ["zh_male_xionger_mars_bigtts", "熊二"], ["zh_female_peiqi_mars_bigtts", "佩奇猪"],
+  ["zh_female_wuzetian_mars_bigtts", "武则天"], ["zh_female_gujie_mars_bigtts", "古街"],
+  ["zh_female_yingtaowanzi_mars_bigtts", "樱桃丸子"], ["zh_male_chunhui_mars_bigtts", "春晖"],
+  ["zh_female_shaoergushi_mars_bigtts", "少儿故事"], ["zh_male_silang_mars_bigtts", "四郎"],
+  ["zh_male_jieshuonansheng_mars_bigtts", "解说男声"], ["zh_female_jitangmeimei_mars_bigtts", "鸡汤妹妹"],
+  ["zh_female_tiexinnvsheng_mars_bigtts", "贴心女声"], ["zh_female_qiaopinvsheng_mars_bigtts", "俏皮女声"],
+  ["zh_female_mengyatou_mars_bigtts", "萌丫头"], ["zh_male_changtianyi_mars_bigtts", "常天一"],
+  ["zh_male_ruyaqingnian_mars_bigtts", "儒雅青年"], ["zh_male_baqiqingshu_mars_bigtts", "霸气青叔"],
+  ["zh_male_qingcang_mars_bigtts", "擎苍"], ["zh_female_gufengshaoyu_mars_bigtts", "古风少御"],
+  ["zh_female_wenroushunv_mars_bigtts", "温柔淑女"], ["zh_male_sunwukong_uranus_bigtts", "猴哥 2.0"],
+  ["zh_female_yingyujiaoxue_uranus_bigtts", "Tina老师 2.0"], ["zh_female_kefunvsheng_uranus_bigtts", "暖阳女声 2.0"],
+  ["zh_female_xiaoxue_uranus_bigtts", "儿童绘本 2.0"], ["zh_male_dayi_uranus_bigtts", "大壹 2.0"],
+  ["zh_female_mizai_uranus_bigtts", "咪仔 2.0"], ["zh_female_jitangnv_uranus_bigtts", "鸡汤女 2.0"],
+  ["zh_female_liuchangnv_uranus_bigtts", "流畅女声 2.0"], ["zh_male_ruyayichen_uranus_bigtts", "儒雅逸辰 2.0"],
+  ["saturn_zh_female_keainvsheng_tob", "可爱女生"], ["saturn_zh_female_qingyingduoduo_cs_tob", "轻盈朵朵"],
+  ["en_male_tim_uranus_bigtts", "Tim"],
+] as const;
+
+function createExpandedVoice([id, name]: (typeof EXPANDED_VOICE_SEEDS)[number]): TtsVoiceCatalogItem {
+  const isFemale = id.includes("_female_");
+  const isLegacy = id.endsWith("_mars_bigtts") || id.endsWith("_moon_bigtts") || id.startsWith("ICL_");
+  const languages: TtsVoiceLanguage[] = id.startsWith("en_")
+    ? ["en"]
+    : id.startsWith("multi_")
+      ? ["zh", "ja", "es"]
+      : ["zh"];
+
+  return {
+    id,
+    name,
+    gender: isFemale ? "female" : "male",
+    languages,
+    scenes: id.startsWith("ICL_") ? ["customer-service", "general"] : isLegacy ? ["narration", "general"] : ["general"],
+    tone: isFemale ? "rose" : "slate",
+    description: isLegacy ? "火山公开音色，适合视频配音、解说和口播。" : "豆包语音 2.0 音色，支持情感和语气控制。",
+    previewUrl: mp3ById(id),
+    avatarUrl: resolveAvatarUrl(id, name),
+  };
+}
+
+const catalogIds = new Set(TTS_VOICE_CATALOG.map((voice) => voice.id));
+for (const voice of EXPANDED_VOICE_SEEDS.map(createExpandedVoice)) {
+  if (!catalogIds.has(voice.id)) {
+    TTS_VOICE_CATALOG.push(voice);
+    catalogIds.add(voice.id);
+  }
+}
+
 
 
 export function findTtsVoice(speakerId: string) {

@@ -1,4 +1,4 @@
-use crate::api_config::{get_api_config_status, load_tts_service_config};
+use crate::api_config::{get_api_config_status, load_tts_service_config, DEFAULT_TTS_RESOURCE_ID};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use reqwest::tls::Certificate;
 use reqwest::Client;
@@ -268,9 +268,27 @@ fn load_tts_config(speaker_override: Option<String>) -> Result<TtsConfig, String
 
     Ok(TtsConfig {
         api_key: config.api_key,
-        resource_id: config.resource_id,
+        resource_id: resolve_resource_id_for_speaker(&config.resource_id, &config.speaker),
         speaker: config.speaker,
     })
+}
+
+/// 火山 1.0 与 2.0 音色共用同一个合成端点，但必须匹配资源 ID。
+/// 设置页默认是 2.0；选择旧版公开音色时自动切换到 1.0，避免用户手动记忆规则。
+fn resolve_resource_id_for_speaker(configured_resource_id: &str, speaker: &str) -> String {
+    let normalized_speaker = speaker.trim();
+    let uses_legacy_resource = normalized_speaker.starts_with("ICL_")
+        || normalized_speaker.ends_with("_mars_bigtts")
+        || normalized_speaker.ends_with("_moon_bigtts")
+        || normalized_speaker.contains("_emo_v2_mars_bigtts")
+        || normalized_speaker.contains("_conversation_wvae_bigtts")
+        || normalized_speaker == "custom_mix_bigtts";
+
+    if uses_legacy_resource && configured_resource_id == DEFAULT_TTS_RESOURCE_ID {
+        return "seed-tts-1.0".to_string();
+    }
+
+    configured_resource_id.to_string()
 }
 
 fn build_tts_request_body(text: &str, speaker: &str) -> Value {
@@ -408,6 +426,22 @@ mod tests {
         assert_eq!(body["req_params"]["speaker"], "speaker-id");
         assert_eq!(body["req_params"]["audio_params"]["format"], "mp3");
         assert_eq!(body["req_params"]["audio_params"]["sample_rate"], 24000);
+    }
+
+    #[test]
+    fn selects_matching_resource_for_catalog_voice_families() {
+        assert_eq!(
+            resolve_resource_id_for_speaker("seed-tts-2.0", "zh_male_m191_uranus_bigtts"),
+            "seed-tts-2.0"
+        );
+        assert_eq!(
+            resolve_resource_id_for_speaker("seed-tts-2.0", "zh_female_cancan_mars_bigtts"),
+            "seed-tts-1.0"
+        );
+        assert_eq!(
+            resolve_resource_id_for_speaker("seed-tts-2.0", "ICL_uranus_zh_female_kefuwanjun_tob"),
+            "seed-tts-1.0"
+        );
     }
 
     #[test]
