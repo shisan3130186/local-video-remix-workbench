@@ -2056,6 +2056,7 @@ onMounted(() => {
         :is-advanced-mode="isAdvancedMode"
         :environment="environment"
         :status-text="statusText"
+        :bgm-audio-file-path="bgmAudioFilePath"
         v-model:original-volume="originalVolume"
         v-model:bgm-enabled="bgmEnabled"
         v-model:bgm-volume="bgmVolume"
@@ -2068,6 +2069,7 @@ onMounted(() => {
         @open-tool="activeTool = $event"
         @open-drawer="activeDrawer = $event"
         @toggle-advanced-mode="isAdvancedMode = $event"
+        @select-bgm-audio-file="selectBgmAudioFile"
       />
     </section>
 

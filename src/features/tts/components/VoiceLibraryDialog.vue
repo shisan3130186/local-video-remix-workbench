@@ -237,8 +237,16 @@ async function togglePreview(speakerId: string, previewUrl: string) {
 
 const PREVIEW_DEFAULT_TEXT = "你好，这是智剪的音色试听样本。";
 
+function isDesktopTauriRuntime() {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
 async function generateAndPlayPreview(speakerId: string, requestVersion: number) {
   if (requestVersion !== previewRequestVersion.value) return;
+  if (!isDesktopTauriRuntime()) {
+    previewError.value = "当前是浏览器界面预览。该音色的官方样音不可用时，需要在桌面版中生成实时试听。";
+    return;
+  }
   // 命中缓存直接播
   const cached = previewCache.get(speakerId);
   if (cached) {
@@ -328,19 +336,10 @@ function applySelection() {
     >
       <header class="voice-library-header">
         <div class="voice-library-header__title">
-          <p class="panel__label">火山TTS 2.0</p>
           <h3 id="voice-library-title">选择AI音色</h3>
-          <small id="voice-library-description">官方样音优先，加载失败时自动切换豆包实时试听</small>
         </div>
         <div class="voice-library-header__actions">
-          <button
-            class="voice-library-random"
-            type="button"
-            title="随机音色"
-            :disabled="filteredVoices.length === 0"
-            @click="pickRandomVoice"
-          >🎲</button>
-          <button class="panel-toggle" type="button" @click="emit('close')">关闭</button>
+          <button class="voice-library-save" type="button" :disabled="!pendingVoice" @click="applySelection">保存</button>
         </div>
       </header>
 
@@ -357,8 +356,7 @@ function applySelection() {
       />
 
       <div class="voice-library-result-bar" aria-live="polite">
-        <span>共 <strong>{{ filteredVoices.length }}</strong> / {{ totalCount }} 款音色</span>
-        <small>实际可用范围以你的火山账号权限为准</small>
+        <span>共 <strong>{{ filteredVoices.length }}</strong> 个音色</span>
       </div>
 
       <div
@@ -388,13 +386,7 @@ function applySelection() {
       <p v-if="previewError" class="voice-library-error" role="alert">{{ previewError }}</p>
 
       <footer class="voice-library-footer">
-        <span class="voice-library-footer__current">
-          <small>当前选择</small>
-          <strong>{{ pendingVoice?.name ?? "请选择一款音色" }}</strong>
-        </span>
-        <button class="primary-button" type="button" :disabled="!pendingVoice" @click="applySelection">
-          使用所选音色
-        </button>
+        <span>共 {{ filteredVoices.length }} 个音色</span>
       </footer>
     </section>
   </div>

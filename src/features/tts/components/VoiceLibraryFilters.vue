@@ -48,36 +48,41 @@ const SCENES: { value: TtsVoiceScene | "all"; label: string }[] = [
       />
     </div>
 
-    <div class="voice-library-filters__chips">
-      <button
-        v-for="lang in LANGUAGES"
-        :key="lang.value"
-        class="voice-library-filter-chip"
-        :class="{ 'voice-library-filter-chip--active': language === lang.value }"
-        type="button"
-        @click="emit('update:language', lang.value)"
-      >{{ lang.label }}</button>
+    <div class="voice-library-filters__row">
+      <span class="voice-library-filters__label">场景</span>
+      <div class="voice-library-filters__chips">
+        <button
+          v-for="s in SCENES"
+          :key="s.value"
+          class="voice-library-filter-chip"
+          :class="{ 'voice-library-filter-chip--active': scene === s.value }"
+          type="button"
+          @click="emit('update:scene', s.value)"
+        >{{ s.label }}</button>
+      </div>
     </div>
 
-    <div class="voice-library-filters__chips">
-      <button
-        v-for="s in SCENES"
-        :key="s.value"
-        class="voice-library-filter-chip"
-        :class="{ 'voice-library-filter-chip--active': scene === s.value }"
-        type="button"
-        @click="emit('update:scene', s.value)"
-      >{{ s.label }}</button>
+    <div class="voice-library-filters__row">
+      <span class="voice-library-filters__label">语言</span>
+      <div class="voice-library-filters__chips">
+        <button
+          v-for="lang in LANGUAGES"
+          :key="lang.value"
+          class="voice-library-filter-chip"
+          :class="{ 'voice-library-filter-chip--active': language === lang.value }"
+          type="button"
+          @click="emit('update:language', lang.value)"
+        >{{ lang.label }}</button>
+      </div>
     </div>
 
-    <button
-      class="voice-library-filters__fav"
-      :class="{ 'voice-library-filters__fav--active': onlyFavored }"
-      type="button"
-      @click="emit('update:onlyFavored', !onlyFavored)"
-    >
-      ★ 我的收藏
-      <span class="voice-library-filters__fav-count">{{ favoredCount }}</span>
-    </button>
+    <div class="voice-library-filters__legacy-fav">
+      <button
+        class="voice-library-filters__fav"
+        :class="{ 'voice-library-filters__fav--active': onlyFavored }"
+        type="button"
+        @click="emit('update:onlyFavored', !onlyFavored)"
+      >★ 我的收藏 <span class="voice-library-filters__fav-count">{{ favoredCount }}</span></button>
+    </div>
   </div>
 </template>

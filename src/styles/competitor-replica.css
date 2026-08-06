@@ -279,14 +279,21 @@
 .replica-switch input:checked + span::after { transform: translateX(18px); }
 .replica-file-field,
 .replica-setting-link { display: flex; align-items: center; justify-content: space-between; min-height: 30px; border: 0; border-radius: 3px; padding: 0 9px; color: #777c80; background: #212325; font-size: 9px; }
+.replica-bgm-file-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; min-height: 30px; }
+.replica-bgm-file-row > span { min-width: 0; overflow: hidden; padding: 7px 9px; border-radius: 3px; color: #8b9093; background: #212325; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.replica-bgm-file-row button { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid #34383b; border-radius: 3px; color: #c8ccce; background: #252729; font-size: 14px; cursor: pointer; }
+.replica-bgm-file-row button:disabled { cursor: not-allowed; opacity: .45; }
 .replica-range-row { display: grid; grid-template-columns: 60px minmax(0, 1fr) 35px; align-items: center; gap: 7px; }
 .replica-voice-row { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 8px; border: 0; padding: 0; color: #d7dadc; text-align: left; background: transparent; }
-.replica-avatar { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 50%; color: #152421; background: #74cdbf; font-size: 12px; font-weight: 800; }
+.replica-avatar { display: grid; width: 38px; height: 38px; place-items: center; overflow: hidden; border-radius: 50%; color: #152421; background: #74cdbf; font-size: 12px; font-weight: 800; }
+.replica-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.replica-voice-copy { min-width: 0; }
 .replica-voice-row strong,
 .replica-voice-row small { display: block; }
 .replica-voice-row strong { margin-bottom: 3px; font-size: 11px; }
 .replica-voice-row small { color: #8c9194; font-size: 9px; }
 .replica-subtitle-block > header button { border: 0; border-radius: 3px; padding: 4px 8px; color: #55d6c4; background: var(--replica-accent-soft); font-size: 9px; }
+.replica-subtitle-controls { display: grid; gap: 8px; }
 .replica-select-row { display: grid; grid-template-columns: 62px minmax(0, 1fr); align-items: center; gap: 7px; }
 .replica-select-row select { width: 100%; min-width: 0; min-height: 28px; border: 1px solid #363a3d; border-radius: 4px; color: #dddfe0; background: #1d1f20; font-size: 9px; }
 .replica-style-swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }
@@ -307,6 +314,21 @@
 .replica-settings-footer,
 .replica-batch-create { margin-top: auto; padding: 10px 11px; border-top: 1px solid var(--replica-line); }
 .replica-settings-rail { overflow-x: hidden; }
+
+/* 基础设置面板继承全局主题，避免深色控件残留在浅色模式。 */
+:root[data-theme="light"] .replica-settings-tabs { border-color: var(--theme-border); background: var(--theme-panel-soft); }
+:root[data-theme="light"] .replica-settings-tabs button { color: var(--theme-text-soft); }
+:root[data-theme="light"] .replica-settings-tabs button.is-active { color: var(--theme-accent); background: var(--theme-accent-soft); }
+:root[data-theme="light"] .replica-setting-block { border-color: var(--theme-border); background: var(--theme-panel-soft); }
+:root[data-theme="light"] .replica-setting-block strong,
+:root[data-theme="light"] .replica-setting-block label,
+:root[data-theme="light"] .replica-range-row output { color: var(--theme-text); }
+:root[data-theme="light"] .replica-bgm-file-row > span { color: var(--theme-muted); background: var(--theme-panel-muted); }
+:root[data-theme="light"] .replica-bgm-file-row button,
+:root[data-theme="light"] .replica-select-row select { border-color: var(--theme-border-strong); color: var(--theme-text); background: var(--theme-panel); }
+:root[data-theme="light"] .replica-voice-row { color: var(--theme-text); }
+:root[data-theme="light"] .replica-voice-row small { color: var(--theme-muted); }
+:root[data-theme="light"] .replica-style-swatches button { border-color: var(--theme-border-strong); background: var(--theme-panel); }
 .replica-create-button,
 .replica-batch-create > button,
 .replica-analyze-button { width: 100%; min-height: 36px; border: 1px solid rgba(57,200,181,.58); border-radius: 5px; color: #52d6c3; background: transparent; font-size: 11px; }

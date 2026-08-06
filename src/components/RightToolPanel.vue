@@ -1,19 +1,22 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type { FfmpegEnvironmentResult } from "../types/videoProbe";
 import type { DrawerKey, ToolKey, WorkspaceMode } from "../types/workbench";
+import { findTtsVoice, TTS_LANGUAGE_LABELS, TTS_SCENE_LABELS } from "../features/tts/voiceCatalog";
 
-defineProps<{
+const props = defineProps<{
   workspaceMode: Exclude<WorkspaceMode, "tools">;
   isAdvancedMode: boolean;
   environment: FfmpegEnvironmentResult | null;
   statusText: string;
+  bgmAudioFilePath: string | null;
 }>();
 
 const emit = defineEmits<{
   openTool: [tool: ToolKey];
   openDrawer: [drawer: DrawerKey];
   toggleAdvancedMode: [enabled: boolean];
+  selectBgmAudioFile: [];
 }>();
 
 const originalVolume = defineModel<number>("originalVolume", { required: true });
@@ -28,7 +31,23 @@ const subtitleSize = defineModel<string>("subtitleSize", { required: true });
 
 const activeTab = ref<"basic" | "visual">("basic");
 const subtitlePreset = ref(7);
+const subtitleFont = ref("MiSans");
+const subtitleOpacity = ref(100);
+const subtitleStyleExpanded = ref(true);
 const subtitleColors = ["#f3f3f3", "#f4d22f", "#50d7b0", "#f08c57", "#76a9ff", "#ef6f91", "#111317", "#ffffff", "#2cc7b1", "#f6b83f", "#db4267", "#9be3d2"];
+const bgmFileName = computed(() => props.bgmAudioFilePath?.split(/[\\/]/).pop() ?? "未选择");
+const selectedVoice = computed(() => findTtsVoice(ttsSpeaker.value));
+const selectedVoiceName = computed(() => selectedVoice.value?.name ?? "小问 2.0");
+const selectedVoiceMeta = computed(() => {
+  const voice = selectedVoice.value;
+  if (!voice) return "中文 · 通用场景";
+  const language = voice.languages.length > 1
+    ? "多语种"
+    : (TTS_LANGUAGE_LABELS[voice.languages[0]] ?? voice.languages[0]);
+  const scene = TTS_SCENE_LABELS[voice.scenes[0]] ?? voice.scenes[0];
+  return `${language} · ${scene}`;
+});
+const selectedVoiceInitial = computed(() => selectedVoiceName.value.slice(0, 1));
 </script>
 
 <template>
@@ -47,28 +66,38 @@ const subtitleColors = ["#f3f3f3", "#f4d22f", "#50d7b0", "#f08c57", "#76a9ff", "
 
       <section class="replica-setting-block">
         <header><strong>背景音乐</strong><label class="replica-switch"><input v-model="bgmEnabled" type="checkbox" /><span></span></label></header>
-        <button class="replica-file-field" type="button" :disabled="!bgmEnabled" @click="emit('openTool', 'bgm')"><span>选择本地音乐</span><b>▢</b></button>
+        <div class="replica-bgm-file-row">
+          <span :title="props.bgmAudioFilePath ?? '未选择文件'">{{ bgmFileName }}</span>
+          <button type="button" :disabled="!bgmEnabled" aria-label="选择本地音乐" title="选择本地音乐" @click="emit('selectBgmAudioFile')">▱</button>
+        </div>
         <label class="replica-range-row"><span>BGM音量</span><input v-model.number="bgmVolume" :disabled="!bgmEnabled" type="range" min="0" max="1" step="0.05" /><output>{{ Math.round(bgmVolume * 100) }}%</output></label>
       </section>
 
       <section class="replica-setting-block">
         <header><strong>语音合成</strong><label class="replica-switch"><input v-model="ttsEnabled" type="checkbox" /><span></span></label></header>
         <button class="replica-voice-row" type="button" :disabled="!ttsEnabled" @click="emit('openTool', 'tts')">
-          <span class="replica-avatar">音</span><span><strong>{{ ttsSpeaker || '小问 2.0' }}</strong><small>中文 · 通用场景</small></span><b>⇄</b>
+          <span class="replica-avatar">
+            <img v-if="selectedVoice?.avatarUrl" :src="selectedVoice.avatarUrl" :alt="selectedVoiceName" />
+            <span v-else>{{ selectedVoiceInitial }}</span>
+          </span>
+          <span class="replica-voice-copy"><strong>{{ selectedVoiceName }}</strong><small>{{ selectedVoiceMeta }}</small></span>
+          <b aria-hidden="true">⇄</b>
         </button>
         <label class="replica-range-row"><span>原声音量</span><input v-model.number="speechVolume" :disabled="!ttsEnabled" type="range" min="0" max="1" step="0.05" /><output>{{ Math.round(speechVolume * 100) }}%</output></label>
         <label class="replica-range-row"><span>语速调整</span><input v-model.number="speechSpeed" :disabled="!ttsEnabled" type="range" min="0.5" max="2" step="0.05" /><output>{{ speechSpeed.toFixed(1) }}x</output></label>
       </section>
 
       <section class="replica-setting-block replica-subtitle-block">
-        <header><strong>文本/字幕样式</strong><button type="button" @click="emit('openTool', 'tts')">字幕样式</button></header>
-        <label class="replica-select-row"><span>选择字体</span><select><option>MiSans</option><option>微软雅黑</option><option>思源黑体</option></select></label>
-        <label class="replica-select-row"><span>字号大小</span><select v-model="subtitleSize"><option value="small">小号</option><option value="medium">中号</option><option value="large">大号</option></select></label>
-        <label class="replica-range-row"><span>字体透明</span><input type="range" min="10" max="100" value="100" /><output>100%</output></label>
-        <div class="replica-style-swatches">
-          <button v-for="(color, index) in subtitleColors" :key="color + index" type="button" :class="{ 'is-active': subtitlePreset === index }" :style="{ color }" @click="subtitlePreset = index">A</button>
+        <header><strong>文本/字幕样式</strong><button type="button" @click="subtitleStyleExpanded = !subtitleStyleExpanded">{{ subtitleStyleExpanded ? '收起' : '字幕样式' }}</button></header>
+        <div v-show="subtitleStyleExpanded" class="replica-subtitle-controls">
+          <label class="replica-select-row"><span>选择字体</span><select v-model="subtitleFont"><option>MiSans</option><option>Noto Sans SC</option><option>Noto Serif SC</option><option>仿宋</option><option>宋体</option><option>微软雅黑</option><option>楷体</option><option>等线</option><option>黑体</option></select></label>
+          <label class="replica-select-row"><span>字号大小</span><select v-model="subtitleSize"><option value="small">小号</option><option value="medium">中号</option><option value="large">大号</option></select></label>
+          <label class="replica-range-row"><span>字体透明</span><input v-model.number="subtitleOpacity" type="range" min="10" max="100" /><output>{{ subtitleOpacity }}%</output></label>
+          <div class="replica-style-swatches" aria-label="字幕颜色预设">
+            <button v-for="(color, index) in subtitleColors" :key="color + index" type="button" :class="{ 'is-active': subtitlePreset === index }" :style="{ color }" :aria-label="`选择字幕颜色 ${index + 1}`" @click="subtitlePreset = index">A</button>
+          </div>
+          <label class="replica-checkbox-row"><input v-model="subtitleEnabled" type="checkbox" />生成字幕</label>
         </div>
-        <label class="replica-checkbox-row"><input v-model="subtitleEnabled" type="checkbox" />生成字幕</label>
       </section>
     </div>
 
