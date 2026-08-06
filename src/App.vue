@@ -13,6 +13,7 @@ import RightToolPanel from "./components/RightToolPanel.vue";
 import TaskLogDrawer from "./components/TaskLogDrawer.vue";
 import ToolSettingModal from "./components/ToolSettingModal.vue";
 import VideoToolsWorkspace from "./components/VideoToolsWorkspace.vue";
+import WorkspaceModeNav from "./components/WorkspaceModeNav.vue";
 import {
   SEGMENT_CATEGORY_OPTIONS as segmentCategoryOptions,
 } from "./constants/workbench";
@@ -1748,6 +1749,11 @@ onMounted(() => {
           ← 返回首页
         </button>
       </div>
+      <WorkspaceModeNav
+        v-if="isWorkspaceVisible"
+        :active-mode="workspaceMode"
+        @change="changeWorkspaceMode"
+      />
       <div class="top-status">
         <span v-if="!isWorkspaceVisible" class="mode-pill">数据只保存在这台电脑</span>
         <ProjectSaveStatus v-if="!isWorkspaceVisible"
