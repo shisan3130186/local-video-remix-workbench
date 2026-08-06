@@ -1,5 +1,15 @@
 # TASK
 
+## 2026-08-06：清理 Rust/Tauri 构建缓存
+
+状态：完成。
+
+问题：项目目录异常膨胀到约23.6GB，其中约22.78GB来自 `src-tauri\target` 的可再生编译缓存和历史构建产物。
+
+处理：关闭正在运行的项目Debug程序，删除 `src-tauri\target`；保留源码、运行所需的 `src-tauri\resources\ffmpeg`、依赖源码和测试结果。同步将 `.gitignore` 中错误的 `.target/` 修正为 `target/`，避免后续编译缓存进入项目管理范围。
+
+验证：清理后重新统计目录体积、确认运行进程已关闭、确认 Git 状态和忽略规则；需要重新开发时运行 `corepack pnpm install`，需要重新编译时由 Cargo 自动生成 `src-tauri\target`。
+
 ## 2026-08-06：AI 混剪竞品式主流程闭环
 
 状态：开发完成，等待用户人工验收。

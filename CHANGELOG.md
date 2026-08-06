@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-08-06：清理异常膨胀的Rust/Tauri构建缓存
+
+- 删除项目内可再生成的 `src-tauri\target`，清理前约占用22.78GB。
+- 修正 `.gitignore` 中的 `.target/` 配置为 `target/`，让Cargo编译缓存保持在项目版本管理范围之外。
+- 同步清理可重新安装的 `node_modules` 和可重新生成的 `dist`，项目保留源码与内置FFmpeg资源。
+- 保留源码、FFmpeg运行资源、依赖和测试结果，不影响项目功能；后续编译会自动重新生成缓存。
+
 ## 2026-08-05：所有 161 个音色"试听"全覆盖（官方 mp3 + TTS 实时合成 fallback）
 
 - **试听 fallback 链路**：当官方 mp3 不存在（SRC_NOT_SUPPORTED）时，自动调用 TTS API 实时合成一句默认文案（"你好，这是智剪的音色试听样本。"），用 base64 mp3 播放并缓存到 `previewCache` Map，第二次点击直接播缓存（无需再调 API）。
