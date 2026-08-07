@@ -20,5 +20,6 @@
 ## 兼容决策
 
 - `*_uranus_bigtts`、`saturn_*`：默认使用 `seed-tts-2.0`。
-- `*_mars_bigtts`、`*_moon_bigtts`、`ICL_*`：当设置页仍是默认 2.0 资源时，自动切换为 `seed-tts-1.0`。
-- 用户手动配置非默认资源 ID 时保留用户设置；真实可用范围仍由其火山账号权限、资源包和余额决定。
+- `*_mars_bigtts`、`*_moon_bigtts`、非 Uranus 的 `ICL_*`：使用 `seed-tts-1.0`。
+- `ICL_uranus_*_tob` 属于 2.0 角色音色，使用 `seed-tts-2.0`；已知音色家族会覆盖错误的旧配置，避免资源 ID 与 speaker 错配。
+- 未知 speaker 才保留用户配置的资源 ID；真实可用范围仍由其火山账号权限、资源包和余额决定。

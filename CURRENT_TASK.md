@@ -155,7 +155,7 @@ AI 混剪竞品式工作流本轮开发完成，等待用户人工验收。已�
 
 试听规则改为：优先播放官方样音；官方样音任意加载失败时自动调用已配置的豆包实时 TTS；同一音色试听只保存在本次窗口内存缓存；连续切换时以最后一次点击为准，旧请求不会抢回播放。
 
-Rust 端会按 speaker ID 自动将 `*_uranus_bigtts` / `saturn_*` 走 `seed-tts-2.0`，将 `*_mars_bigtts`、`*_moon_bigtts` 和 `ICL_*` 走 `seed-tts-1.0`。正式配音与试听共用该规则，避免选择旧音色后导出失败。
+Rust 端会按 speaker ID 自动将 `*_uranus_bigtts`、`ICL_uranus_*_tob` 和 `saturn_*` 走 `seed-tts-2.0`，将 `*_mars_bigtts`、`*_moon_bigtts` 和非 Uranus 的 `ICL_*` 走 `seed-tts-1.0`。正式配音与试听共用该规则，避免资源 ID 与音色错配。
 
 本轮验证：目录静态校验 136 条且无重复；`corepack pnpm build`、`cargo fmt -- --check`、`cargo check`、`cargo clippy --all-targets -- -D warnings` 通过；`cargo test` 139 项通过；1440×900、1280×720 和浅/深色主页无横向溢出。浏览器空状态会按既有规则禁用音色选择，真实豆包合成和弹窗试听待用户带素材的桌面端统一验收。
 

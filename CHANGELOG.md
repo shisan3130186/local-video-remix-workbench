@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-08-07 修复 TTS 音色资源错配
+
+- 修正 `ICL_uranus_*_tob` 被错误路由到 `seed-tts-1.0` 的问题，改为固定使用 `seed-tts-2.0`。
+- 保留 `mars/moon` 与非 Uranus `ICL` 音色使用 `seed-tts-1.0` 的规则。
+- 已知音色家族会覆盖旧的错误资源配置，避免出现“resource ID is mismatched with speaker related resource”。
+
 ## 2026-08-07 基础设置与音色库主题对齐
 
 - 右栏基础设置按竞品截图统一为原视频音量、BGM、语音合成和文本/字幕样式四个分组。

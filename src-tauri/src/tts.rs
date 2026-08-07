@@ -274,17 +274,25 @@ fn load_tts_config(speaker_override: Option<String>) -> Result<TtsConfig, String
 }
 
 /// 火山 1.0 与 2.0 音色共用同一个合成端点，但必须匹配资源 ID。
-/// 设置页默认是 2.0；选择旧版公开音色时自动切换到 1.0，避免用户手动记忆规则。
+/// ICL_uranus 是 2.0 角色音色；mars/moon 和非 Uranus ICL 是旧版 1.0 音色。
+/// 已知音色家族始终使用对应资源，避免用户之前保存过的资源 ID 造成错配。
 fn resolve_resource_id_for_speaker(configured_resource_id: &str, speaker: &str) -> String {
     let normalized_speaker = speaker.trim();
-    let uses_legacy_resource = normalized_speaker.starts_with("ICL_")
-        || normalized_speaker.ends_with("_mars_bigtts")
+    let uses_v2_resource = normalized_speaker.ends_with("_uranus_bigtts")
+        || normalized_speaker.starts_with("ICL_uranus_")
+        || normalized_speaker.starts_with("saturn_");
+    let uses_legacy_resource = normalized_speaker.ends_with("_mars_bigtts")
         || normalized_speaker.ends_with("_moon_bigtts")
         || normalized_speaker.contains("_emo_v2_mars_bigtts")
         || normalized_speaker.contains("_conversation_wvae_bigtts")
-        || normalized_speaker == "custom_mix_bigtts";
+        || normalized_speaker == "custom_mix_bigtts"
+        || (normalized_speaker.starts_with("ICL_") && !uses_v2_resource);
 
-    if uses_legacy_resource && configured_resource_id == DEFAULT_TTS_RESOURCE_ID {
+    if uses_v2_resource {
+        return DEFAULT_TTS_RESOURCE_ID.to_string();
+    }
+
+    if uses_legacy_resource {
         return "seed-tts-1.0".to_string();
     }
 
@@ -440,6 +448,14 @@ mod tests {
         );
         assert_eq!(
             resolve_resource_id_for_speaker("seed-tts-2.0", "ICL_uranus_zh_female_kefuwanjun_tob"),
+            "seed-tts-2.0"
+        );
+        assert_eq!(
+            resolve_resource_id_for_speaker("seed-tts-1.0", "ICL_uranus_zh_female_kefuwanjun_tob"),
+            "seed-tts-2.0"
+        );
+        assert_eq!(
+            resolve_resource_id_for_speaker("seed-tts-2.0", "ICL_zh_female_bingruoshaonv_tob"),
             "seed-tts-1.0"
         );
     }

@@ -22,8 +22,12 @@ if (await isPortOpen()) {
   process.exit(0);
 }
 
-const command = process.platform === "win32" ? "corepack.cmd" : "corepack";
-const child = spawn(command, ["pnpm", "dev", "--host", host], {
+const isWindows = process.platform === "win32";
+const command = isWindows ? (process.env.ComSpec ?? "cmd.exe") : "corepack";
+const args = isWindows
+  ? ["/d", "/s", "/c", `corepack pnpm dev --host ${host}`]
+  : ["pnpm", "dev", "--host", host];
+const child = spawn(command, args, {
   cwd: process.cwd(),
   stdio: "inherit",
   shell: false,
