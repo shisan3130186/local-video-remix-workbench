@@ -329,8 +329,9 @@ async fn extract_ai_remix_segment_content(
 async fn plan_ai_remix(
     script: String,
     segments: Vec<AiRemixSegmentInput>,
+    match_mode: String,
 ) -> Result<AiRemixPlanResult, String> {
-    create_ai_remix_plan(script, segments).await
+    create_ai_remix_plan(script, segments, match_mode).await
 }
 
 #[tauri::command]

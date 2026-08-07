@@ -4,6 +4,7 @@ use reqwest::tls::Certificate;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::error::Error as StdError;
 use std::fs;
@@ -122,6 +123,22 @@ enum AiRequestStage {
     ContentExtraction,
     RemixPlanning,
     ScriptRewrite,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AiRemixMatchMode {
+    Local,
+    Cloud,
+}
+
+impl AiRemixMatchMode {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value.trim() {
+            "local" => Ok(Self::Local),
+            "cloud" => Ok(Self::Cloud),
+            _ => Err("匹配模式无效，请重新选择本地模型或云端模型。".to_string()),
+        }
+    }
 }
 
 impl AiRequestStage {
@@ -332,10 +349,19 @@ pub async fn extract_ai_remix_segment_content(
 pub async fn plan_ai_remix(
     script: String,
     segments: Vec<AiRemixSegmentInput>,
+    match_mode: String,
 ) -> Result<AiRemixPlanResult, String> {
     let normalized_script = script.trim();
     let fixed_shot_texts = split_script_into_shots(normalized_script)?;
     validate_planning_inputs(normalized_script, &fixed_shot_texts, &segments)?;
+
+    if AiRemixMatchMode::parse(&match_mode)? == AiRemixMatchMode::Local {
+        let content = build_local_planning_response(&fixed_shot_texts, &segments);
+        return Ok(AiRemixPlanResult {
+            shots: parse_and_validate_shots(&content, &fixed_shot_texts, &segments)?,
+        });
+    }
+
     let planning_prompt = build_planning_prompt(&fixed_shot_texts, &segments);
     let content = request_ai_completion(
         json!([
@@ -860,6 +886,109 @@ fn build_planning_prompt(fixed_shot_texts: &[String], segments: &[AiRemixSegment
     )
 }
 
+fn build_local_planning_response(
+    fixed_shot_texts: &[String],
+    segments: &[AiRemixSegmentInput],
+) -> String {
+    let mut used_primary_ids = HashSet::<String>::new();
+    let matches = fixed_shot_texts
+        .iter()
+        .enumerate()
+        .filter_map(|(index, text)| {
+            let mut ranked = segments
+                .iter()
+                .filter(|segment| !used_primary_ids.contains(&segment.segment_id))
+                .map(|segment| (local_match_score(text, segment), segment.segment_id.clone()))
+                .collect::<Vec<_>>();
+
+            ranked.sort_by(|left, right| {
+                right
+                    .0
+                    .partial_cmp(&left.0)
+                    .unwrap_or(Ordering::Equal)
+                    .then_with(|| left.1.cmp(&right.1))
+            });
+
+            let primary_id = ranked.first()?.1.clone();
+            used_primary_ids.insert(primary_id.clone());
+
+            let alternative_segment_ids = segments
+                .iter()
+                .filter(|segment| segment.segment_id != primary_id)
+                .map(|segment| (local_match_score(text, segment), segment.segment_id.clone()))
+                .filter(|(score, _)| *score > -100.0)
+                .collect::<Vec<_>>();
+            let mut ranked_alternatives = alternative_segment_ids;
+            ranked_alternatives.sort_by(|left, right| {
+                right
+                    .0
+                    .partial_cmp(&left.0)
+                    .unwrap_or(Ordering::Equal)
+                    .then_with(|| left.1.cmp(&right.1))
+            });
+
+            Some(json!({
+                "shotIndex": index + 1,
+                "segmentId": primary_id,
+                "alternativeSegmentIds": ranked_alternatives
+                    .into_iter()
+                    .take(3)
+                    .map(|(_, segment_id)| segment_id)
+                    .collect::<Vec<_>>(),
+            }))
+        })
+        .collect::<Vec<_>>();
+
+    json!({ "matches": matches }).to_string()
+}
+
+fn local_match_score(text: &str, segment: &AiRemixSegmentInput) -> f64 {
+    let text_tokens = local_match_tokens(text);
+    let description_tokens = local_match_tokens(&segment.description);
+    let description_set = description_tokens.iter().collect::<HashSet<_>>();
+    let overlap = text_tokens
+        .iter()
+        .filter(|token| description_set.contains(token))
+        .count() as f64;
+    let estimated_duration = estimate_narration_duration(text);
+    let duration_score = if segment.duration_seconds >= estimated_duration {
+        4.0 - (segment.duration_seconds - estimated_duration).min(4.0) * 0.2
+    } else {
+        -8.0 + segment.duration_seconds / estimated_duration.max(0.1)
+    };
+
+    overlap * 10.0 + duration_score
+}
+
+fn local_match_tokens(value: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut ascii_token = String::new();
+
+    for character in value.to_lowercase().chars() {
+        if character.is_ascii_alphanumeric() {
+            ascii_token.push(character);
+            continue;
+        }
+
+        if !ascii_token.is_empty() {
+            tokens.push(std::mem::take(&mut ascii_token));
+        }
+
+        if !character.is_whitespace() && !"，。！？；：、,.!?;:()[]{}\"'".contains(character)
+        {
+            tokens.push(character.to_string());
+        }
+    }
+
+    if !ascii_token.is_empty() {
+        tokens.push(ascii_token);
+    }
+
+    tokens.sort();
+    tokens.dedup();
+    tokens
+}
+
 fn parse_and_validate_analyses(
     content: &str,
     expected_ids: &[String],
@@ -1247,9 +1376,10 @@ fn estimate_narration_duration(text: &str) -> f64 {
 mod tests {
     use super::{
         build_ai_client, build_ai_remix_variants, build_ai_request_body,
-        build_chat_completions_url, is_retryable_service_response, parse_ai_http_error_detail,
-        parse_and_validate_analyses, parse_and_validate_content_analyses, parse_and_validate_shots,
-        split_script_into_shots, AiRemixSegmentInput, AiRemixVariantShotInput, AiRequestStage,
+        build_chat_completions_url, build_local_planning_response, is_retryable_service_response,
+        parse_ai_http_error_detail, parse_and_validate_analyses,
+        parse_and_validate_content_analyses, parse_and_validate_shots, split_script_into_shots,
+        AiRemixMatchMode, AiRemixSegmentInput, AiRemixVariantShotInput, AiRequestStage,
         MAX_SHOT_TEXT_CHARACTERS,
     };
     use serde_json::json;
@@ -1512,6 +1642,44 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].segment_id, "segment-002");
         assert_eq!(result[0].text, "先展示结果，");
+    }
+
+    #[test]
+    fn local_match_mode_builds_a_valid_keyword_based_plan() {
+        assert_eq!(
+            AiRemixMatchMode::parse("local"),
+            Ok(AiRemixMatchMode::Local)
+        );
+        assert_eq!(
+            AiRemixMatchMode::parse("cloud"),
+            Ok(AiRemixMatchMode::Cloud)
+        );
+
+        let segments = vec![
+            AiRemixSegmentInput {
+                segment_id: "segment-001".to_string(),
+                duration_seconds: 5.0,
+                description: "展示结果画面，台面已经整洁".to_string(),
+            },
+            AiRemixSegmentInput {
+                segment_id: "segment-002".to_string(),
+                duration_seconds: 5.0,
+                description: "展示清洁过程，工具正在刷洗".to_string(),
+            },
+        ];
+        let shots = parse_and_validate_shots(
+            &build_local_planning_response(
+                &["先展示结果，".to_string(), "再展示过程。".to_string()],
+                &segments,
+            ),
+            &fixed_shots(),
+            &segments,
+        )
+        .unwrap();
+
+        assert_eq!(shots.len(), 2);
+        assert_eq!(shots[0].segment_id, "segment-001");
+        assert_eq!(shots[1].segment_id, "segment-002");
     }
 
     #[test]

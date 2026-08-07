@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import type { ImportedVideo } from "../types/videoProbe";
+import type { AiRemixMatchMode } from "../features/ai-remix";
 
-defineProps<{
+const props = defineProps<{
   importedVideos: ImportedVideo[];
   selectedVideo: ImportedVideo | null;
   videoCoverUrls: Record<string, string>;
@@ -11,6 +11,7 @@ defineProps<{
   segmentThumbnailUrls: Record<string, string>;
   formatDuration: (durationSeconds: number | null) => string;
   formatFileName: (path: string) => string;
+  matchMode: AiRemixMatchMode;
 }>();
 
 const emit = defineEmits<{
@@ -19,9 +20,8 @@ const emit = defineEmits<{
   clearVideos: [];
   selectVideo: [video: ImportedVideo];
   selectSegment: [segmentPath: string];
+  updateMatchMode: [mode: AiRemixMatchMode];
 }>();
-
-const matchMode = ref<"local" | "cloud">("local");
 </script>
 
 <template>
@@ -68,10 +68,10 @@ const matchMode = ref<"local" | "cloud">("local");
     </div>
 
     <footer class="replica-match-mode">
-      <div><strong>匹配模式：</strong><small>{{ matchMode === 'local' ? '本地模型处理，精度稍低。' : '云端模型分析，画面匹配更准确。' }}</small></div>
+      <div><strong>匹配模式：</strong><small>{{ props.matchMode === 'local' ? '本地快速匹配，不消耗云端额度。' : '云端模型分析，画面匹配更准确。' }}</small></div>
       <div>
-        <button type="button" :class="{ 'is-active': matchMode === 'local' }" @click="matchMode = 'local'">本地模型</button>
-        <button type="button" :class="{ 'is-active': matchMode === 'cloud' }" @click="matchMode = 'cloud'">云端模型</button>
+        <button type="button" :class="{ 'is-active': props.matchMode === 'local' }" @click="emit('updateMatchMode', 'local')">本地模型</button>
+        <button type="button" :class="{ 'is-active': props.matchMode === 'cloud' }" @click="emit('updateMatchMode', 'cloud')">云端模型</button>
       </div>
     </footer>
   </aside>

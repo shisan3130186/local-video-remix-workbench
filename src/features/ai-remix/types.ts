@@ -4,6 +4,8 @@ export interface AiRemixVisualSegmentInput {
   thumbnailPaths: string[];
 }
 
+export type AiRemixMatchMode = "local" | "cloud";
+
 export interface AiRemixSegmentInput {
   segmentId: string;
   durationSeconds: number;

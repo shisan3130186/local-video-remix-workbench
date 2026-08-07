@@ -21,10 +21,12 @@ import {
 import { useRemixSettings } from "./composables/useRemixSettings";
 import { useTaskLogs } from "./composables/useTaskLogs";
 import { useAiRemix } from "./features/ai-remix";
+import type { AiRemixMatchMode } from "./features/ai-remix";
 import type { ApiConfigStatus } from "./features/api-config";
 import { getApiConfigStatus } from "./features/api-config/services/apiConfigService";
 import { useAsr } from "./features/asr";
 import { CopyRewriteWorkbench } from "./features/copy-rewrite";
+import { rewriteScripts } from "./features/copy-rewrite/services/copyRewriteService";
 import { FileRenamerWorkbench } from "./features/file-renamer";
 import { ImageToVideoWorkbench } from "./features/image-to-video";
 import {
@@ -91,6 +93,7 @@ const outputDirectoryError = ref<string | null>(null);
 const fileManagerError = ref<string | null>(null);
 const generationOutputError = ref<string | null>(null);
 const aiRemixInputMode = ref<"custom" | "script" | "audio">("custom");
+const aiMatchMode = ref<AiRemixMatchMode>("local");
 const draftExportFeedback = ref<string | null>(null);
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
@@ -245,6 +248,10 @@ const {
   restoreRemixSettings,
   saturation,
   smoothRemixEnabled,
+  subtitleEnabled,
+  subtitlePosition,
+  subtitleSize,
+  subtitleText,
   resetWatermarkSettings,
   resetWatermarkRemovalSettings,
   validateWatermarkSettings,
@@ -388,11 +395,8 @@ const {
   isAnalyzingAiContent,
   isPlanningAiRemix,
   isPreparingAiSegments,
-  moveAiRemixShot,
   prepareAiRemixVariants,
   prepareSegmentAssets,
-  removeAiRemixShot,
-  replaceAiRemixShotSegment,
   requestAiRemixPlan,
   resetAiRemixState,
   restoreAiPreparedSegments,
@@ -402,6 +406,7 @@ const {
 } = useAiRemix({
   outputDirectory,
   generationOutputDirectory: generationVideoOutputDirectory,
+  matchMode: aiMatchMode,
   remixExportSettings,
   appendAiRemixLog,
   appendSplitLog,
@@ -429,6 +434,41 @@ const {
   formatSmoothLog: formatSmoothRemixLog,
   runTask,
 });
+
+const isRewritingAiScript = ref(false);
+const aiRewriteFeedback = ref<string | null>(null);
+
+async function rewriteAiScript() {
+  const source = aiScript.value.trim();
+  if (!source || isRewritingAiScript.value) return;
+  isRewritingAiScript.value = true;
+  aiRewriteFeedback.value = null;
+  try {
+    const result = await rewriteScripts({
+      scripts: [source],
+      style: "conservative",
+      targetLength: "similar",
+      customPrompt: "保留原意和信息点，润色成自然、适合短视频口播的文案。",
+      count: 1,
+    });
+    const rewritten = result.items[0]?.versions[0]?.trim();
+    if (!rewritten) throw new Error("AI 没有返回可用的改写文案。");
+    aiScript.value = rewritten;
+    aiRewriteFeedback.value = "AI 改写完成";
+  } catch (error) {
+    aiRewriteFeedback.value = error instanceof Error ? error.message : "AI 改写失败，请检查模型配置。";
+  } finally {
+    isRewritingAiScript.value = false;
+  }
+}
+
+watch(
+  aiScript,
+  (value) => {
+    subtitleText.value = value;
+  },
+  { immediate: true },
+);
 
 const {
   generateNarratedVideos,
@@ -1895,11 +1935,13 @@ onMounted(() => {
         :segment-thumbnail-urls="segmentThumbnailUrls"
         :format-duration="formatDuration"
         :format-file-name="formatFileName"
+        :match-mode="aiMatchMode"
         @import-videos="importVideos"
         @import-video-folder="importVideoFolder"
         @clear-videos="clearImportedVideos"
         @select-video="selectVideo"
         @select-segment="selectSegment"
+        @update-match-mode="aiMatchMode = $event"
         @open-tool="activeTool = $event"
         @open-drawer="activeDrawer = $event"
       />
@@ -1910,13 +1952,23 @@ onMounted(() => {
         v-model:preview-background-video-ref="previewBackgroundVideoRef"
         v-model:ai-script="aiScript"
         v-model:ai-generate-count="aiGenerateCount"
+        v-model:canvas-aspect-ratio="canvasAspectRatio"
+        v-model:canvas-background-mode="canvasBackgroundMode"
+        v-model:effect-scale="effectScale"
+        v-model:watermark-enabled="watermarkEnabled"
+        v-model:watermark-kind="watermarkKind"
+        v-model:watermark-text="watermarkText"
+        v-model:watermark-position="watermarkPosition"
+        v-model:watermark-opacity="watermarkOpacity"
+        v-model:watermark-text-font-size="watermarkTextFontSize"
+        v-model:watermark-text-color="watermarkTextColor"
+        v-model:tts-subtitle-enabled="ttsSubtitleEnabled"
         :is-advanced-mode="isAdvancedMode"
         :imported-video-count="importedVideos.length"
         :selected-video="selectedVideo"
         :preview-title="previewTitle"
         :preview-url="previewUrl"
         :selected-cover-url="selectedCoverUrl"
-        :canvas-aspect-ratio="canvasAspectRatio"
         :should-show-blur-background="shouldShowBlurBackground"
         :preview-canvas-style="previewCanvasStyle"
         :is-splitting="isSplitting"
@@ -1949,6 +2001,8 @@ onMounted(() => {
         :generation-failure-count="currentAiGenerationFailureCount"
         :ai-plan-error="aiPlanError"
         :ai-generate-error="currentAiGenerateError"
+        :is-rewriting-ai-script="isRewritingAiScript"
+        :ai-rewrite-feedback="aiRewriteFeedback"
         :format-duration="formatDuration"
         :format-resolution="formatResolution"
         :format-frame-rate="formatFrameRate"
@@ -1963,14 +2017,12 @@ onMounted(() => {
         @open-drawer="activeDrawer = $event"
         @open-tool="activeTool = $event"
         @plan-ai-remix="requestAiRemixPlan"
-        @move-ai-shot="moveAiRemixShot"
-        @remove-ai-shot="removeAiRemixShot"
-        @replace-ai-shot-segment="replaceAiRemixShotSegment"
         @generate-ai-remix="generateCurrentAiRemixVideo"
         @update-ai-remix-input-mode="aiRemixInputMode = $event"
         @select-audio-source="selectAsrSourceFile"
         @recognize-audio="recognizeAsr"
         @use-recognized-audio="useAudioAsRemixScript"
+        @rewrite-ai-script="rewriteAiScript"
         @open-generation-directory="openAiGenerationDirectory"
         @export-jianying-draft="exportAiJianyingDraft"
       />
@@ -1989,6 +2041,7 @@ onMounted(() => {
         :split-segment-paths="splitSegmentPaths"
         :selected-segment-path="selectedSegmentPath"
         :segment-thumbnail-urls="segmentThumbnailUrls"
+        :prepared-segments="aiPreparedSegments"
         :random-selected-count="randomSelectedSegments.length"
         :batch-generate-count="batchGenerateCount"
         :batch-mix-result-count="batchMixResults.length"
@@ -2031,6 +2084,7 @@ onMounted(() => {
         :split-segment-paths="splitSegmentPaths"
         :selected-segment-path="selectedSegmentPath"
         :segment-thumbnail-urls="segmentThumbnailUrls"
+        :prepared-segments="aiPreparedSegments"
         :output-directory="outputDirectory"
         :is-processing="isSplitting || isExporting || isAnalyzingAiContent"
         :progress-text="aiContentAnalysisProgressText"
@@ -2045,6 +2099,7 @@ onMounted(() => {
         @select-output-directory="selectOutputDirectory"
         @split-selected-video="splitSelectedVideo"
         @analyze-content="analyzePreparedSegmentContent"
+        @generate-categorized-segments="concatCategorizedSegments"
         @start-processing="exportSelectedVideo"
         @open-drawer="activeDrawer = $event"
         @open-tool="activeTool = $event"
@@ -2064,8 +2119,9 @@ onMounted(() => {
         v-model:tts-speaker="ttsSpeaker"
         v-model:speech-volume="ttsOriginalAudioVolume"
         v-model:speech-speed="playbackSpeed"
-        v-model:subtitle-enabled="ttsSubtitleEnabled"
-        v-model:subtitle-size="ttsSubtitleSize"
+        v-model:subtitle-enabled="subtitleEnabled"
+        v-model:subtitle-position="subtitlePosition"
+        v-model:subtitle-size="subtitleSize"
         @open-tool="activeTool = $event"
         @open-drawer="activeDrawer = $event"
         @toggle-advanced-mode="isAdvancedMode = $event"

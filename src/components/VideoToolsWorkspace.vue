@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import type { AiRemixSegment } from "../features/ai-remix";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { DrawerKey, ToolKey } from "../types/workbench";
 import type { OutputFrameRate, OutputQuality, OutputResolution, VideoEncoder } from "../types/outputSettings";
@@ -14,6 +15,7 @@ const props = defineProps<{
   splitSegmentPaths: string[];
   selectedSegmentPath: string | null;
   segmentThumbnailUrls: Record<string, string>;
+  preparedSegments: AiRemixSegment[];
   outputDirectory: string | null;
   isProcessing: boolean;
   progressText: string | null;
@@ -31,6 +33,7 @@ const emit = defineEmits<{
   selectOutputDirectory: [];
   splitSelectedVideo: [];
   analyzeContent: [];
+  generateCategorizedSegments: [];
   startProcessing: [];
   openTool: [tool: ToolKey];
   openDrawer: [drawer: DrawerKey];
@@ -47,6 +50,20 @@ const outputResolution = defineModel<OutputResolution>("outputResolution", { req
 const outputFrameRate = defineModel<OutputFrameRate>("outputFrameRate", { required: true });
 const outputQuality = defineModel<OutputQuality>("outputQuality", { required: true });
 const outputEncoder = defineModel<VideoEncoder>("outputEncoder", { required: true });
+const preparedSegmentByPath = computed(
+  () => new Map(props.preparedSegments.map((segment) => [segment.path, segment])),
+);
+const analyzedSegmentCount = computed(
+  () =>
+    props.splitSegmentPaths.filter(
+      (path) => preparedSegmentByPath.value.get(path)?.contentAnalysis,
+    ).length,
+);
+const allSegmentsAnalyzed = computed(
+  () =>
+    props.splitSegmentPaths.length >= 2 &&
+    analyzedSegmentCount.value === props.splitSegmentPaths.length,
+);
 
 const effectGroups: Array<{ title: string; key: ToolKey; note: string }> = [
   { title: "基础画面", key: "effects", note: "镜像、旋转、变速、缩放与色彩" },
@@ -92,7 +109,7 @@ const effectGroups: Array<{ title: string; key: ToolKey; note: string }> = [
       <section v-else class="replica-extract-results">
         <header><strong>提炼片段</strong><span>{{ splitSegmentPaths.length }} 个</span></header>
         <div v-if="splitSegmentPaths.length === 0" class="replica-category-empty"><strong>还没有内容片段</strong><small>先切片，再用本地或云端模型分析片段内容</small><button type="button" :disabled="!selectedVideo || isProcessing" @click="emit('splitSelectedVideo')">生成内容切片</button></div>
-        <div v-else class="replica-extract-grid"><button v-for="segmentPath in splitSegmentPaths" :key="segmentPath" type="button" :class="{ 'is-active': selectedSegmentPath === segmentPath }" @click="emit('selectSegment', segmentPath)"><img v-if="segmentThumbnailUrls[segmentPath]" :src="segmentThumbnailUrls[segmentPath]" alt="" /><span v-else>▶</span><b>{{ formatFileName(segmentPath) }}</b><small>等待内容分析</small></button></div>
+        <div v-else class="replica-extract-grid"><button v-for="segmentPath in splitSegmentPaths" :key="segmentPath" type="button" :class="{ 'is-active': selectedSegmentPath === segmentPath }" @click="emit('selectSegment', segmentPath)"><img v-if="segmentThumbnailUrls[segmentPath]" :src="segmentThumbnailUrls[segmentPath]" alt="" /><span v-else>▶</span><b>{{ formatFileName(segmentPath) }}</b><small v-if="preparedSegmentByPath.get(segmentPath)?.contentAnalysis">{{ preparedSegmentByPath.get(segmentPath)?.contentAnalysis?.theme }}</small><small v-else>等待内容分析</small></button></div>
       </section>
     </main>
 
@@ -105,7 +122,9 @@ const effectGroups: Array<{ title: string; key: ToolKey; note: string }> = [
         <header><strong>内容提炼</strong><small>识别主题、动作、卖点和镜头类型</small></header>
         <section class="replica-setting-block"><strong>分析模式</strong><label class="replica-radio-row"><input checked type="radio" name="extract-mode" />本地快速模型</label><label class="replica-radio-row"><input type="radio" name="extract-mode" />云端精确模型</label></section>
         <section class="replica-setting-block"><strong>提炼维度</strong><label class="replica-checkbox-row"><input checked type="checkbox" />镜头类型</label><label class="replica-checkbox-row"><input checked type="checkbox" />人物动作</label><label class="replica-checkbox-row"><input checked type="checkbox" />产品卖点</label><label class="replica-checkbox-row"><input checked type="checkbox" />可用文案</label></section>
+        <p class="replica-progress-text">已完成 {{ analyzedSegmentCount }}/{{ splitSegmentPaths.length }} 个片段的内容提炼</p>
         <button class="replica-analyze-button" type="button" :disabled="splitSegmentPaths.length === 0 || isProcessing" @click="emit('analyzeContent')">{{ isProcessing ? '正在分析...' : '开始内容提炼' }}</button>
+        <button class="replica-analyze-button is-primary" type="button" :disabled="!allSegmentsAnalyzed || isProcessing" @click="emit('generateCategorizedSegments')">按提炼结果生成精华成片</button>
       </template>
       <p v-if="progressText" class="replica-progress-text">{{ progressText }}</p><p v-if="error" class="workflow-error" role="alert">{{ error }}</p>
     </aside>

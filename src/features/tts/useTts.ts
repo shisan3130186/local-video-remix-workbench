@@ -278,9 +278,11 @@ export function useTts(options: UseTtsOptions) {
         }));
 
         try {
+          const narratedVideoOutputDirectory =
+            options.generationOutputDirectory.value ?? options.outputDirectory.value;
           const result = await concatNarratedSegments(
             narratedSegments,
-            options.outputDirectory.value as string,
+            narratedVideoOutputDirectory as string,
             settings,
             buildNarratedAudioSettings(
               ttsKeepOriginalAudio.value,

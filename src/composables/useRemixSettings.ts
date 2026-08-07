@@ -7,6 +7,8 @@ import type {
   PipPosition,
   RemixExportSettings,
   RotationMode,
+  SubtitlePosition,
+  SubtitleSize,
   SubtitleSettings,
   VideoEffectSettings,
 } from "../services/videoMixService";
@@ -40,6 +42,10 @@ export function useRemixSettings() {
   const bgmFadeOutSeconds = ref(0.5);
   const canvasAspectRatio = ref<CanvasAspectRatio>("original");
   const canvasBackgroundMode = ref<CanvasBackgroundMode>("black");
+  const subtitleEnabled = ref(false);
+  const subtitleText = ref("");
+  const subtitlePosition = ref<SubtitlePosition>("bottom");
+  const subtitleSize = ref<SubtitleSize>("medium");
 
   const videoEffectSettings = computed(
     (): VideoEffectSettings => ({
@@ -74,12 +80,13 @@ export function useRemixSettings() {
     }),
   );
 
-  const disabledSubtitleSettings = computed(
+  const subtitleSettings = computed(
     (): SubtitleSettings => ({
-      enabled: false,
-      text: "",
-      position: "bottom",
-      fontSize: 36,
+      enabled: subtitleEnabled.value,
+      text: subtitleText.value,
+      position: subtitlePosition.value,
+      size: subtitleSize.value,
+      fontSize: subtitleSize.value === "small" ? 38 : subtitleSize.value === "large" ? 56 : 46,
       textColor: "#ffffff",
       backgroundEnabled: false,
     }),
@@ -97,7 +104,7 @@ export function useRemixSettings() {
       bgmSettings: bgmSettings.value,
       watermarkSettings: watermark.watermarkSettings.value,
       watermarkRemovalSettings: watermarkRemoval.watermarkRemovalSettings.value,
-      subtitleSettings: disabledSubtitleSettings.value,
+      subtitleSettings: subtitleSettings.value,
       outputSettings: output.outputSettings.value,
     }),
   );
@@ -108,6 +115,10 @@ export function useRemixSettings() {
     smoothRemixEnabled.value = settings.smoothRemixEnabled;
     canvasAspectRatio.value = settings.canvasAspectRatio;
     canvasBackgroundMode.value = settings.canvasBackgroundMode;
+    subtitleEnabled.value = settings.subtitleSettings.enabled;
+    subtitleText.value = settings.subtitleSettings.text;
+    subtitlePosition.value = settings.subtitleSettings.position;
+    subtitleSize.value = settings.subtitleSettings.size ?? "medium";
     applyVerticalMirror.value = settings.videoEffectSettings.verticalMirror;
     rotationMode.value = settings.videoEffectSettings.rotation;
     brightness.value = settings.videoEffectSettings.brightness;
@@ -147,7 +158,6 @@ export function useRemixSettings() {
     canvasAspectRatio,
     canvasBackgroundMode,
     contrast,
-    disabledSubtitleSettings,
     effectScale,
     originalVolume,
     pictureInPictureSettings,
@@ -162,6 +172,11 @@ export function useRemixSettings() {
     rotationMode,
     restoreRemixSettings,
     saturation,
+    subtitleEnabled,
+    subtitlePosition,
+    subtitleSettings,
+    subtitleSize,
+    subtitleText,
     smoothRemixEnabled,
     videoEffectSettings,
   };

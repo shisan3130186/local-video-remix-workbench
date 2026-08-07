@@ -9,6 +9,10 @@ use crate::video_engine::output::{
     resolve_output_video_dimensions, OutputSettings,
 };
 use crate::video_engine::probe::probe_video_dimensions;
+use crate::video_engine::subtitle::{
+    ensure_ass_filter_available, prepare_ass_subtitle, NarratedSubtitlePosition,
+    NarratedSubtitleSettings, NarratedSubtitleSize,
+};
 use crate::video_engine::tool_paths::{background_command, ffprobe_program};
 use crate::video_engine::watermark::{
     append_watermark_input_args, build_image_watermark_layer, build_text_watermark_layer,
@@ -87,6 +91,12 @@ pub struct BgmSettings {
 #[serde(rename_all = "camelCase")]
 pub struct SubtitleSettings {
     enabled: bool,
+    #[serde(default)]
+    text: String,
+    #[serde(default = "default_subtitle_position")]
+    position: NarratedSubtitlePosition,
+    #[serde(default = "default_subtitle_size")]
+    size: NarratedSubtitleSize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -176,10 +186,6 @@ fn concat_video_segments_with_options(
         output_settings,
     } = settings;
 
-    if subtitle_settings.enabled {
-        return Err("当前版本尚未支持字幕烧录，请先关闭字幕。".to_string());
-    }
-
     let output_dir = Path::new(&output_directory);
     let normalized_playback_speed = normalize_playback_speed(playback_speed)?;
     let normalized_effect_settings = normalize_video_effect_settings(video_effect_settings)?;
@@ -189,6 +195,11 @@ fn concat_video_segments_with_options(
     let normalized_watermark_settings = normalize_watermark_settings(watermark_settings)?;
     let normalized_watermark_removal_settings =
         normalize_watermark_removal_settings(watermark_removal_settings)?;
+    let normalized_subtitle_settings = normalize_subtitle_settings(subtitle_settings)?;
+
+    if normalized_subtitle_settings.is_some() {
+        ensure_ass_filter_available()?;
+    }
 
     if normalized_watermark_removal_settings
         .as_ref()
@@ -253,6 +264,26 @@ fn concat_video_segments_with_options(
         &prepared_segments.segment_paths,
         normalized_playback_speed,
     )?;
+
+    let subtitle_filter = normalized_subtitle_settings
+        .as_ref()
+        .map(|settings| {
+            let subtitle_path = temp_directory
+                .path()
+                .join(format!("subtitle_{timestamp}.ass"));
+            prepare_ass_subtitle(
+                &subtitle_path,
+                &settings.text,
+                output_duration_seconds,
+                NarratedSubtitleSettings {
+                    enabled: true,
+                    position: settings.position,
+                    size: settings.size,
+                },
+            )
+        })
+        .transpose()?
+        .flatten();
 
     let concat_list_content = build_concat_list_content(&prepared_segments.segment_paths);
     let output_dimensions = output_canvas_dimensions(output_settings, canvas_aspect_ratio);
@@ -349,6 +380,7 @@ fn concat_video_segments_with_options(
         normalized_watermark_settings.as_ref(),
         watermark_image_input_index.map(|(index, _settings)| index),
         watermark_text_file.as_deref(),
+        subtitle_filter.as_deref(),
     )?;
 
     if let Some(bgm_settings) = &normalized_bgm_settings {
@@ -529,6 +561,33 @@ fn normalize_bgm_settings(settings: BgmSettings) -> Result<Option<BgmSettings>, 
     Ok(Some(settings))
 }
 
+fn normalize_subtitle_settings(
+    settings: SubtitleSettings,
+) -> Result<Option<SubtitleSettings>, String> {
+    if !settings.enabled {
+        return Ok(None);
+    }
+
+    if settings.text.trim().is_empty() {
+        return Err("已开启字幕，但字幕文案为空，请先输入字幕文案。".to_string());
+    }
+
+    Ok(Some(SubtitleSettings {
+        enabled: true,
+        text: settings.text.trim().to_string(),
+        position: settings.position,
+        size: settings.size,
+    }))
+}
+
+fn default_subtitle_position() -> NarratedSubtitlePosition {
+    NarratedSubtitlePosition::Bottom
+}
+
+fn default_subtitle_size() -> NarratedSubtitleSize {
+    NarratedSubtitleSize::Medium
+}
+
 fn append_pip_input_args(
     ffmpeg_args: &mut Vec<String>,
     settings: &PictureInPictureSettings,
@@ -614,6 +673,7 @@ fn build_bgm_source_filter(
     format!("[{bgm_input_index}:a]{}[bgm]", filters.join(","))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_composed_video_filter(
     base_filter: Option<CanvasFilter>,
     watermark_removal_settings: Option<&WatermarkRemovalSettings>,
@@ -622,8 +682,13 @@ fn build_composed_video_filter(
     watermark_settings: Option<&WatermarkSettings>,
     watermark_image_input_index: Option<usize>,
     watermark_text_file: Option<&Path>,
+    subtitle_filter: Option<&str>,
 ) -> Result<Option<CanvasFilter>, String> {
-    if watermark_removal_settings.is_none() && pip_input.is_none() && watermark_settings.is_none() {
+    if watermark_removal_settings.is_none()
+        && pip_input.is_none()
+        && watermark_settings.is_none()
+        && subtitle_filter.is_none()
+    {
         return Ok(base_filter);
     }
 
@@ -686,6 +751,12 @@ fn build_composed_video_filter(
             ),
         };
         filters.push(filter);
+        current_label = output_label;
+    }
+
+    if let Some(subtitle_filter) = subtitle_filter {
+        let output_label = format!("[layer{layer_number}]");
+        filters.push(format!("{current_label}{subtitle_filter}{output_label}"));
         current_label = output_label;
     }
 
@@ -1076,6 +1147,7 @@ mod tests {
             Some(&watermark),
             Some(2),
             None,
+            None,
         )
         .unwrap()
         .unwrap();
@@ -1108,6 +1180,7 @@ mod tests {
             Some(&watermark),
             None,
             Some(Path::new(r"C:\Temp\watermark.txt")),
+            None,
         )
         .unwrap()
         .unwrap();
@@ -1115,6 +1188,46 @@ mod tests {
         assert!(filter.filter.contains("[0:v]scale=640:360[layer0]"));
         assert!(filter.filter.contains("drawtext="));
         assert!(filter.filter.contains("x=(w-text_w)/2:y=(h-text_h)/2"));
+    }
+
+    #[test]
+    fn composes_subtitle_after_base_filter() {
+        let base = CanvasFilter {
+            filter: "scale=1080:1920".to_string(),
+            is_complex: false,
+        };
+
+        let filter = build_composed_video_filter(
+            Some(base),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some("ass=filename='subtitle.ass'"),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert!(filter.is_complex);
+        assert!(filter.filter.contains("[0:v]scale=1080:1920[layer0]"));
+        assert!(filter
+            .filter
+            .contains("[layer0]ass=filename='subtitle.ass'[layer1]"));
+        assert!(filter.filter.ends_with("format=yuv420p[v]"));
+    }
+
+    #[test]
+    fn rejects_enabled_subtitle_without_text() {
+        let result = normalize_subtitle_settings(SubtitleSettings {
+            enabled: true,
+            text: "  ".to_string(),
+            position: NarratedSubtitlePosition::Bottom,
+            size: NarratedSubtitleSize::Medium,
+        });
+
+        assert!(result.is_err());
     }
 
     #[test]
@@ -1150,6 +1263,7 @@ mod tests {
             Some(&watermark),
             None,
             Some(Path::new(r"C:\Temp\watermark.txt")),
+            None,
         )
         .unwrap()
         .unwrap();

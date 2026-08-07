@@ -51,11 +51,13 @@ export interface BgmSettings {
 }
 
 export type SubtitlePosition = "top" | "middle" | "bottom";
+export type SubtitleSize = "small" | "medium" | "large";
 
 export interface SubtitleSettings {
   enabled: boolean;
   text: string;
   position: SubtitlePosition;
+  size: SubtitleSize;
   fontSize: number;
   textColor: string;
   backgroundEnabled: boolean;

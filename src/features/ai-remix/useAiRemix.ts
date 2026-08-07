@@ -16,6 +16,7 @@ import {
 import type {
   AiRemixContentAnalysis,
   AiRemixGenerationFailure,
+  AiRemixMatchMode,
   AiRemixPlannedShot,
   AiRemixSegment,
   AiRemixVariant,
@@ -28,6 +29,7 @@ import type { TaskRunHandle } from "../task-center";
 interface UseAiRemixOptions {
   outputDirectory: Readonly<Ref<string | null>>;
   generationOutputDirectory: Readonly<Ref<string | null>>;
+  matchMode: Readonly<Ref<AiRemixMatchMode>>;
   remixExportSettings: Readonly<Ref<RemixExportSettings>>;
   appendAiRemixLog: (message: string, level: TaskLogLevel) => void;
   appendSplitLog: (message: string, level: TaskLogLevel) => void;
@@ -230,7 +232,7 @@ export function useAiRemix(options: UseAiRemixOptions) {
     isPlanningAiRemix.value = true;
     aiPlanningProgressText.value = null;
     options.appendAiRemixLog(
-      `开始准备 AI 逐句分镜，共 ${aiPreparedSegments.value.length} 个候选片段。`,
+      `开始准备 AI 逐句分镜，共 ${aiPreparedSegments.value.length} 个候选片段；当前使用${options.matchMode.value === "local" ? "本地快速匹配" : "云端精准匹配"}。`,
       "info",
     );
 
@@ -257,6 +259,7 @@ export function useAiRemix(options: UseAiRemixOptions) {
               durationSeconds: segment.durationSeconds,
               description: segment.description as string,
             })),
+            options.matchMode.value,
           ),
         {
           onRetry({ nextAttempt, maxAttempts, delayMs, message }) {

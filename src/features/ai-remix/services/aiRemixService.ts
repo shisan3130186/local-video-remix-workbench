@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AiRemixPlanResult,
+  AiRemixMatchMode,
   AiRemixSegmentAnalysisResult,
   AiRemixSegmentContentAnalysisResult,
   AiRemixSegmentInput,
@@ -29,10 +30,12 @@ export function extractAiRemixSegmentContent(
 export function planAiRemix(
   script: string,
   segments: AiRemixSegmentInput[],
+  matchMode: AiRemixMatchMode,
 ): Promise<AiRemixPlanResult> {
   return invoke<AiRemixPlanResult>("plan_ai_remix", {
     script,
     segments,
+    matchMode,
   });
 }
 

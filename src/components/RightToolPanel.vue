@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { FfmpegEnvironmentResult } from "../types/videoProbe";
 import type { DrawerKey, ToolKey, WorkspaceMode } from "../types/workbench";
 import { findTtsVoice, TTS_LANGUAGE_LABELS, TTS_SCENE_LABELS } from "../features/tts/voiceCatalog";
@@ -27,6 +27,7 @@ const ttsSpeaker = defineModel<string>("ttsSpeaker", { required: true });
 const speechVolume = defineModel<number>("speechVolume", { required: true });
 const speechSpeed = defineModel<number>("speechSpeed", { required: true });
 const subtitleEnabled = defineModel<boolean>("subtitleEnabled", { required: true });
+const subtitlePosition = defineModel<string>("subtitlePosition", { required: true });
 const subtitleSize = defineModel<string>("subtitleSize", { required: true });
 
 const activeTab = ref<"basic" | "visual">("basic");
@@ -47,7 +48,34 @@ const selectedVoiceMeta = computed(() => {
   const scene = TTS_SCENE_LABELS[voice.scenes[0]] ?? voice.scenes[0];
   return `${language} · ${scene}`;
 });
-const selectedVoiceInitial = computed(() => selectedVoiceName.value.slice(0, 1));
+const avatarFailed = ref(false);
+const avatarLabel = computed(() => {
+  const name = selectedVoiceName.value.trim();
+  if (!name) return "?";
+  const first = name.charAt(0);
+  return /[\u4e00-\u9fff]/.test(first) ? first : name.slice(0, 2).toUpperCase();
+});
+const avatarGradient = computed(() => {
+  const id = selectedVoice.value?.id ?? ttsSpeaker.value;
+  let hash = 0;
+  for (let index = 0; index < id.length; index += 1) {
+    hash = (hash * 31 + id.charCodeAt(index)) >>> 0;
+  }
+  const palettes = [
+    ["#3b6b58", "#65c5a3"],
+    ["#315e78", "#6ab3da"],
+    ["#7c6031", "#e0b264"],
+    ["#7c4857", "#e07a99"],
+    ["#5f507f", "#9c8bce"],
+    ["#4c5a56", "#9eafaa"],
+  ];
+  const [from, to] = palettes[hash % palettes.length];
+  return `linear-gradient(135deg, ${from}, ${to})`;
+});
+
+watch(() => selectedVoice.value?.id ?? ttsSpeaker.value, () => {
+  avatarFailed.value = false;
+}, { immediate: true });
 </script>
 
 <template>
@@ -76,9 +104,14 @@ const selectedVoiceInitial = computed(() => selectedVoiceName.value.slice(0, 1))
       <section class="replica-setting-block">
         <header><strong>语音合成</strong><label class="replica-switch"><input v-model="ttsEnabled" type="checkbox" /><span></span></label></header>
         <button class="replica-voice-row" type="button" :disabled="!ttsEnabled" @click="emit('openTool', 'tts')">
-          <span class="replica-avatar">
-            <img v-if="selectedVoice?.avatarUrl" :src="selectedVoice.avatarUrl" :alt="selectedVoiceName" />
-            <span v-else>{{ selectedVoiceInitial }}</span>
+          <span class="replica-avatar" :style="{ background: avatarGradient }">
+            <img
+              v-if="selectedVoice?.avatarUrl && !avatarFailed"
+              :src="selectedVoice.avatarUrl"
+              :alt="selectedVoiceName"
+              @error="avatarFailed = true"
+            />
+            <span v-else>{{ avatarLabel }}</span>
           </span>
           <span class="replica-voice-copy"><strong>{{ selectedVoiceName }}</strong><small>{{ selectedVoiceMeta }}</small></span>
           <b aria-hidden="true">⇄</b>
@@ -92,6 +125,7 @@ const selectedVoiceInitial = computed(() => selectedVoiceName.value.slice(0, 1))
         <div v-show="subtitleStyleExpanded" class="replica-subtitle-controls">
           <label class="replica-select-row"><span>选择字体</span><select v-model="subtitleFont"><option>MiSans</option><option>Noto Sans SC</option><option>Noto Serif SC</option><option>仿宋</option><option>宋体</option><option>微软雅黑</option><option>楷体</option><option>等线</option><option>黑体</option></select></label>
           <label class="replica-select-row"><span>字号大小</span><select v-model="subtitleSize"><option value="small">小号</option><option value="medium">中号</option><option value="large">大号</option></select></label>
+          <label class="replica-select-row"><span>字幕位置</span><select v-model="subtitlePosition"><option value="top">顶部</option><option value="middle">居中</option><option value="bottom">底部</option></select></label>
           <label class="replica-range-row"><span>字体透明</span><input v-model.number="subtitleOpacity" type="range" min="10" max="100" /><output>{{ subtitleOpacity }}%</output></label>
           <div class="replica-style-swatches" aria-label="字幕颜色预设">
             <button v-for="(color, index) in subtitleColors" :key="color + index" type="button" :class="{ 'is-active': subtitlePreset === index }" :style="{ color }" :aria-label="`选择字幕颜色 ${index + 1}`" @click="subtitlePreset = index">A</button>
