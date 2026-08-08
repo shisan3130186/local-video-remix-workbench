@@ -1,5 +1,8 @@
 export type WatermarkKind = "text" | "image";
 
+export type WatermarkAssetType = "image" | "video";
+export type WatermarkTrajectory = "static" | "horizontal" | "vertical" | "diagonal" | "random";
+
 export type WatermarkPosition =
   | "topLeft"
   | "topRight"
@@ -10,6 +13,7 @@ export type WatermarkPosition =
 export interface WatermarkSettings {
   enabled: boolean;
   kind: WatermarkKind;
+  assetType: WatermarkAssetType;
   text: string;
   imageFilePath: string | null;
   position: WatermarkPosition;
@@ -18,6 +22,9 @@ export interface WatermarkSettings {
   textFontSize: number;
   textColor: string;
   imageSizeRatio: number;
+  imagePositionXRatio: number;
+  imagePositionYRatio: number;
+  trajectory: WatermarkTrajectory;
 }
 
 export type WatermarkRemovalMode = "crop" | "delogo" | "blur" | "mosaic" | "cover";
@@ -29,8 +36,18 @@ export interface WatermarkTrackingKeyframe {
   yRatio: number;
 }
 
+export interface WatermarkRemovalRegion {
+  xRatio: number;
+  yRatio: number;
+  widthRatio: number;
+  heightRatio: number;
+}
+
 export interface WatermarkRemovalSettings {
   enabled: boolean;
+  selectionMode: "manual";
+  regionCount: number;
+  manualRegions: WatermarkRemovalRegion[];
   mode: WatermarkRemovalMode;
   position: WatermarkPosition;
   size: WatermarkRemovalSize;
@@ -47,6 +64,7 @@ export interface WatermarkRemovalSettings {
 export const DEFAULT_WATERMARK_SETTINGS: WatermarkSettings = {
   enabled: false,
   kind: "text",
+  assetType: "image",
   text: "",
   imageFilePath: null,
   position: "topRight",
@@ -55,10 +73,18 @@ export const DEFAULT_WATERMARK_SETTINGS: WatermarkSettings = {
   textFontSize: 36,
   textColor: "#ffffff",
   imageSizeRatio: 0.18,
+  imagePositionXRatio: 0.82,
+  imagePositionYRatio: 0.16,
+  trajectory: "static",
 };
 
 export const DEFAULT_WATERMARK_REMOVAL_SETTINGS: WatermarkRemovalSettings = {
   enabled: false,
+  selectionMode: "manual",
+  regionCount: 1,
+  manualRegions: [
+    { xRatio: 0.68, yRatio: 0.08, widthRatio: 0.24, heightRatio: 0.1 },
+  ],
   mode: "delogo",
   position: "topRight",
   size: "medium",

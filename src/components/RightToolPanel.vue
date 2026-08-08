@@ -3,6 +3,9 @@ import { computed, ref, watch } from "vue";
 import type { FfmpegEnvironmentResult } from "../types/videoProbe";
 import type { DrawerKey, ToolKey, WorkspaceMode } from "../types/workbench";
 import { findTtsVoice, TTS_LANGUAGE_LABELS, TTS_SCENE_LABELS } from "../features/tts/voiceCatalog";
+import VisualProcessingPanel from "../features/video-effects/components/VisualProcessingPanel.vue";
+import type { DynamicZoomMode } from "../services/videoMixService";
+import type { WatermarkAssetType, WatermarkTrajectory } from "../features/watermark/types";
 
 const props = defineProps<{
   workspaceMode: Exclude<WorkspaceMode, "tools">;
@@ -10,6 +13,7 @@ const props = defineProps<{
   environment: FfmpegEnvironmentResult | null;
   statusText: string;
   bgmAudioFilePath: string | null;
+  isProcessing: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -17,6 +21,7 @@ const emit = defineEmits<{
   openDrawer: [drawer: DrawerKey];
   toggleAdvancedMode: [enabled: boolean];
   selectBgmAudioFile: [];
+  selectWatermarkAsset: [];
 }>();
 
 const originalVolume = defineModel<number>("originalVolume", { required: true });
@@ -29,6 +34,24 @@ const speechSpeed = defineModel<number>("speechSpeed", { required: true });
 const subtitleEnabled = defineModel<boolean>("subtitleEnabled", { required: true });
 const subtitlePosition = defineModel<string>("subtitlePosition", { required: true });
 const subtitleSize = defineModel<string>("subtitleSize", { required: true });
+const watermarkRemovalEnabled = defineModel<boolean>("watermarkRemovalEnabled", { required: true });
+const watermarkRemovalRegionCount = defineModel<number>("watermarkRemovalRegionCount", { required: true });
+const watermarkEnabled = defineModel<boolean>("watermarkEnabled", { required: true });
+const watermarkAssetType = defineModel<WatermarkAssetType>("watermarkAssetType", { required: true });
+const watermarkImageFilePath = defineModel<string | null>("watermarkImageFilePath", { required: true });
+const watermarkOpacity = defineModel<number>("watermarkOpacity", { required: true });
+const watermarkImageSizeRatio = defineModel<number>("watermarkImageSizeRatio", { required: true });
+const watermarkTrajectory = defineModel<WatermarkTrajectory>("watermarkTrajectory", { required: true });
+const hslEnabled = defineModel<boolean>("hslEnabled", { required: true });
+const hue = defineModel<number>("hue", { required: true });
+const brightness = defineModel<number>("brightness", { required: true });
+const saturation = defineModel<number>("saturation", { required: true });
+const zoomEnabled = defineModel<boolean>("zoomEnabled", { required: true });
+const zoomMode = defineModel<DynamicZoomMode>("zoomMode", { required: true });
+const zoomMinScale = defineModel<number>("zoomMinScale", { required: true });
+const zoomMaxScale = defineModel<number>("zoomMaxScale", { required: true });
+const zoomMinDurationSeconds = defineModel<number>("zoomMinDurationSeconds", { required: true });
+const zoomMaxDurationSeconds = defineModel<number>("zoomMaxDurationSeconds", { required: true });
 
 const activeTab = ref<"basic" | "visual">("basic");
 const subtitlePreset = ref(7);
@@ -136,17 +159,45 @@ watch(() => selectedVoice.value?.id ?? ttsSpeaker.value, () => {
     </div>
 
     <div v-else class="replica-settings-scroll replica-visual-tools">
-      <button type="button" @click="emit('openTool', 'canvas')"><span>画布比例</span><small>原画、9:16 与背景填充</small><b>›</b></button>
-      <button type="button" @click="emit('openTool', 'effects')"><span>画面调整</span><small>镜像、旋转、亮度、色彩与缩放</small><b>›</b></button>
-      <button type="button" @click="emit('openTool', 'transition')"><span>片段衔接</span><small>淡入淡出与短片段过滤</small><b>›</b></button>
-      <button type="button" @click="emit('openTool', 'pip')"><span>画中画</span><small>叠加视频或图片素材</small><b>›</b></button>
-      <button type="button" @click="emit('openTool', 'watermark')"><span>水印处理</span><small>添加、遮盖、模糊与跟踪</small><b>›</b></button>
-      <button type="button" @click="emit('openTool', 'export')"><span>输出参数</span><small>分辨率、帧率、编码与质量</small><b>›</b></button>
-      <details class="replica-more-settings">
-        <summary>展开全部</summary>
-        <button type="button" @click="emit('openTool', 'cover')">视频封面 <b>›</b></button>
-        <button type="button" @click="emit('toggleAdvancedMode', !isAdvancedMode)">{{ isAdvancedMode ? '关闭高级显示' : '显示高级参数' }} <b>›</b></button>
-      </details>
+      <VisualProcessingPanel
+        :watermark-removal-enabled="watermarkRemovalEnabled"
+        :watermark-removal-region-count="watermarkRemovalRegionCount"
+        :watermark-enabled="watermarkEnabled"
+        :watermark-asset-type="watermarkAssetType"
+        :watermark-image-file-path="watermarkImageFilePath"
+        :watermark-opacity="watermarkOpacity"
+        :watermark-image-size-ratio="watermarkImageSizeRatio"
+        :watermark-trajectory="watermarkTrajectory"
+        :hsl-enabled="hslEnabled"
+        :hue="hue"
+        :saturation="saturation"
+        :brightness="brightness"
+        :zoom-enabled="zoomEnabled"
+        :zoom-mode="zoomMode"
+        :zoom-min-scale="zoomMinScale"
+        :zoom-max-scale="zoomMaxScale"
+        :zoom-min-duration-seconds="zoomMinDurationSeconds"
+        :zoom-max-duration-seconds="zoomMaxDurationSeconds"
+        :disabled="props.isProcessing"
+        @update:watermark-removal-enabled="watermarkRemovalEnabled = $event"
+        @update:watermark-removal-region-count="watermarkRemovalRegionCount = $event"
+        @update:watermark-enabled="watermarkEnabled = $event"
+        @update:watermark-asset-type="watermarkAssetType = $event"
+        @update:watermark-opacity="watermarkOpacity = $event"
+        @update:watermark-image-size-ratio="watermarkImageSizeRatio = $event"
+        @update:watermark-trajectory="watermarkTrajectory = $event"
+        @update:hsl-enabled="hslEnabled = $event"
+        @update:hue="hue = $event"
+        @update:saturation="saturation = $event"
+        @update:brightness="brightness = $event"
+        @update:zoom-enabled="zoomEnabled = $event"
+        @update:zoom-mode="zoomMode = $event"
+        @update:zoom-min-scale="zoomMinScale = $event"
+        @update:zoom-max-scale="zoomMaxScale = $event"
+        @update:zoom-min-duration-seconds="zoomMinDurationSeconds = $event"
+        @update:zoom-max-duration-seconds="zoomMaxDurationSeconds = $event"
+        @select-watermark-asset="emit('selectWatermarkAsset')"
+      />
     </div>
 
   </aside>

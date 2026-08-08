@@ -3,6 +3,7 @@ import type {
   BgmSettings,
   CanvasAspectRatio,
   CanvasBackgroundMode,
+  DynamicZoomMode,
   PictureInPictureSettings,
   PipPosition,
   RemixExportSettings,
@@ -13,21 +14,32 @@ import type {
   VideoEffectSettings,
 } from "../services/videoMixService";
 import { useOutputSettings } from "../features/output-settings";
-import { useWatermarkRemovalSettings, useWatermarkSettings } from "../features/watermark";
+import { DEFAULT_WATERMARK_REMOVAL_SETTINGS, useWatermarkRemovalSettings, useWatermarkSettings } from "../features/watermark";
+import type { WatermarkRemovalRegion } from "../features/watermark/types";
 
 export function useRemixSettings() {
   const output = useOutputSettings();
   const watermark = useWatermarkSettings();
   const watermarkRemoval = useWatermarkRemovalSettings();
+  const watermarkRemovalRegionCount = ref(DEFAULT_WATERMARK_REMOVAL_SETTINGS.regionCount);
+  const watermarkRemovalManualRegions = ref<WatermarkRemovalRegion[]>(DEFAULT_WATERMARK_REMOVAL_SETTINGS.manualRegions.map((region) => ({ ...region })));
   const applyHorizontalMirror = ref(false);
   const playbackSpeed = ref(1.0);
   const smoothRemixEnabled = ref(false);
   const applyVerticalMirror = ref(false);
   const rotationMode = ref<RotationMode>("none");
+  const hslEnabled = ref(false);
+  const hue = ref(0);
   const brightness = ref(0);
   const contrast = ref(1);
   const saturation = ref(1);
   const effectScale = ref(1);
+  const zoomEnabled = ref(false);
+  const zoomMode = ref<DynamicZoomMode>("push");
+  const zoomMinScale = ref(1.02);
+  const zoomMaxScale = ref(1.08);
+  const zoomMinDurationSeconds = ref(8);
+  const zoomMaxDurationSeconds = ref(10);
   const pipEnabled = ref(false);
   const pipOverlayFilePath = ref<string | null>(null);
   const pipPosition = ref<PipPosition>("topRight");
@@ -51,10 +63,18 @@ export function useRemixSettings() {
     (): VideoEffectSettings => ({
       verticalMirror: applyVerticalMirror.value,
       rotation: rotationMode.value,
+      hslEnabled: hslEnabled.value,
+      hue: hue.value,
       brightness: brightness.value,
       contrast: contrast.value,
       saturation: saturation.value,
       scale: effectScale.value,
+      zoomEnabled: zoomEnabled.value,
+      zoomMode: zoomMode.value,
+      zoomMinScale: zoomMinScale.value,
+      zoomMaxScale: zoomMaxScale.value,
+      zoomMinDurationSeconds: zoomMinDurationSeconds.value,
+      zoomMaxDurationSeconds: zoomMaxDurationSeconds.value,
     }),
   );
 
@@ -103,7 +123,11 @@ export function useRemixSettings() {
       pictureInPictureSettings: pictureInPictureSettings.value,
       bgmSettings: bgmSettings.value,
       watermarkSettings: watermark.watermarkSettings.value,
-      watermarkRemovalSettings: watermarkRemoval.watermarkRemovalSettings.value,
+      watermarkRemovalSettings: {
+        ...watermarkRemoval.watermarkRemovalSettings.value,
+        regionCount: watermarkRemovalRegionCount.value,
+        manualRegions: watermarkRemovalManualRegions.value.map((region) => ({ ...region })),
+      },
       subtitleSettings: subtitleSettings.value,
       outputSettings: output.outputSettings.value,
     }),
@@ -121,10 +145,18 @@ export function useRemixSettings() {
     subtitleSize.value = settings.subtitleSettings.size ?? "medium";
     applyVerticalMirror.value = settings.videoEffectSettings.verticalMirror;
     rotationMode.value = settings.videoEffectSettings.rotation;
+    hslEnabled.value = settings.videoEffectSettings.hslEnabled ?? false;
+    hue.value = settings.videoEffectSettings.hue ?? 0;
     brightness.value = settings.videoEffectSettings.brightness;
     contrast.value = settings.videoEffectSettings.contrast;
     saturation.value = settings.videoEffectSettings.saturation;
     effectScale.value = settings.videoEffectSettings.scale;
+    zoomEnabled.value = settings.videoEffectSettings.zoomEnabled ?? false;
+    zoomMode.value = settings.videoEffectSettings.zoomMode ?? "push";
+    zoomMinScale.value = settings.videoEffectSettings.zoomMinScale ?? 1.02;
+    zoomMaxScale.value = settings.videoEffectSettings.zoomMaxScale ?? 1.08;
+    zoomMinDurationSeconds.value = settings.videoEffectSettings.zoomMinDurationSeconds ?? 8;
+    zoomMaxDurationSeconds.value = settings.videoEffectSettings.zoomMaxDurationSeconds ?? 10;
     pipEnabled.value = settings.pictureInPictureSettings.enabled;
     pipOverlayFilePath.value = settings.pictureInPictureSettings.overlayFilePath;
     pipPosition.value = settings.pictureInPictureSettings.position;
@@ -139,6 +171,8 @@ export function useRemixSettings() {
     bgmFadeOutSeconds.value = settings.bgmSettings.fadeOutSeconds;
     watermark.restoreWatermarkSettings(settings.watermarkSettings);
     watermarkRemoval.restoreWatermarkRemovalSettings(settings.watermarkRemovalSettings);
+    watermarkRemovalRegionCount.value = settings.watermarkRemovalSettings.regionCount ?? DEFAULT_WATERMARK_REMOVAL_SETTINGS.regionCount;
+    watermarkRemovalManualRegions.value = (settings.watermarkRemovalSettings.manualRegions ?? DEFAULT_WATERMARK_REMOVAL_SETTINGS.manualRegions).map((region) => ({ ...region }));
     output.restoreOutputSettings(settings.outputSettings);
   }
 
@@ -159,6 +193,12 @@ export function useRemixSettings() {
     canvasBackgroundMode,
     contrast,
     effectScale,
+    hslEnabled,
+    hue,
+    watermarkAssetType: watermark.watermarkAssetType,
+    watermarkTrajectory: watermark.watermarkTrajectory,
+    watermarkRemovalRegionCount,
+    watermarkRemovalManualRegions,
     originalVolume,
     pictureInPictureSettings,
     pipEnabled,
@@ -172,6 +212,12 @@ export function useRemixSettings() {
     rotationMode,
     restoreRemixSettings,
     saturation,
+    zoomEnabled,
+    zoomMode,
+    zoomMinScale,
+    zoomMaxScale,
+    zoomMinDurationSeconds,
+    zoomMaxDurationSeconds,
     subtitleEnabled,
     subtitlePosition,
     subtitleSettings,

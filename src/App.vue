@@ -222,6 +222,8 @@ const {
   bgmFadeOutSeconds,
   bgmVolume,
   brightness,
+  hslEnabled,
+  hue,
   canvasAspectRatio,
   canvasBackgroundMode,
   contrast,
@@ -229,6 +231,12 @@ const {
   encoderCapabilities,
   encoderDetectionError,
   effectScale,
+  zoomEnabled,
+  zoomMode,
+  zoomMinScale,
+  zoomMaxScale,
+  zoomMinDurationSeconds,
+  zoomMaxDurationSeconds,
   isDetectingEncoders,
   originalVolume,
   outputEncoder,
@@ -257,7 +265,10 @@ const {
   validateWatermarkSettings,
   validateWatermarkRemovalSettings,
   watermarkEnabled,
+  watermarkAssetType,
   watermarkImageFilePath,
+  watermarkImagePositionXRatio,
+  watermarkImagePositionYRatio,
   watermarkImageSizeRatio,
   watermarkKind,
   watermarkMargin,
@@ -267,9 +278,12 @@ const {
   watermarkText,
   watermarkTextColor,
   watermarkTextFontSize,
+  watermarkTrajectory,
   watermarkRemovalCoverColor,
   watermarkRemovalCoverOpacity,
   watermarkRemovalEnabled,
+  watermarkRemovalRegionCount,
+  watermarkRemovalManualRegions,
   watermarkRemovalMargin,
   watermarkRemovalMode,
   watermarkRemovalPosition,
@@ -1174,6 +1188,10 @@ const watermarkPreviewUrl = computed(() =>
   selectedVideo.value ? convertFileSrc(selectedVideo.value.filePath) : null,
 );
 
+const watermarkAssetPreviewUrl = computed(() =>
+  watermarkImageFilePath.value ? convertFileSrc(watermarkImageFilePath.value) : null,
+);
+
 const previewTitle = computed(() => {
   if (selectedSegmentPath.value) {
     return `片段预览：${formatFileName(selectedSegmentPath.value)}`;
@@ -1692,8 +1710,8 @@ async function selectWatermarkImageFile() {
       multiple: false,
       filters: [
         {
-          name: "图片水印",
-          extensions: ["png", "jpg", "jpeg", "webp", "bmp"],
+          name: "图片或视频水印",
+          extensions: ["png", "jpg", "jpeg", "webp", "bmp", "mp4", "mov", "webm", "m4v"],
         },
       ],
     });
@@ -1701,6 +1719,7 @@ async function selectWatermarkImageFile() {
     if (!selected || Array.isArray(selected)) return;
     watermarkImageFilePath.value = selected;
     watermarkKind.value = "image";
+    watermarkAssetType.value = /\.(mp4|mov|webm|m4v)$/i.test(selected) ? "video" : "image";
     watermarkEnabled.value = true;
   } catch (error) {
     mixError.value = error instanceof Error ? error.message : String(error ?? "选择图片水印失败。");
@@ -1955,11 +1974,16 @@ onMounted(() => {
         v-model:canvas-aspect-ratio="canvasAspectRatio"
         v-model:canvas-background-mode="canvasBackgroundMode"
         v-model:effect-scale="effectScale"
+        v-model:watermark-removal-region-count="watermarkRemovalRegionCount"
+        v-model:watermark-removal-manual-regions="watermarkRemovalManualRegions"
         v-model:watermark-enabled="watermarkEnabled"
         v-model:watermark-kind="watermarkKind"
         v-model:watermark-text="watermarkText"
         v-model:watermark-position="watermarkPosition"
         v-model:watermark-opacity="watermarkOpacity"
+        v-model:watermark-image-size-ratio="watermarkImageSizeRatio"
+        v-model:watermark-image-position-x-ratio="watermarkImagePositionXRatio"
+        v-model:watermark-image-position-y-ratio="watermarkImagePositionYRatio"
         v-model:watermark-text-font-size="watermarkTextFontSize"
         v-model:watermark-text-color="watermarkTextColor"
         v-model:tts-subtitle-enabled="ttsSubtitleEnabled"
@@ -1968,6 +1992,20 @@ onMounted(() => {
         :selected-video="selectedVideo"
         :preview-title="previewTitle"
         :preview-url="previewUrl"
+        :watermark-asset-preview-url="watermarkAssetPreviewUrl"
+        :watermark-asset-type="watermarkAssetType"
+        :watermark-trajectory="watermarkTrajectory"
+        :watermark-removal-enabled="watermarkRemovalEnabled"
+        :hsl-enabled="hslEnabled"
+        :hue="hue"
+        :brightness="brightness"
+        :saturation="saturation"
+        :zoom-enabled="zoomEnabled"
+        :zoom-mode="zoomMode"
+        :zoom-min-scale="zoomMinScale"
+        :zoom-max-scale="zoomMaxScale"
+        :zoom-min-duration-seconds="zoomMinDurationSeconds"
+        :zoom-max-duration-seconds="zoomMaxDurationSeconds"
         :selected-cover-url="selectedCoverUrl"
         :should-show-blur-background="shouldShowBlurBackground"
         :preview-canvas-style="previewCanvasStyle"
@@ -2112,6 +2150,7 @@ onMounted(() => {
         :environment="environment"
         :status-text="statusText"
         :bgm-audio-file-path="bgmAudioFilePath"
+        :is-processing="isAnyProcessing"
         v-model:original-volume="originalVolume"
         v-model:bgm-enabled="bgmEnabled"
         v-model:bgm-volume="bgmVolume"
@@ -2122,10 +2161,29 @@ onMounted(() => {
         v-model:subtitle-enabled="subtitleEnabled"
         v-model:subtitle-position="subtitlePosition"
         v-model:subtitle-size="subtitleSize"
+        v-model:watermark-removal-enabled="watermarkRemovalEnabled"
+        v-model:watermark-removal-region-count="watermarkRemovalRegionCount"
+        v-model:watermark-enabled="watermarkEnabled"
+        v-model:watermark-asset-type="watermarkAssetType"
+        v-model:watermark-image-file-path="watermarkImageFilePath"
+        v-model:watermark-opacity="watermarkOpacity"
+        v-model:watermark-image-size-ratio="watermarkImageSizeRatio"
+        v-model:watermark-trajectory="watermarkTrajectory"
+        v-model:hsl-enabled="hslEnabled"
+        v-model:hue="hue"
+        v-model:brightness="brightness"
+        v-model:saturation="saturation"
+        v-model:zoom-enabled="zoomEnabled"
+        v-model:zoom-mode="zoomMode"
+        v-model:zoom-min-scale="zoomMinScale"
+        v-model:zoom-max-scale="zoomMaxScale"
+        v-model:zoom-min-duration-seconds="zoomMinDurationSeconds"
+        v-model:zoom-max-duration-seconds="zoomMaxDurationSeconds"
         @open-tool="activeTool = $event"
         @open-drawer="activeDrawer = $event"
         @toggle-advanced-mode="isAdvancedMode = $event"
         @select-bgm-audio-file="selectBgmAudioFile"
+        @select-watermark-asset="selectWatermarkImageFile"
       />
     </section>
 

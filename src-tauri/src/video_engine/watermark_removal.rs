@@ -5,6 +5,10 @@ use serde::Deserialize;
 #[serde(default, rename_all = "camelCase")]
 pub struct WatermarkRemovalSettings {
     pub enabled: bool,
+    #[serde(default)]
+    pub region_count: u32,
+    #[serde(default)]
+    pub manual_regions: Vec<WatermarkRemovalRegion>,
     pub mode: WatermarkRemovalMode,
     pub position: WatermarkPosition,
     pub size: WatermarkRemovalSize,
@@ -22,6 +26,8 @@ impl Default for WatermarkRemovalSettings {
     fn default() -> Self {
         Self {
             enabled: false,
+            region_count: 1,
+            manual_regions: Vec::new(),
             mode: WatermarkRemovalMode::Delogo,
             position: WatermarkPosition::TopRight,
             size: WatermarkRemovalSize::Medium,
@@ -35,6 +41,15 @@ impl Default for WatermarkRemovalSettings {
             tracking_keyframes: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatermarkRemovalRegion {
+    pub x_ratio: f64,
+    pub y_ratio: f64,
+    pub width_ratio: f64,
+    pub height_ratio: f64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -72,6 +87,30 @@ pub fn normalize_watermark_removal_settings(
 
     if settings.margin > 160 {
         return Err("原水印处理边距不能超过 160。".to_string());
+    }
+
+    if !(1..=8).contains(&settings.region_count) {
+        return Err("去除水印区域数必须在 1 到 8 之间。".to_string());
+    }
+    if !settings.manual_regions.is_empty() {
+        if settings.manual_regions.len() != settings.region_count as usize {
+            return Err("去除水印区域数量与画面框数量不一致。".to_string());
+        }
+        for region in &settings.manual_regions {
+            if !region.x_ratio.is_finite()
+                || !region.y_ratio.is_finite()
+                || !region.width_ratio.is_finite()
+                || !region.height_ratio.is_finite()
+                || region.x_ratio < 0.0
+                || region.y_ratio < 0.0
+                || region.width_ratio < 0.04
+                || region.height_ratio < 0.04
+                || region.x_ratio + region.width_ratio > 1.0001
+                || region.y_ratio + region.height_ratio > 1.0001
+            {
+                return Err("去除水印区域不能超出视频画面。".to_string());
+            }
+        }
     }
 
     if settings.mode == WatermarkRemovalMode::Crop && settings.position == WatermarkPosition::Center
@@ -178,6 +217,27 @@ pub fn build_watermark_removal_layer(
             layer_number,
             frame_dimensions,
         );
+    }
+    if !settings.manual_regions.is_empty() {
+        let mut current_label = input_label.to_string();
+        let mut filter = String::new();
+        for (index, manual_region) in settings.manual_regions.iter().enumerate() {
+            let region = RemovalRegion::from_manual(manual_region, frame_dimensions);
+            let next_label = if index + 1 == settings.manual_regions.len() {
+                output_label.to_string()
+            } else {
+                format!("[remmanual{layer_number}_{index}]")
+            };
+            filter.push_str(&format!(
+                "{current_label}delogo=x={x}:y={y}:w={width}:h={height}:show=0{next_label}",
+                x = region.x,
+                y = region.y,
+                width = region.width,
+                height = region.height,
+            ));
+            current_label = next_label;
+        }
+        return filter;
     }
     let region = RemovalRegion::new(settings, frame_dimensions);
     match settings.mode {
@@ -363,6 +423,16 @@ struct RemovalRegion {
 }
 
 impl RemovalRegion {
+    fn from_manual(region: &WatermarkRemovalRegion, frame_dimensions: (u32, u32)) -> Self {
+        let (frame_width, frame_height) = frame_dimensions;
+        Self {
+            x: (f64::from(frame_width) * region.x_ratio).round() as u32,
+            y: (f64::from(frame_height) * region.y_ratio).round() as u32,
+            width: ratio_dimension(frame_width, region.width_ratio),
+            height: ratio_dimension(frame_height, region.height_ratio),
+        }
+    }
+
     fn new(settings: &WatermarkRemovalSettings, frame_dimensions: (u32, u32)) -> Self {
         let (width_ratio, height_ratio) = match settings.size {
             WatermarkRemovalSize::Small => (0.18, 0.10),

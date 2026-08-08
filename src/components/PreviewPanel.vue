@@ -2,15 +2,16 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch, type CSSProperties } from "vue";
 import type { AiRemixPlannedShot, AiRemixSegment } from "../features/ai-remix";
 import type { ImportedVideo } from "../types/videoProbe";
-import type { CanvasAspectRatio, CanvasBackgroundMode } from "../services/videoMixService";
-import type { WatermarkKind, WatermarkPosition } from "../features/watermark/types";
+import type { CanvasAspectRatio, CanvasBackgroundMode, DynamicZoomMode } from "../services/videoMixService";
+import type { WatermarkAssetType, WatermarkKind, WatermarkPosition, WatermarkRemovalRegion, WatermarkTrajectory } from "../features/watermark/types";
 import type { DrawerKey, ToolKey } from "../types/workbench";
 
 type PreviewToolKey = Extract<ToolKey, "remix" | "canvas" | "cover" | "effects" | "watermark">;
 type ScriptTab = { id: number; title: string; text: string };
 type CropHandle = "nw" | "ne" | "sw" | "se";
 type PointerInteraction = {
-  kind: "crop-move" | "crop-resize" | "text-move" | "text-resize";
+  kind: "crop-move" | "crop-resize" | "text-move" | "text-resize" | "removal-move" | "removal-resize" | "watermark-asset-move" | "watermark-asset-resize";
+  regionIndex?: number;
   handle?: CropHandle;
   startX: number;
   startY: number;
@@ -24,6 +25,21 @@ const props = defineProps<{
   selectedVideo: ImportedVideo | null;
   previewTitle: string;
   previewUrl: string | null;
+  watermarkAssetPreviewUrl: string | null;
+  watermarkAssetType: WatermarkAssetType;
+  watermarkTrajectory: WatermarkTrajectory;
+  watermarkOpacity: number;
+  watermarkRemovalEnabled: boolean;
+  hslEnabled: boolean;
+  hue: number;
+  brightness: number;
+  saturation: number;
+  zoomEnabled: boolean;
+  zoomMode: DynamicZoomMode;
+  zoomMinScale: number;
+  zoomMaxScale: number;
+  zoomMinDurationSeconds: number;
+  zoomMaxDurationSeconds: number;
   selectedCoverUrl: string | null;
   canvasAspectRatio: CanvasAspectRatio;
   shouldShowBlurBackground: boolean;
@@ -99,18 +115,25 @@ const watermarkKind = defineModel<WatermarkKind>("watermarkKind", { required: tr
 const watermarkText = defineModel<string>("watermarkText", { required: true });
 const watermarkPosition = defineModel<WatermarkPosition>("watermarkPosition", { required: true });
 const watermarkOpacity = defineModel<number>("watermarkOpacity", { required: true });
+const watermarkImageSizeRatio = defineModel<number>("watermarkImageSizeRatio", { required: true });
 const watermarkTextFontSize = defineModel<number>("watermarkTextFontSize", { required: true });
 const watermarkTextColor = defineModel<string>("watermarkTextColor", { required: true });
+const watermarkImagePositionXRatio = defineModel<number>("watermarkImagePositionXRatio", { required: true });
+const watermarkImagePositionYRatio = defineModel<number>("watermarkImagePositionYRatio", { required: true });
+const watermarkRemovalRegionCount = defineModel<number>("watermarkRemovalRegionCount", { required: true });
+const watermarkRemovalManualRegions = defineModel<WatermarkRemovalRegion[]>("watermarkRemovalManualRegions", { required: true });
 const ttsSubtitleEnabled = defineModel<boolean>("ttsSubtitleEnabled", { required: true });
 
 const isCropEditorOpen = ref(false);
 const isTextEditorOpen = ref(false);
 const previewCanvasRef = ref<HTMLElement | null>(null);
+const watermarkAssetLayerRef = ref<HTMLElement | null>(null);
 const textEditorRef = ref<HTMLElement | null>(null);
 const previewCanvasSize = ref({ width: 0, height: 0 });
 const cropRect = ref({ x: 18, y: 10, width: 64, height: 78 });
 const textPosition = ref({ x: 50, y: 50 });
 const pointerInteraction = ref<PointerInteraction | null>(null);
+const isPreviewPlaying = ref(false);
 let previewResizeObserver: ResizeObserver | null = null;
 const isBatchImportOpen = ref(false);
 const batchImportText = ref("");
@@ -154,6 +177,24 @@ const targetAspectRatio = computed(() => {
   return width && height ? width / height : 16 / 9;
 });
 
+const sourceAspectRatio = computed(() => {
+  const width = props.selectedVideo?.width;
+  const height = props.selectedVideo?.height;
+  return width && height ? width / height : targetAspectRatio.value;
+});
+
+const mediaLayerStyle = computed<CSSProperties>(() => {
+  const { width, height } = previewCanvasSize.value;
+  if (!width || !height) return { inset: "0" };
+  const canvasRatio = width / height;
+  if (canvasRatio >= sourceAspectRatio.value) {
+    const layerWidth = (sourceAspectRatio.value / canvasRatio) * 100;
+    return { top: "0", left: `${(100 - layerWidth) / 2}%`, width: `${layerWidth}%`, height: "100%" };
+  }
+  const layerHeight = (canvasRatio / sourceAspectRatio.value) * 100;
+  return { top: `${(100 - layerHeight) / 2}%`, left: "0", width: "100%", height: `${layerHeight}%` };
+});
+
 const aspectGuideStyle = computed<CSSProperties>(() => {
   const { width, height } = previewCanvasSize.value;
   if (!width || !height) return { width: "100%", height: "100%" };
@@ -183,7 +224,52 @@ const textBoxStyle = computed<CSSProperties>(() => ({
 
 const foregroundVideoStyle = computed<CSSProperties>(() => ({
   transform: `scale(${Math.max(1, Math.min(1.2, effectScale.value))})`,
+  filter: props.hslEnabled
+    ? `hue-rotate(${props.hue}deg) saturate(${Math.max(0, props.saturation)}) brightness(${Math.max(0, props.brightness + 1)})`
+    : undefined,
 }));
+
+const dynamicZoomStyle = computed<CSSProperties>(() => {
+  if (!props.zoomEnabled) return {};
+  const min = Math.max(1, Math.min(1.5, props.zoomMinScale));
+  const max = Math.max(min, Math.min(1.5, props.zoomMaxScale));
+  return {
+    "--zoom-min": String(min),
+    "--zoom-max": String(max),
+    "--zoom-duration": `${Math.max(1, props.zoomMaxDurationSeconds)}s`,
+  } as CSSProperties;
+});
+
+const dynamicZoomClass = computed(() => {
+  if (!props.zoomEnabled || !isPreviewPlaying.value) return "";
+  if (props.zoomMode === "pull") return "video-frame__foreground--zoom-pull";
+  if (props.zoomMode === "random") return "video-frame__foreground--zoom-random";
+  return "video-frame__foreground--zoom-push";
+});
+
+const watermarkAssetStyle = computed<CSSProperties>(() => ({
+  opacity: props.watermarkOpacity,
+  width: `${Math.max(8, Math.min(50, watermarkImageSizeRatio.value * 100))}%`,
+  left: `${clamp(watermarkImagePositionXRatio.value, Math.max(0.04, watermarkImageSizeRatio.value / 2), Math.min(0.96, 1 - watermarkImageSizeRatio.value / 2)) * 100}%`,
+  top: `${clamp(watermarkImagePositionYRatio.value, 0.08, 0.92) * 100}%`,
+}));
+
+const watermarkAssetClass = computed(() => {
+  if (props.watermarkTrajectory === "horizontal") return "replica-preview-asset-watermark--horizontal";
+  if (props.watermarkTrajectory === "vertical") return "replica-preview-asset-watermark--vertical";
+  if (props.watermarkTrajectory === "diagonal") return "replica-preview-asset-watermark--diagonal";
+  if (props.watermarkTrajectory === "random") return "replica-preview-asset-watermark--random";
+  return "";
+});
+
+function removalRegionStyle(region: WatermarkRemovalRegion): CSSProperties {
+  return {
+    left: `${region.xRatio * 100}%`,
+    top: `${region.yRatio * 100}%`,
+    width: `${region.widthRatio * 100}%`,
+    height: `${region.heightRatio * 100}%`,
+  };
+}
 
 const watermarkStyle = computed<CSSProperties>(() => {
   const edge = "6%";
@@ -263,6 +349,39 @@ function startCropResize(event: PointerEvent, handle: CropHandle) {
   window.addEventListener("pointerup", stopPointerInteraction, { once: true });
 }
 
+function startRemovalDrag(event: PointerEvent, regionIndex: number) {
+  if (!previewCanvasRef.value) return;
+  const region = watermarkRemovalManualRegions.value[regionIndex];
+  if (!region) return;
+  event.preventDefault();
+  pointerInteraction.value = {
+    kind: "removal-move",
+    regionIndex,
+    startX: event.clientX,
+    startY: event.clientY,
+    startRect: { x: region.xRatio * 100, y: region.yRatio * 100, width: region.widthRatio * 100, height: region.heightRatio * 100 },
+  };
+  window.addEventListener("pointermove", handlePointerMove);
+  window.addEventListener("pointerup", stopPointerInteraction, { once: true });
+}
+
+function startRemovalResize(event: PointerEvent, regionIndex: number, handle: CropHandle) {
+  if (!previewCanvasRef.value) return;
+  const region = watermarkRemovalManualRegions.value[regionIndex];
+  if (!region) return;
+  event.preventDefault();
+  pointerInteraction.value = {
+    kind: "removal-resize",
+    regionIndex,
+    handle,
+    startX: event.clientX,
+    startY: event.clientY,
+    startRect: { x: region.xRatio * 100, y: region.yRatio * 100, width: region.widthRatio * 100, height: region.heightRatio * 100 },
+  };
+  window.addEventListener("pointermove", handlePointerMove);
+  window.addEventListener("pointerup", stopPointerInteraction, { once: true });
+}
+
 function startTextDrag(event: PointerEvent) {
   if (!previewCanvasRef.value || (event.target as HTMLElement).isContentEditable) return;
   event.preventDefault();
@@ -291,12 +410,71 @@ function startTextResize(event: PointerEvent, handle: CropHandle) {
   window.addEventListener("pointerup", stopPointerInteraction, { once: true });
 }
 
+function startAssetWatermarkDrag(event: PointerEvent) {
+  const layerRect = watermarkAssetLayerRef.value?.getBoundingClientRect();
+  if (!layerRect) return;
+  event.preventDefault();
+  pointerInteraction.value = {
+    kind: "watermark-asset-move",
+    startX: event.clientX,
+    startY: event.clientY,
+    startRect: {
+      x: watermarkImagePositionXRatio.value * 100,
+      y: watermarkImagePositionYRatio.value * 100,
+      width: watermarkImageSizeRatio.value * 100,
+      height: 0,
+    },
+  };
+  window.addEventListener("pointermove", handlePointerMove);
+  window.addEventListener("pointerup", stopPointerInteraction, { once: true });
+}
+
+function startAssetWatermarkResize(event: PointerEvent, handle: CropHandle) {
+  const layerRect = watermarkAssetLayerRef.value?.getBoundingClientRect();
+  if (!layerRect) return;
+  event.preventDefault();
+  pointerInteraction.value = {
+    kind: "watermark-asset-resize",
+    handle,
+    startX: event.clientX,
+    startY: event.clientY,
+    startRect: {
+      x: watermarkImagePositionXRatio.value * 100,
+      y: watermarkImagePositionYRatio.value * 100,
+      width: watermarkImageSizeRatio.value * 100,
+      height: 0,
+    },
+  };
+  window.addEventListener("pointermove", handlePointerMove);
+  window.addEventListener("pointerup", stopPointerInteraction, { once: true });
+}
+
 function handlePointerMove(event: PointerEvent) {
   const interaction = pointerInteraction.value;
   const canvasRect = previewCanvasRef.value?.getBoundingClientRect();
+  const assetLayerRect = watermarkAssetLayerRef.value?.getBoundingClientRect();
   if (!interaction || !canvasRect) return;
-  const deltaX = ((event.clientX - interaction.startX) / canvasRect.width) * 100;
-  const deltaY = ((event.clientY - interaction.startY) / canvasRect.height) * 100;
+  const interactionRect = interaction.kind === "watermark-asset-move" || interaction.kind === "watermark-asset-resize" ? assetLayerRect : canvasRect;
+  if (!interactionRect) return;
+  const deltaX = ((event.clientX - interaction.startX) / interactionRect.width) * 100;
+  const deltaY = ((event.clientY - interaction.startY) / interactionRect.height) * 100;
+
+  if (interaction.kind === "watermark-asset-move") {
+    const halfWidth = interaction.startRect.width / 2;
+    watermarkImagePositionXRatio.value = clamp((interaction.startRect.x + deltaX) / 100, halfWidth / 100, 1 - halfWidth / 100);
+    watermarkImagePositionYRatio.value = clamp((interaction.startRect.y + deltaY) / 100, 0.06, 0.94);
+    return;
+  }
+
+  if (interaction.kind === "watermark-asset-resize") {
+    const handle = interaction.handle;
+    if (!handle) return;
+    const horizontalDelta = handle.includes("w") ? -deltaX : deltaX;
+    const verticalDelta = handle.includes("n") ? -deltaY : deltaY;
+    const sizeDelta = Math.abs(verticalDelta) > Math.abs(horizontalDelta) ? verticalDelta : horizontalDelta;
+    watermarkImageSizeRatio.value = clamp((interaction.startRect.width + sizeDelta) / 100, 0.08, 0.5);
+    return;
+  }
 
   if (interaction.kind === "text-move") {
     textPosition.value = {
@@ -309,6 +487,36 @@ function handlePointerMove(event: PointerEvent) {
   if (interaction.kind === "text-resize") {
     const direction = interaction.handle?.includes("n") ? -1 : 1;
     watermarkTextFontSize.value = clamp((interaction.startFontSize ?? watermarkTextFontSize.value) + direction * deltaY * .45, 18, 96);
+    return;
+  }
+
+  if (interaction.kind === "removal-move" || interaction.kind === "removal-resize") {
+    const index = interaction.regionIndex ?? -1;
+    const region = watermarkRemovalManualRegions.value[index];
+    if (!region) return;
+    let next = { ...interaction.startRect };
+    if (interaction.kind === "removal-move") {
+      next.x = clamp(interaction.startRect.x + deltaX, 0, 100 - interaction.startRect.width);
+      next.y = clamp(interaction.startRect.y + deltaY, 0, 100 - interaction.startRect.height);
+    } else {
+      const handle = interaction.handle;
+      if (!handle) return;
+      let left = interaction.startRect.x;
+      let top = interaction.startRect.y;
+      let right = interaction.startRect.x + interaction.startRect.width;
+      let bottom = interaction.startRect.y + interaction.startRect.height;
+      if (handle.includes("w")) left = clamp(interaction.startRect.x + deltaX, 0, right - 4);
+      if (handle.includes("e")) right = clamp(interaction.startRect.x + interaction.startRect.width + deltaX, left + 4, 100);
+      if (handle.includes("n")) top = clamp(interaction.startRect.y + deltaY, 0, bottom - 4);
+      if (handle.includes("s")) bottom = clamp(interaction.startRect.y + interaction.startRect.height + deltaY, top + 4, 100);
+      next = { x: left, y: top, width: right - left, height: bottom - top };
+    }
+    watermarkRemovalManualRegions.value = watermarkRemovalManualRegions.value.map((item, regionIndex) => regionIndex === index ? {
+      xRatio: next.x / 100,
+      yRatio: next.y / 100,
+      widthRatio: next.width / 100,
+      heightRatio: next.height / 100,
+    } : { ...item });
     return;
   }
 
@@ -450,6 +658,34 @@ function toggleCropEditor() {
   if (isCropEditorOpen.value) isTextEditorOpen.value = false;
 }
 
+function createRemovalRegion(index: number): WatermarkRemovalRegion {
+  const column = index % 3;
+  const row = Math.floor(index / 3);
+  return {
+    xRatio: 0.12 + column * 0.28,
+    yRatio: 0.12 + row * 0.24,
+    widthRatio: 0.18,
+    heightRatio: 0.12,
+  };
+}
+
+watch(watermarkRemovalRegionCount, (count) => {
+  const normalized = Math.max(1, Math.min(8, Math.round(count || 1)));
+  const regions = watermarkRemovalManualRegions.value.slice(0, normalized);
+  while (regions.length < normalized) regions.push(createRemovalRegion(regions.length));
+  watermarkRemovalManualRegions.value = regions;
+}, { immediate: true });
+
+function previewPlay() {
+  isPreviewPlaying.value = true;
+  emit("syncPreviewBackground");
+}
+
+function previewPause() {
+  isPreviewPlaying.value = false;
+  emit("syncPreviewBackground");
+}
+
 </script>
 
 <template>
@@ -480,7 +716,7 @@ function toggleCropEditor() {
       <div v-if="previewUrl" class="video-frame" :class="{ 'video-frame--portrait': isPortraitPreview }">
         <div ref="previewCanvasRef" class="video-frame__canvas" :class="{ 'video-frame__canvas--fit': canvasAspectRatio !== 'original', 'video-frame__canvas--blur': shouldShowBlurBackground }" :style="previewCanvasStyle">
           <video v-if="shouldShowBlurBackground" ref="previewBackgroundVideoRef" class="video-frame__background" :src="previewUrl" muted playsinline preload="metadata" tabindex="-1" aria-hidden="true"></video>
-          <video :key="previewUrl" ref="previewVideoRef" class="video-frame__foreground" :src="previewUrl" controls preload="metadata" :style="foregroundVideoStyle" @play="emit('syncPreviewBackground')" @pause="emit('syncPreviewBackground')" @seeked="emit('syncPreviewBackground')" @timeupdate="emit('syncPreviewBackground')" @ratechange="emit('syncPreviewBackground')"></video>
+          <video :key="previewUrl" ref="previewVideoRef" class="video-frame__foreground" :class="dynamicZoomClass" :src="previewUrl" controls preload="metadata" :style="{ ...foregroundVideoStyle, ...dynamicZoomStyle }" @play="previewPlay" @pause="previewPause" @seeked="emit('syncPreviewBackground')" @timeupdate="emit('syncPreviewBackground')" @ratechange="emit('syncPreviewBackground')"></video>
           <div v-if="canvasAspectRatio !== 'original' && !isCropEditorOpen" class="replica-aspect-guide" aria-hidden="true">
             <span class="replica-aspect-guide__frame" :style="aspectGuideStyle"></span>
           </div>
@@ -490,12 +726,33 @@ function toggleCropEditor() {
             <button v-for="handle in (['nw', 'ne', 'sw', 'se'] as CropHandle[])" :key="handle" class="replica-crop-handle" :class="`replica-crop-handle--${handle}`" type="button" :aria-label="`调整裁剪框${handle}`" @pointerdown.stop="startCropResize($event, handle)"></button>
             <span class="replica-crop-size">{{ Math.round(cropRect.width) }}% × {{ Math.round(cropRect.height) }}%</span>
           </div>
+          <template v-if="props.watermarkRemovalEnabled">
+            <div
+              v-for="(region, regionIndex) in watermarkRemovalManualRegions"
+              :key="`removal-region-${regionIndex}`"
+              class="replica-removal-region"
+              :style="removalRegionStyle(region)"
+              :aria-label="`去除水印区域 ${regionIndex + 1}`"
+              @pointerdown="startRemovalDrag($event, regionIndex)"
+            >
+              <span class="replica-removal-region__label">{{ regionIndex + 1 }}</span>
+              <button v-for="handle in (['nw', 'ne', 'sw', 'se'] as CropHandle[])" :key="handle" class="replica-removal-region__handle" :class="`replica-removal-region__handle--${handle}`" type="button" :aria-label="`调整水印区域 ${regionIndex + 1} ${handle}`" @pointerdown.stop="startRemovalResize($event, regionIndex, handle)"></button>
+            </div>
+          </template>
           <div v-if="isTextEditorOpen" class="replica-text-box" :style="textBoxStyle" aria-label="画面文字编辑框" @pointerdown="startTextDrag">
             <span ref="textEditorRef" class="replica-text-box__content" contenteditable="true" role="textbox" aria-multiline="true" spellcheck="false" @input="updateWatermarkText" @pointerdown.stop></span>
             <button v-for="handle in (['nw', 'ne', 'sw', 'se'] as CropHandle[])" :key="handle" class="replica-text-handle" :class="`replica-text-handle--${handle}`" type="button" :aria-label="`调整文字${handle}`" @pointerdown.stop="startTextResize($event, handle)"></button>
             <button class="replica-text-box__close" type="button" aria-label="关闭文字编辑" @click.stop="isTextEditorOpen = false">×</button>
           </div>
-          <span v-else-if="watermarkEnabled && watermarkKind === 'text' && watermarkText.trim()" class="replica-preview-watermark" :style="watermarkStyle">{{ watermarkText }}</span>
+          <div ref="watermarkAssetLayerRef" class="video-frame__media-layer" :style="mediaLayerStyle">
+            <span v-if="!isTextEditorOpen && watermarkEnabled && watermarkKind === 'text' && watermarkText.trim()" class="replica-preview-watermark" :style="watermarkStyle">{{ watermarkText }}</span>
+            <div v-if="watermarkEnabled && watermarkKind === 'image' && props.watermarkAssetPreviewUrl" class="replica-preview-asset-watermark" :class="watermarkAssetClass" :style="watermarkAssetStyle" aria-label="可调整的图片/视频水印" @pointerdown="startAssetWatermarkDrag">
+              <video v-if="props.watermarkAssetType === 'video'" :src="props.watermarkAssetPreviewUrl" muted autoplay loop playsinline aria-hidden="true"></video>
+              <img v-else :src="props.watermarkAssetPreviewUrl" alt="图片/视频水印预览" />
+              <span class="replica-preview-asset-watermark__hint">拖动调整位置</span>
+              <button v-for="handle in (['nw', 'ne', 'sw', 'se'] as CropHandle[])" :key="handle" class="replica-preview-asset-watermark__handle" :class="`replica-preview-asset-watermark__handle--${handle}`" type="button" :aria-label="`调整图片水印${handle}`" @pointerdown.stop="startAssetWatermarkResize($event, handle)"></button>
+            </div>
+          </div>
         </div>
       </div>
       <div v-else class="video-placeholder preview-empty-state"><span aria-hidden="true">▶</span><strong>选择素材后在此预览</strong></div>

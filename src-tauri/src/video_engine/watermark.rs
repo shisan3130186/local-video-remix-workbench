@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 pub struct WatermarkSettings {
     pub enabled: bool,
     pub kind: WatermarkKind,
+    #[serde(default)]
+    pub asset_type: WatermarkAssetType,
     pub text: String,
     pub image_file_path: Option<String>,
     pub position: WatermarkPosition,
@@ -15,6 +17,12 @@ pub struct WatermarkSettings {
     pub text_font_size: u32,
     pub text_color: String,
     pub image_size_ratio: f64,
+    #[serde(default = "default_image_position_x_ratio")]
+    pub image_position_x_ratio: f64,
+    #[serde(default = "default_image_position_y_ratio")]
+    pub image_position_y_ratio: f64,
+    #[serde(default)]
+    pub trajectory: WatermarkTrajectory,
 }
 
 impl Default for WatermarkSettings {
@@ -22,6 +30,7 @@ impl Default for WatermarkSettings {
         Self {
             enabled: false,
             kind: WatermarkKind::Text,
+            asset_type: WatermarkAssetType::Image,
             text: String::new(),
             image_file_path: None,
             position: WatermarkPosition::TopRight,
@@ -30,6 +39,9 @@ impl Default for WatermarkSettings {
             text_font_size: 36,
             text_color: "#ffffff".to_string(),
             image_size_ratio: 0.18,
+            image_position_x_ratio: default_image_position_x_ratio(),
+            image_position_y_ratio: default_image_position_y_ratio(),
+            trajectory: WatermarkTrajectory::Static,
         }
     }
 }
@@ -39,6 +51,25 @@ impl Default for WatermarkSettings {
 pub enum WatermarkKind {
     Text,
     Image,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum WatermarkAssetType {
+    #[default]
+    Image,
+    Video,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum WatermarkTrajectory {
+    #[default]
+    Static,
+    Horizontal,
+    Vertical,
+    Diagonal,
+    Random,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -90,7 +121,10 @@ pub fn normalize_watermark_settings(
             if !Path::new(image_path).is_file() {
                 return Err(format!("图片水印文件不存在：{image_path}"));
             }
-            if !is_supported_image(image_path) {
+            if settings.asset_type == WatermarkAssetType::Video && !is_supported_video(image_path) {
+                return Err("视频水印只支持 MP4、MOV、WEBM 和 M4V。".to_string());
+            }
+            if settings.asset_type == WatermarkAssetType::Image && !is_supported_image(image_path) {
                 return Err("图片水印只支持 PNG、JPG、JPEG、WEBP 和 BMP。".to_string());
             }
             if !settings.image_size_ratio.is_finite()
@@ -98,6 +132,13 @@ pub fn normalize_watermark_settings(
                 || settings.image_size_ratio > 0.5
             {
                 return Err("图片水印大小比例必须在 0.08 到 0.5 之间。".to_string());
+            }
+            if !settings.image_position_x_ratio.is_finite()
+                || !(0.0..=1.0).contains(&settings.image_position_x_ratio)
+                || !settings.image_position_y_ratio.is_finite()
+                || !(0.0..=1.0).contains(&settings.image_position_y_ratio)
+            {
+                return Err("图片水印位置必须位于视频画面内部。".to_string());
             }
         }
     }
@@ -116,12 +157,12 @@ pub fn append_watermark_input_args(
         .image_file_path
         .as_deref()
         .ok_or_else(|| "请先选择图片水印文件。".to_string())?;
-    ffmpeg_args.extend([
-        "-loop".to_string(),
-        "1".to_string(),
-        "-i".to_string(),
-        image_path.to_string(),
-    ]);
+    if settings.asset_type == WatermarkAssetType::Video {
+        ffmpeg_args.extend(["-stream_loop".to_string(), "-1".to_string()]);
+    } else {
+        ffmpeg_args.extend(["-loop".to_string(), "1".to_string()]);
+    }
+    ffmpeg_args.extend(["-i".to_string(), image_path.to_string()]);
     Ok(())
 }
 
@@ -167,7 +208,23 @@ pub fn build_image_watermark_layer(
     settings: &WatermarkSettings,
     layer_number: usize,
 ) -> String {
-    let (x, y) = overlay_position_expression(settings.position, settings.margin);
+    let (base_x, base_y) = (
+        format!("W*{:.4}-w/2", settings.image_position_x_ratio),
+        format!("H*{:.4}-h/2", settings.image_position_y_ratio),
+    );
+    let (x, y) = match settings.trajectory {
+        WatermarkTrajectory::Static => (base_x, base_y),
+        WatermarkTrajectory::Horizontal => ("(W-w)*mod(t\\,8)/8".to_string(), base_y),
+        WatermarkTrajectory::Vertical => (base_x, "(H-h)*mod(t\\,8)/8".to_string()),
+        WatermarkTrajectory::Diagonal => (
+            "(W-w)*mod(t\\,8)/8".to_string(),
+            "(H-h)*mod(t\\,8)/8".to_string(),
+        ),
+        WatermarkTrajectory::Random => (
+            "(W-w)*(sin(t)*0.5+0.5)".to_string(),
+            "(H-h)*(cos(t)*0.5+0.5)".to_string(),
+        ),
+    };
     format!(
         "[{image_input_index}:v]format=rgba,colorchannelmixer=aa={opacity:.3}[wmraw{layer_number}];\
          [wmraw{layer_number}]{input_label}scale2ref=w=main_w*{size_ratio:.3}:h=-1[wm{layer_number}][wmbase{layer_number}];\
@@ -175,6 +232,14 @@ pub fn build_image_watermark_layer(
         opacity = settings.opacity,
         size_ratio = settings.image_size_ratio,
     )
+}
+
+fn default_image_position_x_ratio() -> f64 {
+    0.82
+}
+
+fn default_image_position_y_ratio() -> f64 {
+    0.16
 }
 
 pub fn uses_image_input(settings: &WatermarkSettings) -> bool {
@@ -218,17 +283,6 @@ fn text_position_expression(position: WatermarkPosition, margin: u32) -> (String
     }
 }
 
-fn overlay_position_expression(position: WatermarkPosition, margin: u32) -> (String, String) {
-    let margin = margin.to_string();
-    match position {
-        WatermarkPosition::TopLeft => (margin.clone(), margin),
-        WatermarkPosition::TopRight => (format!("W-w-{margin}"), margin),
-        WatermarkPosition::BottomLeft => (margin.clone(), format!("H-h-{margin}")),
-        WatermarkPosition::BottomRight => (format!("W-w-{margin}"), format!("H-h-{margin}")),
-        WatermarkPosition::Center => ("(W-w)/2".to_string(), "(H-h)/2".to_string()),
-    }
-}
-
 fn is_hex_color(value: &str) -> bool {
     value.len() == 7
         && value.starts_with('#')
@@ -243,6 +297,19 @@ fn is_supported_image(file_path: &str) -> bool {
             matches!(
                 extension.to_ascii_lowercase().as_str(),
                 "png" | "jpg" | "jpeg" | "webp" | "bmp"
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn is_supported_video(file_path: &str) -> bool {
+    Path::new(file_path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "mp4" | "mov" | "webm" | "m4v"
             )
         })
         .unwrap_or(false)
@@ -283,6 +350,19 @@ mod tests {
             text_position_expression(WatermarkPosition::BottomRight, 24),
             ("w-text_w-24".to_string(), "h-text_h-24".to_string())
         );
+    }
+
+    #[test]
+    fn image_watermark_uses_manual_video_position() {
+        let settings = WatermarkSettings {
+            kind: WatermarkKind::Image,
+            image_position_x_ratio: 0.42,
+            image_position_y_ratio: 0.68,
+            ..WatermarkSettings::default()
+        };
+        let filter = build_image_watermark_layer("[base]", "[out]", 1, &settings, 2);
+        assert!(filter.contains("W*0.4200-w/2"));
+        assert!(filter.contains("H*0.6800-h/2"));
     }
 
     #[test]

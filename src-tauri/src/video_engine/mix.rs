@@ -50,10 +50,26 @@ pub struct MixVideoResult {
 pub struct VideoEffectSettings {
     vertical_mirror: bool,
     rotation: RotationMode,
+    #[serde(default)]
+    hsl_enabled: bool,
+    #[serde(default)]
+    hue: f64,
     brightness: f64,
     contrast: f64,
     saturation: f64,
     scale: f64,
+    #[serde(default)]
+    zoom_enabled: bool,
+    #[serde(default)]
+    zoom_mode: DynamicZoomMode,
+    #[serde(default = "default_zoom_min_scale")]
+    zoom_min_scale: f64,
+    #[serde(default = "default_zoom_max_scale")]
+    zoom_max_scale: f64,
+    #[serde(default = "default_zoom_min_duration")]
+    zoom_min_duration_seconds: f64,
+    #[serde(default = "default_zoom_max_duration")]
+    zoom_max_duration_seconds: f64,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -63,6 +79,28 @@ pub enum RotationMode {
     Clockwise90,
     Counterclockwise90,
     Rotate180,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum DynamicZoomMode {
+    #[default]
+    Push,
+    Pull,
+    Random,
+}
+
+fn default_zoom_min_scale() -> f64 {
+    1.02
+}
+fn default_zoom_max_scale() -> f64 {
+    1.08
+}
+fn default_zoom_min_duration() -> f64 {
+    8.0
+}
+fn default_zoom_max_duration() -> f64 {
+    10.0
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -829,6 +867,26 @@ fn normalize_video_effect_settings(
         return Err("轻微缩放范围必须在 1.0 到 1.2 之间。".to_string());
     }
 
+    if !settings.hue.is_finite() || settings.hue < -180.0 || settings.hue > 180.0 {
+        return Err("色相范围必须在 -180 到 180 度之间。".to_string());
+    }
+    if !settings.zoom_min_scale.is_finite()
+        || !settings.zoom_max_scale.is_finite()
+        || settings.zoom_min_scale < 1.0
+        || settings.zoom_max_scale < settings.zoom_min_scale
+        || settings.zoom_max_scale > 1.5
+    {
+        return Err("动态缩放范围无效。".to_string());
+    }
+    if !settings.zoom_min_duration_seconds.is_finite()
+        || !settings.zoom_max_duration_seconds.is_finite()
+        || settings.zoom_min_duration_seconds < 1.0
+        || settings.zoom_max_duration_seconds < settings.zoom_min_duration_seconds
+        || settings.zoom_max_duration_seconds > 120.0
+    {
+        return Err("动态缩放时长必须在 1 到 120 秒之间。".to_string());
+    }
+
     Ok(settings)
 }
 
@@ -846,6 +904,10 @@ fn build_video_effect_filters(settings: VideoEffectSettings) -> Vec<String> {
         RotationMode::Rotate180 => filters.push("hflip,vflip".to_string()),
     }
 
+    if should_apply_hue_filter(settings) {
+        filters.push(format!("hue=h={:.3}:s=1", settings.hue));
+    }
+
     if should_apply_eq_filter(settings) {
         filters.push(format!(
             "eq=brightness={:.3}:contrast={:.3}:saturation={:.3}",
@@ -858,6 +920,10 @@ fn build_video_effect_filters(settings: VideoEffectSettings) -> Vec<String> {
             "scale=iw*{:.3}:ih*{:.3},crop=iw/{:.3}:ih/{:.3}",
             settings.scale, settings.scale, settings.scale, settings.scale
         ));
+    }
+
+    if settings.zoom_enabled {
+        filters.push(build_dynamic_zoom_filter(settings));
     }
 
     filters
@@ -876,6 +942,25 @@ fn should_apply_eq_filter(settings: VideoEffectSettings) -> bool {
     settings.brightness.abs() > 0.001
         || (settings.contrast - 1.0).abs() > 0.001
         || (settings.saturation - 1.0).abs() > 0.001
+}
+
+fn should_apply_hue_filter(settings: VideoEffectSettings) -> bool {
+    settings.hsl_enabled && settings.hue.abs() > 0.001
+}
+
+fn build_dynamic_zoom_filter(settings: VideoEffectSettings) -> String {
+    let min = settings.zoom_min_scale;
+    let max = settings.zoom_max_scale;
+    let duration = settings.zoom_max_duration_seconds.max(1.0);
+    let progress = format!("mod(t,{duration:.3})/{duration:.3}");
+    let zoom = match settings.zoom_mode {
+        DynamicZoomMode::Push => format!("{min:.4}+({max:.4}-{min:.4})*({progress})"),
+        DynamicZoomMode::Pull => format!("{max:.4}-({max:.4}-{min:.4})*({progress})"),
+        DynamicZoomMode::Random => format!("if(lt(sin(t),0),{min:.4}+({max:.4}-{min:.4})*({progress}),{max:.4}-({max:.4}-{min:.4})*({progress}))"),
+    };
+    format!(
+        "scale=w=iw*({zoom}):h=ih*({zoom}),crop=w=iw/({zoom}):h=ih/({zoom}):x=(iw-ow)/2:y=(ih-oh)/2"
+    )
 }
 
 fn should_apply_scale_filter(scale: f64) -> bool {

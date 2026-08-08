@@ -10,6 +10,8 @@ import type {
 
 export function useWatermarkRemovalSettings() {
   const watermarkRemovalEnabled = ref(DEFAULT_WATERMARK_REMOVAL_SETTINGS.enabled);
+  const watermarkRemovalRegionCount = ref(DEFAULT_WATERMARK_REMOVAL_SETTINGS.regionCount);
+  const watermarkRemovalManualRegions = ref(DEFAULT_WATERMARK_REMOVAL_SETTINGS.manualRegions.map((region) => ({ ...region })));
   const watermarkRemovalMode = ref<WatermarkRemovalMode>(DEFAULT_WATERMARK_REMOVAL_SETTINGS.mode);
   const watermarkRemovalPosition = ref<WatermarkPosition>(DEFAULT_WATERMARK_REMOVAL_SETTINGS.position);
   const watermarkRemovalSize = ref<WatermarkRemovalSize>(DEFAULT_WATERMARK_REMOVAL_SETTINGS.size);
@@ -25,6 +27,9 @@ export function useWatermarkRemovalSettings() {
   const watermarkRemovalSettings = computed(
     (): WatermarkRemovalSettings => ({
       enabled: watermarkRemovalEnabled.value,
+      selectionMode: "manual",
+      regionCount: watermarkRemovalRegionCount.value,
+      manualRegions: watermarkRemovalManualRegions.value.map((region) => ({ ...region })),
       mode: watermarkRemovalMode.value,
       position: watermarkRemovalPosition.value,
       size: watermarkRemovalSize.value,
@@ -42,6 +47,8 @@ export function useWatermarkRemovalSettings() {
   function restoreWatermarkRemovalSettings(settings?: WatermarkRemovalSettings) {
     const value = settings ?? DEFAULT_WATERMARK_REMOVAL_SETTINGS;
     watermarkRemovalEnabled.value = value.enabled;
+    watermarkRemovalRegionCount.value = Math.max(1, Math.min(8, value.regionCount ?? DEFAULT_WATERMARK_REMOVAL_SETTINGS.regionCount));
+    watermarkRemovalManualRegions.value = (value.manualRegions ?? DEFAULT_WATERMARK_REMOVAL_SETTINGS.manualRegions).map((region) => ({ ...region }));
     watermarkRemovalMode.value = value.mode;
     watermarkRemovalPosition.value = value.mode === "crop" && value.position === "center" ? "topRight" : value.position;
     watermarkRemovalSize.value = value.size;
@@ -132,6 +139,8 @@ export function useWatermarkRemovalSettings() {
     watermarkRemovalCoverColor,
     watermarkRemovalCoverOpacity,
     watermarkRemovalEnabled,
+    watermarkRemovalRegionCount,
+    watermarkRemovalManualRegions,
     watermarkRemovalMargin,
     watermarkRemovalMode,
     watermarkRemovalPosition,

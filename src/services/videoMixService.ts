@@ -20,14 +20,23 @@ export interface MixVideoResult {
 }
 
 export type RotationMode = "none" | "clockwise90" | "counterclockwise90" | "rotate180";
+export type DynamicZoomMode = "push" | "pull" | "random";
 
 export interface VideoEffectSettings {
   verticalMirror: boolean;
   rotation: RotationMode;
+  hslEnabled: boolean;
+  hue: number;
   brightness: number;
   contrast: number;
   saturation: number;
   scale: number;
+  zoomEnabled: boolean;
+  zoomMode: DynamicZoomMode;
+  zoomMinScale: number;
+  zoomMaxScale: number;
+  zoomMinDurationSeconds: number;
+  zoomMaxDurationSeconds: number;
 }
 
 export type PipPosition = "topLeft" | "topRight" | "bottomLeft" | "bottomRight" | "center";
