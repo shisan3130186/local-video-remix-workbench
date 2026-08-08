@@ -59,6 +59,8 @@ import type { ScriptLibraryEntry } from "./features/script-library";
 import { ThemeSettingsDialog, useTheme } from "./features/theme";
 import { useTts } from "./features/tts";
 import { useTaskCenter } from "./features/task-center";
+import { buildSmartEffectPlan } from "./features/video-effects/smartConfig";
+import type { SmartEffectPlan } from "./features/video-effects/smartConfig";
 import {
   createDiagnosticReport as requestDiagnosticReport,
   FirstLaunchWizard,
@@ -105,6 +107,9 @@ const activeFeature = ref<FeatureKey | null>(null);
 const activeTool = ref<ToolKey | null>(null);
 const frameMaterialFilePath = ref<string | null>(null);
 const fusionMaterialFilePath = ref<string | null>(null);
+const smartEffectPlan = ref<SmartEffectPlan | null>(null);
+const isSmartConfiguring = ref(false);
+const smartConfigError = ref<string | null>(null);
 const activeDrawer = ref<DrawerKey | null>(null);
 const isWelcomeVisible = ref(false);
 const welcomeStartStep = ref(0);
@@ -348,6 +353,12 @@ const {
   runTask,
 });
 
+watch(selectedVideo, (video, previousVideo) => {
+  if (video?.id === previousVideo?.id) return;
+  smartEffectPlan.value = null;
+  smartConfigError.value = null;
+});
+
 const {
   batchGenerateCount,
   batchMixError,
@@ -377,15 +388,10 @@ const {
   importedVideos,
   selectedVideo,
   outputDirectory,
-  canvasAspectRatio,
-  canvasBackgroundMode,
-  outputSettings,
-  watermarkSettings,
-  watermarkRemovalSettings,
+  remixExportSettings,
   segmentPaths: splitSegmentPaths,
   segmentCategories,
   categoryOptions: segmentCategoryOptions,
-  remixExportSettings,
   validatePictureInPicture: validatePictureInPictureSettings,
   validateBgm: validateBgmSettings,
   validateWatermark: validateWatermarkSettings,
@@ -1446,6 +1452,68 @@ async function ensureSplitOutputDirectory() {
   return selected;
 }
 
+async function requestSmartEffectConfig() {
+  smartConfigError.value = null;
+
+  if (!selectedVideo.value) {
+    smartConfigError.value = "请先选择一个视频素材，再让 AI 分析画面。";
+    return;
+  }
+
+  if (!outputDirectory.value) {
+    smartConfigError.value = "请先选择输出目录，AI 需要把临时分析帧写入该目录。";
+    outputDirectoryError.value = smartConfigError.value;
+    return;
+  }
+
+  isSmartConfiguring.value = true;
+
+  try {
+    const plan = await buildSmartEffectPlan(
+      selectedVideo.value,
+      outputDirectory.value,
+      aiMatchMode.value,
+    );
+    smartEffectPlan.value = plan;
+    applySmartEffectDefaults(plan);
+  } catch (error) {
+    smartEffectPlan.value = null;
+    smartConfigError.value =
+      error instanceof Error ? error.message : String(error ?? "AI 智能配置失败，请稍后重试。");
+  } finally {
+    isSmartConfiguring.value = false;
+  }
+}
+
+function applySmartEffectDefaults(plan: SmartEffectPlan) {
+  const enabled = new Set(plan.enabledEffectKeys);
+
+  applyHorizontalMirror.value = false;
+  applyVerticalMirror.value = false;
+  rotationMode.value = "none";
+
+  hslEnabled.value = enabled.has("effects");
+  if (hslEnabled.value) {
+    hue.value = 0;
+    brightness.value = 0.02;
+    contrast.value = 1.03;
+    saturation.value = 1.04;
+  }
+
+  zoomEnabled.value = enabled.has("zoom");
+  if (zoomEnabled.value) {
+    zoomMode.value = "random";
+    zoomMinScale.value = 1.02;
+    zoomMaxScale.value = 1.08;
+    zoomMinDurationSeconds.value = 6;
+    zoomMaxDurationSeconds.value = 10;
+  }
+
+  playbackSpeed.value = enabled.has("speed") ? 1.03 : 1;
+  bgmEnabled.value = false;
+  pipEnabled.value = false;
+}
+
 function validatePlaybackSpeed() {
   if (!Number.isFinite(playbackSpeed.value)) {
     return "变速倍数必须是有效数字。";
@@ -2263,6 +2331,13 @@ onMounted(() => {
         :video-processing-states="videoProcessingStates"
         :active-processing-video-id="activeProcessingVideoId"
         :processing-progress="videoToolsProcessingProgress"
+        v-model:smart-match-mode="aiMatchMode"
+        :smart-effect-plan="smartEffectPlan"
+        :is-smart-configuring="isSmartConfiguring"
+        :smart-config-error="smartConfigError"
+        :frame-material-file-path="frameMaterialFilePath"
+        :fusion-material-file-path="fusionMaterialFilePath"
+        :pip-overlay-file-path="pipOverlayFilePath"
         :format-duration="formatDuration"
         :format-file-name="formatFileName"
         @import-videos="importVideos"
@@ -2275,6 +2350,7 @@ onMounted(() => {
         @analyze-content="analyzePreparedSegmentContent"
         @generate-categorized-segments="concatCategorizedSegments"
         @start-processing="exportImportedVideos"
+        @request-smart-config="requestSmartEffectConfig"
         @open-drawer="activeDrawer = $event"
         @open-tool="activeTool = $event"
       />

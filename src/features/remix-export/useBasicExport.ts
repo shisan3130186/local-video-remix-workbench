@@ -1,23 +1,20 @@
 import { ref } from "vue";
 import type { Ref } from "vue";
-import type { CanvasAspectRatio, CanvasBackgroundMode } from "../../services/videoMixService";
+import type { RemixExportSettings } from "../../services/videoMixService";
 import type { ImportedVideo } from "../../types/videoProbe";
 import type { TaskLogLevel, VideoProcessingState } from "../../types/workbench";
 import { isTaskCancelledError } from "../task-center";
 import type { TaskRunHandle } from "../task-center";
-import type { OutputSettings } from "../../types/outputSettings";
 import { exportCurrentVideo } from "./services/remixExportService";
-import type { WatermarkRemovalSettings, WatermarkSettings } from "../watermark";
 
 interface UseBasicExportOptions {
   importedVideos: Readonly<Ref<ImportedVideo[]>>;
   selectedVideo: Readonly<Ref<ImportedVideo | null>>;
   outputDirectory: Readonly<Ref<string | null>>;
-  canvasAspectRatio: Readonly<Ref<CanvasAspectRatio>>;
-  canvasBackgroundMode: Readonly<Ref<CanvasBackgroundMode>>;
-  outputSettings: Readonly<Ref<OutputSettings>>;
-  watermarkSettings: Readonly<Ref<WatermarkSettings>>;
-  watermarkRemovalSettings: Readonly<Ref<WatermarkRemovalSettings>>;
+  remixExportSettings: Readonly<Ref<RemixExportSettings>>;
+  validatePictureInPicture: () => string | null;
+  validateBgm: () => string | null;
+  validatePlaybackSpeed: () => string | null;
   validateWatermark: () => string | null;
   validateWatermarkRemoval: () => string | null;
   appendExportLog: (message: string, level: TaskLogLevel) => void;
@@ -62,6 +59,15 @@ export function useBasicExport(options: UseBasicExportOptions) {
       options.appendExportLog(`导出失败：${watermarkRemovalError}`, "error");
       return;
     }
+    const effectValidationError =
+      options.validatePictureInPicture() ??
+      options.validateBgm() ??
+      options.validatePlaybackSpeed();
+    if (effectValidationError) {
+      exportError.value = effectValidationError;
+      options.appendExportLog(`导出失败：${effectValidationError}`, "error");
+      return;
+    }
 
     options.appendExportLog("开始导出。", "info");
     options.appendExportLog("导出中。", "info");
@@ -73,13 +79,7 @@ export function useBasicExport(options: UseBasicExportOptions) {
           options.selectedVideo.value?.filePath as string,
           options.outputDirectory.value as string,
           options.selectedVideo.value?.durationSeconds ?? null,
-          {
-            canvasAspectRatio: options.canvasAspectRatio.value,
-            canvasBackgroundMode: options.canvasBackgroundMode.value,
-            outputSettings: options.outputSettings.value,
-            watermarkSettings: options.watermarkSettings.value,
-            watermarkRemovalSettings: options.watermarkRemovalSettings.value,
-          },
+          options.remixExportSettings.value,
           task.progress(0, 100, "正在导出当前视频"),
         ),
       );
@@ -90,9 +90,9 @@ export function useBasicExport(options: UseBasicExportOptions) {
         `输出设置：${result.outputResolution}，${result.outputFrameRate}，${result.outputQuality}，${result.outputEncoder}，约 ${result.outputVideoBitrateKbps} kbps。`,
         "info",
       );
-      if (options.watermarkSettings.value.enabled) {
+      if (options.remixExportSettings.value.watermarkSettings.enabled) {
         options.appendExportLog(
-          options.watermarkSettings.value.kind === "text"
+          options.remixExportSettings.value.watermarkSettings.kind === "text"
             ? "已添加文字水印。"
             : "已添加图片水印。",
           "info",
@@ -141,6 +141,15 @@ export function useBasicExport(options: UseBasicExportOptions) {
       options.appendExportLog(`批量处理失败：${watermarkRemovalError}`, "error");
       return;
     }
+    const effectValidationError =
+      options.validatePictureInPicture() ??
+      options.validateBgm() ??
+      options.validatePlaybackSpeed();
+    if (effectValidationError) {
+      exportError.value = effectValidationError;
+      options.appendExportLog(`批量处理失败：${effectValidationError}`, "error");
+      return;
+    }
 
     const videos = [...options.importedVideos.value];
     videoProcessingStates.value = Object.fromEntries(
@@ -171,13 +180,7 @@ export function useBasicExport(options: UseBasicExportOptions) {
               video.filePath,
               options.outputDirectory.value as string,
               video.durationSeconds,
-              {
-                canvasAspectRatio: options.canvasAspectRatio.value,
-                canvasBackgroundMode: options.canvasBackgroundMode.value,
-                outputSettings: options.outputSettings.value,
-                watermarkSettings: options.watermarkSettings.value,
-                watermarkRemovalSettings: options.watermarkRemovalSettings.value,
-              },
+              options.remixExportSettings.value,
               task.progress(startPercent, endPercent, `正在处理 ${index + 1}/${videos.length}`),
             );
             const resolvedResult = await result;

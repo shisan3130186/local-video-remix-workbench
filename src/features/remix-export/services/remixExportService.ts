@@ -1,13 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  CanvasAspectRatio,
-  CanvasBackgroundMode,
+  RemixExportSettings,
   SegmentCategory,
   SegmentCategoryOption,
 } from "../../../services/videoMixService";
 import type { TaskProgressContext } from "../../task-center";
-import type { WatermarkRemovalSettings, WatermarkSettings } from "../../watermark";
-import type { OutputSettings } from "../../../types/outputSettings";
 
 export interface RenderVideoResult {
   outputPath: string;
@@ -30,19 +27,11 @@ export interface CategorizedPickResult {
   skippedCategories: string[];
 }
 
-export interface BasicVideoExportSettings {
-  canvasAspectRatio: CanvasAspectRatio;
-  canvasBackgroundMode: CanvasBackgroundMode;
-  outputSettings: OutputSettings;
-  watermarkSettings: WatermarkSettings;
-  watermarkRemovalSettings: WatermarkRemovalSettings;
-}
-
 export function exportCurrentVideo(
   inputFilePath: string,
   outputDirectory: string,
   durationSeconds: number | null,
-  settings: BasicVideoExportSettings,
+  settings: RemixExportSettings,
   taskContext?: TaskProgressContext,
 ): Promise<RenderVideoResult> {
   return invoke<RenderVideoResult>("export_current_video", {

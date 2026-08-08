@@ -79,7 +79,9 @@ use video_engine::image_video::{
     convert_images_to_videos as create_image_videos, ImageVideoBatchResult,
 };
 use video_engine::import::list_supported_videos_in_folder;
-use video_engine::mix::{concat_video_segments, MixVideoResult, RemixSettings};
+use video_engine::mix::{
+    concat_video_segments, export_single_video, MixVideoResult, RemixSettings,
+};
 use video_engine::narrated_mix::{
     concat_narrated_segments as create_narrated_video, NarratedAudioSettings, NarratedSegmentInput,
 };
@@ -87,7 +89,7 @@ use video_engine::output::{detect_video_encoder_capabilities, EncoderCapabilitie
 use video_engine::probe::{
     check_environment, probe_video_metadata, FfmpegEnvironmentResult, VideoMetadata,
 };
-use video_engine::render::{export_basic_video, BasicExportSettings, RenderVideoResult};
+use video_engine::render::RenderVideoResult;
 use video_engine::split::{
     split_video_by_duration, split_video_by_scene, SceneSensitivity, SplitVideoResult,
 };
@@ -245,14 +247,14 @@ fn export_current_video(
     output_directory: String,
     duration_seconds: Option<f64>,
     task_context: Option<TaskProgressContext>,
-    settings: BasicExportSettings,
+    settings: RemixSettings,
 ) -> Result<RenderVideoResult, String> {
-    export_basic_video(
+    export_single_video(
         input_file_path,
         output_directory,
         duration_seconds,
-        task_context,
         settings,
+        task_context,
     )
 }
 

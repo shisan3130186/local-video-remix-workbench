@@ -182,6 +182,7 @@ pub fn normalize_watermark_removal_settings(
     Ok(Some(settings))
 }
 
+#[allow(dead_code)]
 pub fn validate_tracking_duration(
     settings: Option<&WatermarkRemovalSettings>,
     duration_seconds: Option<f64>,

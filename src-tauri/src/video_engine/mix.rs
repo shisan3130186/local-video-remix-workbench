@@ -9,6 +9,7 @@ use crate::video_engine::output::{
     resolve_output_video_dimensions, OutputSettings,
 };
 use crate::video_engine::probe::probe_video_dimensions;
+use crate::video_engine::render::RenderVideoResult;
 use crate::video_engine::subtitle::{
     ensure_ass_filter_available, prepare_ass_subtitle, NarratedSubtitlePosition,
     NarratedSubtitleSettings, NarratedSubtitleSize,
@@ -178,8 +179,36 @@ pub fn concat_video_segments(
         output_directory,
         settings,
         true,
+        false,
         task_context,
     )
+}
+
+pub fn export_single_video(
+    input_file_path: String,
+    output_directory: String,
+    _duration_seconds: Option<f64>,
+    settings: RemixSettings,
+    task_context: Option<TaskProgressContext>,
+) -> Result<RenderVideoResult, String> {
+    let result = concat_video_segments_with_options(
+        vec![input_file_path],
+        output_directory,
+        settings,
+        false,
+        true,
+        task_context,
+    )?;
+
+    Ok(RenderVideoResult {
+        output_path: result.output_path,
+        message: result.message,
+        output_resolution: result.output_resolution,
+        output_encoder: result.output_encoder,
+        output_frame_rate: result.output_frame_rate,
+        output_quality: result.output_quality,
+        output_video_bitrate_kbps: result.output_video_bitrate_kbps,
+    })
 }
 
 pub(crate) fn concat_narrated_prepared_segments(
@@ -198,6 +227,7 @@ pub(crate) fn concat_narrated_prepared_segments(
         output_directory,
         settings,
         false,
+        false,
         task_context,
     )
 }
@@ -207,6 +237,7 @@ fn concat_video_segments_with_options(
     output_directory: String,
     settings: RemixSettings,
     filter_short_smooth_segments: bool,
+    allow_single_segment: bool,
     task_context: Option<TaskProgressContext>,
 ) -> Result<MixVideoResult, String> {
     let RemixSettings {
@@ -246,7 +277,7 @@ fn concat_video_segments_with_options(
         return Err("移动水印关键帧跟踪第一版只支持“导出当前完整视频”。请先导出清理后的视频，再重新导入进行混剪。".to_string());
     }
 
-    if segment_paths.len() < 2 {
+    if !allow_single_segment && segment_paths.len() < 2 {
         return Err("至少需要 2 个片段才能拼接。".to_string());
     }
 
@@ -290,7 +321,7 @@ fn concat_video_segments_with_options(
         }
     };
 
-    if prepared_segments.segment_paths.len() < 2 {
+    if !allow_single_segment && prepared_segments.segment_paths.len() < 2 {
         cleanup_files(&prepared_segments.temporary_paths);
         return Err("过滤过短片段后，至少需要 2 个片段才能拼接。".to_string());
     }
@@ -392,7 +423,18 @@ fn concat_video_segments_with_options(
         video_filters.push("hflip".to_string());
     }
 
-    video_filters.extend(build_video_effect_filters(normalized_effect_settings));
+    let zoom_crop_dimensions = if normalized_effect_settings.zoom_enabled {
+        Some(dimensions_after_rotation(
+            probe_video_dimensions(&prepared_segments.segment_paths[0])?,
+            normalized_effect_settings.rotation,
+        ))
+    } else {
+        None
+    };
+    video_filters.extend(build_video_effect_filters(
+        normalized_effect_settings,
+        zoom_crop_dimensions,
+    ));
 
     if should_apply_speed_filter(normalized_playback_speed) {
         video_filters.push(format!("setpts=PTS/{normalized_playback_speed:.3}"));
@@ -890,7 +932,10 @@ fn normalize_video_effect_settings(
     Ok(settings)
 }
 
-fn build_video_effect_filters(settings: VideoEffectSettings) -> Vec<String> {
+fn build_video_effect_filters(
+    settings: VideoEffectSettings,
+    zoom_crop_dimensions: Option<(u32, u32)>,
+) -> Vec<String> {
     let mut filters = Vec::new();
 
     if settings.vertical_mirror {
@@ -923,7 +968,11 @@ fn build_video_effect_filters(settings: VideoEffectSettings) -> Vec<String> {
     }
 
     if settings.zoom_enabled {
-        filters.push(build_dynamic_zoom_filter(settings));
+        filters.push(
+            zoom_crop_dimensions
+                .map(|dimensions| build_dynamic_zoom_filter(settings, dimensions))
+                .unwrap_or_else(|| build_dynamic_zoom_filter_stable(settings)),
+        );
     }
 
     filters
@@ -948,7 +997,8 @@ fn should_apply_hue_filter(settings: VideoEffectSettings) -> bool {
     settings.hsl_enabled && settings.hue.abs() > 0.001
 }
 
-fn build_dynamic_zoom_filter(settings: VideoEffectSettings) -> String {
+#[allow(dead_code)]
+fn build_dynamic_zoom_filter_legacy(settings: VideoEffectSettings) -> String {
     let min = settings.zoom_min_scale;
     let max = settings.zoom_max_scale;
     let duration = settings.zoom_max_duration_seconds.max(1.0);
@@ -958,8 +1008,41 @@ fn build_dynamic_zoom_filter(settings: VideoEffectSettings) -> String {
         DynamicZoomMode::Pull => format!("{max:.4}-({max:.4}-{min:.4})*({progress})"),
         DynamicZoomMode::Random => format!("if(lt(sin(t),0),{min:.4}+({max:.4}-{min:.4})*({progress}),{max:.4}-({max:.4}-{min:.4})*({progress}))"),
     };
+    // scale/crop 的表达式参数使用逗号分隔，表达式内部的逗号必须转义；
+    // 同时指定 eval=frame，才能让缩放随视频时间变化，而不是只计算第一帧。
+    let escaped_zoom = zoom.replace(',', "\\,");
     format!(
-        "scale=w=iw*({zoom}):h=ih*({zoom}),crop=w=iw/({zoom}):h=ih/({zoom}):x=(iw-ow)/2:y=(ih-oh)/2"
+        "scale=w=iw*({escaped_zoom}):h=ih*({escaped_zoom}):eval=frame,crop=w=iw/({escaped_zoom}):h=ih/({escaped_zoom}):x=(iw-ow)/2:y=(ih-oh)/2"
+    )
+}
+
+fn build_dynamic_zoom_filter_stable(settings: VideoEffectSettings) -> String {
+    let target_scale = match settings.zoom_mode {
+        DynamicZoomMode::Push | DynamicZoomMode::Pull | DynamicZoomMode::Random => {
+            settings.zoom_max_scale
+        }
+    };
+    // crop 的输出宽高需要在整段视频内保持稳定；固定到用户设定的最大倍率，
+    // 先放大再居中裁切，保证智能配置的缩放效果可以稳定批量导出。
+    format!(
+        "scale=w=iw*{target_scale:.4}:h=ih*{target_scale:.4},crop=w=iw/{target_scale:.4}:h=ih/{target_scale:.4}:x=(iw-ow)/2:y=(ih-oh)/2"
+    )
+}
+
+fn build_dynamic_zoom_filter(settings: VideoEffectSettings, crop_dimensions: (u32, u32)) -> String {
+    let min = settings.zoom_min_scale;
+    let max = settings.zoom_max_scale;
+    let duration = settings.zoom_max_duration_seconds.max(1.0);
+    let progress = format!("mod(t,{duration:.3})/{duration:.3}");
+    let zoom = match settings.zoom_mode {
+        DynamicZoomMode::Push => format!("{min:.4}+({max:.4}-{min:.4})*({progress})"),
+        DynamicZoomMode::Pull => format!("{max:.4}-({max:.4}-{min:.4})*({progress})"),
+        DynamicZoomMode::Random => format!("if(lt(sin(t),0),{min:.4}+({max:.4}-{min:.4})*({progress}),{max:.4}-({max:.4}-{min:.4})*({progress}))"),
+    };
+    let escaped_zoom = zoom.replace(',', "\\,");
+    format!(
+        "scale=w=iw*({escaped_zoom}):h=ih*({escaped_zoom}):eval=frame,crop=w={}:h={}:x=(iw-ow)/2:y=(ih-oh)/2",
+        crop_dimensions.0, crop_dimensions.1
     )
 }
 

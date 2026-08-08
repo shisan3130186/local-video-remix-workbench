@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
+import type { AiRemixMatchMode } from "../features/ai-remix";
+import type { SmartEffectPlan } from "../features/video-effects/smartConfig";
 import type { AiRemixSegment } from "../features/ai-remix";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { DrawerKey, ToolKey } from "../types/workbench";
@@ -26,6 +28,12 @@ const props = defineProps<{
   videoProcessingStates: Record<string, VideoProcessingState>;
   activeProcessingVideoId: string | null;
   processingProgress: number;
+  smartEffectPlan: SmartEffectPlan | null;
+  isSmartConfiguring: boolean;
+  smartConfigError: string | null;
+  frameMaterialFilePath: string | null;
+  fusionMaterialFilePath: string | null;
+  pipOverlayFilePath: string | null;
   formatDuration: (durationSeconds: number | null) => string;
   formatFileName: (path: string) => string;
 }>();
@@ -41,6 +49,7 @@ const emit = defineEmits<{
   analyzeContent: [];
   generateCategorizedSegments: [];
   startProcessing: [];
+  requestSmartConfig: [];
   openTool: [tool: ToolKey];
   openDrawer: [drawer: DrawerKey];
 }>();
@@ -56,6 +65,7 @@ const variantCount = ref(10);
 const settingsTab = ref<"effects" | "stickers">("effects");
 const configurationMode = ref<"manual" | "smart">("smart");
 const enabledEffectKeys = ref<ToolKey[]>([]);
+const smartMatchMode = defineModel<AiRemixMatchMode>("smartMatchMode", { required: true });
 const previewOrientationClass = computed(() => {
   const width = props.selectedVideo?.width ?? 0;
   const height = props.selectedVideo?.height ?? 0;
@@ -117,22 +127,54 @@ const watermarkGroups: Array<{ title: string; key: ToolKey; note: string; icon: 
   { title: "去除水印", key: "watermark", note: "手动框选或自动检测", icon: "adjust" },
 ];
 
-const enabledEffectKeySet = computed(() => new Set(enabledEffectKeys.value));
+const resolvedEnabledEffectKeySet = computed(() => {
+  const keys = new Set(enabledEffectKeys.value);
+  if (props.pipOverlayFilePath) keys.add("pip");
+  if (props.fusionMaterialFilePath) keys.add("fusion");
+  return keys;
+});
+
+watch(
+  () => props.smartEffectPlan,
+  (plan) => {
+    enabledEffectKeys.value = plan ? [...plan.enabledEffectKeys] : [];
+    if (plan) configurationMode.value = "smart";
+  },
+  { immediate: true },
+);
 
 function isEffectEnabled(key: ToolKey) {
-  return enabledEffectKeySet.value.has(key);
+  return resolvedEnabledEffectKeySet.value.has(key);
 }
 
 function configureSmartly() {
-  enabledEffectKeys.value = [...new Set(effectGroups.map((group) => group.key))];
   configurationMode.value = "smart";
+  emit("requestSmartConfig");
 }
 
 function openEffect(group: { key: ToolKey }) {
-  if (!enabledEffectKeys.value.includes(group.key)) {
+  if (!enabledEffectKeys.value.includes(group.key) && !isSmartPending(group.key)) {
     enabledEffectKeys.value = [...enabledEffectKeys.value, group.key];
   }
   emit("openTool", group.key);
+}
+
+function isSmartPending(key: ToolKey) {
+  return Boolean(
+    props.smartEffectPlan?.pendingEffectKeys.includes(key) &&
+      !resolvedEnabledEffectKeySet.value.has(key),
+  );
+}
+
+function toggleEffect(group: { key: ToolKey }) {
+  if (enabledEffectKeys.value.includes(group.key)) {
+    enabledEffectKeys.value = enabledEffectKeys.value.filter((key) => key !== group.key);
+    return;
+  }
+
+  if (!isSmartPending(group.key)) {
+    enabledEffectKeys.value = [...enabledEffectKeys.value, group.key];
+  }
 }
 
 function processingState(video: ImportedVideo): VideoProcessingState {
@@ -220,9 +262,12 @@ function processingLabel(video: ImportedVideo) {
       <template v-if="view === 'effects'">
         <div class="replica-tools-settings-tabs"><button type="button" :class="{ 'is-active': settingsTab === 'effects' }" @click="settingsTab = 'effects'">视频效果</button><button type="button" :class="{ 'is-active': settingsTab === 'stickers' }" @click="settingsTab = 'stickers'">贴画与水印</button></div>
         <div class="replica-tools-settings-scroll">
-          <div class="replica-effect-list"><button v-for="group in (settingsTab === 'effects' ? effectGroups : watermarkGroups)" :key="`${settingsTab}-${group.title}`" type="button" :class="{ 'is-enabled': settingsTab === 'effects' && isEffectEnabled(group.key) }" @click="openEffect(group)"><span class="replica-effect-icon"><ToolIcon :name="group.icon" /></span><span><strong>{{ group.title }}</strong><small>{{ group.note }}</small></span><b><ToolIcon :name="settingsTab === 'effects' && isEffectEnabled(group.key) ? 'check' : 'chevron'" /></b></button></div>
+          <div v-if="configurationMode === 'smart' && isSmartConfiguring" class="replica-smart-config-status" role="status"><span class="replica-smart-config-status__pulse"></span><div><strong>AI 正在分析当前视频</strong><small>正在读取画面特征并生成效果配置，请稍候。</small></div></div>
+          <div v-else-if="configurationMode === 'smart' && smartEffectPlan" class="replica-smart-config-summary"><header><strong>AI 配置方案</strong><select v-model="smartMatchMode" aria-label="AI 配置模式"><option value="local">本地策略</option><option value="cloud">云端视觉理解</option></select></header><p>{{ smartEffectPlan.summary }}</p><small>{{ smartEffectPlan.description }}</small><div><span>已启用 {{ smartEffectPlan.enabledEffectKeys.length }} 项</span><span>待补充 {{ smartEffectPlan.pendingEffectKeys.length }} 项</span></div></div>
+          <p v-if="smartConfigError" class="replica-smart-config-error" role="alert">{{ smartConfigError }}</p>
+          <div class="replica-effect-list"><button v-for="group in (settingsTab === 'effects' ? effectGroups : watermarkGroups)" :key="`${settingsTab}-${group.title}`" type="button" :class="{ 'is-enabled': settingsTab === 'effects' && isEffectEnabled(group.key), 'is-smart-pending': settingsTab === 'effects' && isSmartPending(group.key) }" @click="openEffect(group)" @contextmenu.prevent="toggleEffect(group)"><span class="replica-effect-icon"><ToolIcon :name="group.icon" /></span><span><strong>{{ group.title }}</strong><small>{{ group.note }}<template v-if="settingsTab === 'effects' && isSmartPending(group.key)"> · 需要素材</template></small></span><b><ToolIcon :name="settingsTab === 'effects' && isEffectEnabled(group.key) ? 'check' : 'chevron'" /></b></button></div>
         </div>
-        <div class="replica-configuration-switch"><button type="button" :class="{ 'is-active': configurationMode === 'manual' }" @click="configurationMode = 'manual'">手动配置</button><button type="button" :class="{ 'is-active': configurationMode === 'smart', 'is-configured': enabledEffectKeys.length > 0 }" @click="configureSmartly">智能配置</button></div>
+        <div class="replica-configuration-switch"><button type="button" :class="{ 'is-active': configurationMode === 'manual' }" @click="configurationMode = 'manual'; enabledEffectKeys = []">手动配置</button><button type="button" :class="{ 'is-active': configurationMode === 'smart', 'is-configured': Boolean(smartEffectPlan) }" @click="configureSmartly">{{ isSmartConfiguring ? '分析中…' : '智能配置' }}</button></div>
       </template>
       <template v-else>
         <header><strong>内容提炼</strong><small>识别主题、动作、卖点和镜头类型</small></header>
@@ -243,7 +288,7 @@ function processingLabel(video: ImportedVideo) {
       <label>命名<select v-model="namingMode"><option value="serial">前缀序号</option><option value="source">原文件名_处理</option></select></label>
       <label>线程<select v-model="threadMode"><option value="single">1线程</option><option value="auto">自动</option><option value="multi">多线程</option></select></label>
       <label>裂变<input v-model.number="variantCount" type="number" min="1" max="100" /></label>
-      <div class="replica-tools-output-summary"><span>素材 {{ importedVideos.length }}</span><span>完成 {{ Object.values(videoProcessingStates).filter((state) => state.status === 'completed').length }}</span><span v-if="isProcessing">总进度 {{ Math.round(processingProgress) }}%</span></div><button type="button" :disabled="!importedVideoCount || !outputDirectory || isProcessing || enabledEffectKeys.length === 0" @click="emit('startProcessing')">{{ isProcessing ? '处理中...' : '开始处理' }}</button>
+      <div class="replica-tools-output-summary"><span>素材 {{ importedVideos.length }}</span><span>完成 {{ Object.values(videoProcessingStates).filter((state) => state.status === 'completed').length }}</span><span v-if="isProcessing">总进度 {{ Math.round(processingProgress) }}%</span></div><button type="button" :disabled="!importedVideoCount || !outputDirectory || isProcessing || resolvedEnabledEffectKeySet.size === 0" @click="emit('startProcessing')">{{ isProcessing ? '处理中...' : '开始处理' }}</button>
     </footer>
 
     <div v-if="guideOpen" class="replica-tools-guide-backdrop" role="presentation" @click.self="closeGuide">
