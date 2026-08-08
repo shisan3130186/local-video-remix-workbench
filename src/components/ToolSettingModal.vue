@@ -4,7 +4,10 @@ import { ApiConfigSettingsPanel } from "../features/api-config";
 import { AsrSettingsPanel } from "../features/asr";
 import CanvasSettingsPanel from "./tool-settings/CanvasSettingsPanel.vue";
 import CoverSettingsPanel from "./tool-settings/CoverSettingsPanel.vue";
+import EntranceSettingsPanel from "./tool-settings/EntranceSettingsPanel.vue";
 import ExportSettingsPanel from "./tool-settings/ExportSettingsPanel.vue";
+import FrameSettingsPanel from "./tool-settings/FrameSettingsPanel.vue";
+import FusionSettingsPanel from "./tool-settings/FusionSettingsPanel.vue";
 import { TtsSettingsPanel } from "../features/tts";
 import PictureInPictureSettingsPanel from "./tool-settings/PictureInPictureSettingsPanel.vue";
 import RemixSettingsPanel from "./tool-settings/RemixSettingsPanel.vue";
@@ -22,7 +25,7 @@ const titles: Record<ToolKey, string> = {
   remix: "智能切片与批量",
   canvas: "画布设置",
   audio: "音频设置",
-  bgm: "背景音乐",
+  bgm: "音频设置",
   tts: "语音合成",
   asr: "语音识别",
   subtitleStyle: "字幕样式",
@@ -44,6 +47,7 @@ const titles: Record<ToolKey, string> = {
 };
 
 const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "adjust", "zoom"];
+const replicaParameterTools: ToolKey[] = ["audio", "bgm", "cover", "frame", "entrance", "pip", "adjust", "fusion", "rotate", "speed", "zoom", "mirror", "effects"];
 </script>
 
 <template>
@@ -53,12 +57,13 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
       :class="[
         `tool-modal--${activeTool}`,
         { 'tool-modal--asr': activeTool === 'asr' },
+        { 'tool-modal--replica-parameter': replicaParameterTools.includes(activeTool) },
       ]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="tool-setting-title"
     >
-      <header class="tool-modal__header">
+      <header v-if="!replicaParameterTools.includes(activeTool)" class="tool-modal__header">
         <div>
           <p class="panel__label">二级设置</p>
           <h2 id="tool-setting-title">{{ titles[activeTool] }}</h2>
@@ -66,7 +71,7 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
         <button class="panel-toggle" type="button" @click="emit('close')">关闭</button>
       </header>
 
-      <div class="tool-modal__body">
+      <div class="tool-modal__body" :class="{ 'tool-modal__body--replica-parameter': replicaParameterTools.includes(activeTool) }">
         <ApiConfigSettingsPanel
           v-if="activeTool === 'apiKeys'"
           @changed="emit('apiConfigChanged')"
@@ -127,6 +132,7 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           @update:pip-size-ratio="emit('update:pipSizeRatio', $event)"
           @update:pip-opacity="emit('update:pipOpacity', $event)"
           @update:pip-margin="emit('update:pipMargin', $event)"
+          @reset="emit('reset', activeTool)"
         />
 
         <AudioSettingsPanel
@@ -145,6 +151,12 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           @update:bgm-volume="emit('update:bgmVolume', $event)"
           @update:bgm-fade-in-seconds="emit('update:bgmFadeInSeconds', $event)"
           @update:bgm-fade-out-seconds="emit('update:bgmFadeOutSeconds', $event)"
+          @reset="emit('reset', activeTool)"
+        />
+
+        <EntranceSettingsPanel
+          v-else-if="activeTool === 'entrance'"
+          @reset="emit('reset', activeTool)"
         />
 
         <TtsSettingsPanel
@@ -229,13 +241,35 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
         />
 
         <CoverSettingsPanel
-          v-else-if="activeTool === 'cover' || activeTool === 'frame'"
+          v-else-if="activeTool === 'cover'"
           :selected-cover-url="selectedCoverUrl"
+          :selected-cover-path="selectedCoverPath"
           :cover-frame-seconds="coverFrameSeconds"
           :is-generating-cover="isGeneratingCover"
           :cover-error="coverError"
-          @generate-cover-frame="emit('generateCoverFrame')"
-          @update:cover-frame-seconds="emit('update:coverFrameSeconds', $event)"
+            @generate-cover-frame="emit('generateCoverFrame')"
+            @update:cover-frame-seconds="emit('update:coverFrameSeconds', $event)"
+            @select-cover-image-file="emit('selectCoverImageFile')"
+            @select-cover-image-folder="emit('selectCoverImageFolder')"
+            @reset="emit('reset', activeTool)"
+        />
+
+        <FrameSettingsPanel
+          v-else-if="activeTool === 'frame'"
+          :material-file-path="frameMaterialFilePath"
+          :is-mixing="isMixing"
+          :is-batch-mixing="isBatchMixing"
+          @select-material-file="emit('selectFrameMaterialFile')"
+          @clear-material-file="emit('clearFrameMaterialFile')"
+          @reset="emit('reset', activeTool)"
+        />
+
+        <FusionSettingsPanel
+          v-else-if="activeTool === 'fusion'"
+          :material-file-path="fusionMaterialFilePath"
+          @select-material-file="emit('selectFusionMaterialFile')"
+          @clear-material-file="emit('clearFusionMaterialFile')"
+          @reset="emit('reset', activeTool)"
         />
 
         <VideoEffectsSettingsPanel
@@ -249,6 +283,12 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           :contrast="contrast"
           :saturation="saturation"
           :effect-scale="effectScale"
+          :zoom-enabled="zoomEnabled"
+          :zoom-mode="zoomMode"
+          :zoom-min-scale="zoomMinScale"
+          :zoom-max-scale="zoomMaxScale"
+          :zoom-min-duration-seconds="zoomMinDurationSeconds"
+          :zoom-max-duration-seconds="zoomMaxDurationSeconds"
           :is-mixing="isMixing"
           :is-batch-mixing="isBatchMixing"
           @update:apply-horizontal-mirror="emit('update:applyHorizontalMirror', $event)"
@@ -259,6 +299,13 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
           @update:contrast="emit('update:contrast', $event)"
           @update:saturation="emit('update:saturation', $event)"
           @update:effect-scale="emit('update:effectScale', $event)"
+          @update:zoom-enabled="emit('update:zoomEnabled', $event)"
+          @update:zoom-mode="emit('update:zoomMode', $event)"
+          @update:zoom-min-scale="emit('update:zoomMinScale', $event)"
+          @update:zoom-max-scale="emit('update:zoomMaxScale', $event)"
+          @update:zoom-min-duration-seconds="emit('update:zoomMinDurationSeconds', $event)"
+          @update:zoom-max-duration-seconds="emit('update:zoomMaxDurationSeconds', $event)"
+          @reset="emit('reset', activeTool)"
         />
 
         <ExportSettingsPanel
@@ -287,7 +334,7 @@ const videoEffectTools: ToolKey[] = ["mirror", "rotate", "speed", "effects", "ad
         <p v-else class="empty-text">这个入口先定版 UI 位置，本次不开发真实功能。</p>
       </div>
 
-      <footer v-if="activeTool !== 'apiKeys' && activeTool !== 'asr'" class="tool-modal__footer">
+      <footer v-if="activeTool !== 'apiKeys' && activeTool !== 'asr' && !replicaParameterTools.includes(activeTool)" class="tool-modal__footer">
         <button class="ghost-button" type="button" @click="emit('reset', activeTool)">重置</button>
         <button class="primary-button" type="button" @click="emit('close')">应用</button>
       </footer>

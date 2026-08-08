@@ -1,0 +1,754 @@
+/*
+ * UI 规范化覆盖层
+ * 目标：保留现有竞品对齐结构，只统一桌面工具的字体、层级、间距和状态反馈。
+ * 本文件不改变任何业务流程或视频处理链路。
+ */
+
+:root {
+  --ui-font: "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  --ui-radius: 6px;
+  --ui-radius-sm: 4px;
+  --ui-control-height: 30px;
+  --ui-text-strong: #eef1f2;
+  --ui-text: #d1d7d9;
+  --ui-text-soft: #a4adaf;
+  --ui-text-muted: #7d888b;
+  --ui-border: #353d40;
+  --ui-border-soft: #2b3235;
+  --ui-panel: #1c2022;
+  --ui-panel-raised: #22282a;
+  --ui-panel-hover: #283033;
+  --ui-accent: #41c8b6;
+  --ui-accent-soft: rgba(65, 200, 182, 0.13);
+}
+
+:root[data-theme="light"] {
+  --ui-text-strong: #213034;
+  --ui-text: #344447;
+  --ui-text-soft: #5c6b6e;
+  --ui-text-muted: #78878a;
+  --ui-border: #cbd6d8;
+  --ui-border-soft: #dce4e5;
+  --ui-panel: #ffffff;
+  --ui-panel-raised: #f3f7f7;
+  --ui-panel-hover: #e9f1f0;
+  --ui-accent: #128f81;
+  --ui-accent-soft: rgba(18, 143, 129, 0.10);
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--ui-font);
+}
+
+/* 首页：更像功能入口，不像营销卡片。 */
+.app-shell--home,
+.app-shell--home .top-bar {
+  background: #191c1e;
+}
+
+.replica-home {
+  color: var(--ui-text);
+  background: #191c1e;
+}
+
+.replica-home__content {
+  width: min(calc(100% - 112px), 1280px);
+  padding-top: 52px;
+}
+
+.replica-home__heading {
+  align-items: flex-end;
+  margin-bottom: 38px;
+}
+
+.replica-home__heading h2 {
+  color: #c6d7e8;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.replica-home__heading p {
+  color: #8f9a9d;
+  font-size: 12px;
+}
+
+.replica-home__tabs {
+  padding: 3px;
+  border-radius: 7px;
+  border-color: #343b3e;
+  background: #22282a;
+  box-shadow: none;
+}
+
+.replica-home__tabs button {
+  min-height: 32px;
+  padding-inline: 15px;
+  border-radius: 4px;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.replica-home__tabs button.is-active {
+  color: #d5e4f0;
+  background: #34424b;
+  box-shadow: none;
+}
+
+.replica-module-grid {
+  gap: 18px;
+}
+
+.replica-module-card {
+  min-height: 146px;
+  padding: 19px 20px 17px;
+  border: 1px solid #343b3e;
+  border-radius: 8px;
+  background: #222628;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.replica-module-card:hover:not(:disabled) {
+  border-color: #526168;
+  background: #283033;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.20);
+  transform: translateY(-1px);
+}
+
+.replica-module-card__title-row strong {
+  color: var(--ui-text-strong);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.replica-module-card__title-row em {
+  padding: 3px 7px;
+  border-radius: 4px;
+  color: #a9c8d7;
+  background: rgba(93, 140, 160, 0.12);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.replica-module-card__tags {
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.replica-module-card__tags small {
+  padding: 3px 7px;
+  border-radius: 4px;
+  color: #9ba7aa;
+  background: #293033;
+  font-size: 9px;
+}
+
+.replica-module-card__description {
+  margin-top: 13px;
+  color: #aab4b6;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* 工作台公共规则：把所有文字和控件放回同一套桌面工具节奏。 */
+.app-shell--workspace,
+.app-shell--workspace button,
+.app-shell--workspace input,
+.app-shell--workspace select,
+.app-shell--workspace textarea {
+  font-family: var(--ui-font);
+}
+
+.replica-tools-workspace {
+  gap: 10px;
+}
+
+.replica-tools-source,
+.replica-tools-preview,
+.replica-split-settings,
+.replica-tools-settings,
+.replica-tools-output-bar {
+  border-color: var(--ui-border);
+  background: var(--ui-panel);
+}
+
+.replica-tools-source {
+  border-radius: var(--ui-radius);
+}
+
+.replica-tools-source .replica-source-toolbar {
+  gap: 5px;
+  padding: 9px;
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+
+.replica-tools-source .replica-source-toolbar button {
+  min-height: 32px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-soft);
+  background: var(--ui-panel-raised);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.replica-tools-source .replica-source-toolbar button.is-primary {
+  border-color: var(--ui-accent);
+  color: #0f2b28;
+  background: var(--ui-accent);
+}
+
+.replica-tools-source .replica-source-toolbar button:hover:not(:disabled),
+.replica-tools-source .replica-source-toolbar button:focus-visible {
+  border-color: var(--ui-accent);
+  outline: none;
+}
+
+.replica-source-empty {
+  gap: 10px;
+  padding: 24px 18px;
+  color: var(--ui-text-muted);
+}
+
+.replica-source-empty > span,
+.replica-tools-screen--empty > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #4c5a5e;
+  border-radius: 6px;
+  color: #93a0a3;
+  background: #252d30;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.replica-source-empty strong,
+.replica-tools-screen--empty strong {
+  color: var(--ui-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.replica-source-empty small,
+.replica-tools-screen--empty small {
+  color: var(--ui-text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.replica-tools-file-list {
+  padding: 7px;
+}
+
+.replica-tools-file-list button {
+  min-height: 46px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+}
+
+.replica-tools-file-list button:hover,
+.replica-tools-file-list button:focus-visible {
+  border-color: var(--ui-border);
+  background: var(--ui-panel-hover);
+  outline: none;
+}
+
+.replica-tools-file-list button.is-active {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+
+.replica-tools-file-list b {
+  color: var(--ui-text);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.replica-tools-file-list small {
+  color: var(--ui-text-muted);
+  font-size: 10px;
+}
+
+.replica-output-path {
+  margin: auto 9px 9px;
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-muted);
+  background: var(--ui-panel-raised);
+}
+
+.replica-output-path strong {
+  color: var(--ui-text-soft);
+  font-size: 10px;
+}
+
+.replica-tools-preview {
+  border-radius: var(--ui-radius);
+}
+
+.replica-tools-preview > header {
+  min-height: 40px;
+  padding-inline: 12px;
+  border-bottom-color: var(--ui-border-soft);
+  color: var(--ui-text);
+  background: var(--ui-panel);
+  font-size: 11px;
+}
+
+.replica-guide-trigger {
+  color: var(--ui-text-soft);
+  font-size: 10px;
+}
+
+.replica-guide-trigger:hover,
+.replica-guide-trigger:focus-visible {
+  color: var(--ui-text-strong);
+  outline: none;
+}
+
+.replica-preview-actions button {
+  min-height: 28px;
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-soft);
+  background: var(--ui-panel-raised);
+  font-size: 10px;
+}
+
+.replica-preview-actions button:hover,
+.replica-preview-actions button:focus-visible {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+
+.replica-tools-screen--empty {
+  align-content: center;
+  gap: 8px;
+  color: var(--ui-text-muted);
+}
+
+.replica-split-settings {
+  border-radius: var(--ui-radius);
+  background: var(--ui-panel);
+}
+
+.replica-split-settings > header > strong,
+.replica-split-output-label {
+  color: var(--ui-text);
+}
+
+.replica-split-modes,
+.replica-split-output {
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-panel-raised);
+}
+
+.replica-split-modes button,
+.replica-split-output button {
+  color: var(--ui-text-soft);
+  background: transparent;
+}
+
+.replica-split-modes button.is-active,
+.replica-split-output button.is-active {
+  color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+
+.replica-split-parameters {
+  color: var(--ui-text-soft);
+}
+
+.replica-split-parameters input,
+.replica-tools-output-bar select,
+.replica-tools-output-bar input {
+  min-height: 29px;
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text);
+  background: var(--ui-panel-raised);
+  font-size: 10px;
+}
+
+.replica-split-parameters button,
+.replica-tools-output-bar > button {
+  border-radius: var(--ui-radius-sm);
+  color: #0d2925;
+  background: var(--ui-accent);
+}
+
+/* 右栏：每张效果卡只保留一个主要状态信号。 */
+.replica-tools-settings {
+  padding: 9px;
+  border-radius: var(--ui-radius);
+}
+
+.replica-tools-settings-tabs,
+.replica-configuration-switch {
+  gap: 2px;
+  padding: 2px;
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-panel-raised);
+}
+
+.replica-tools-settings-tabs button,
+.replica-configuration-switch button {
+  min-height: 30px;
+  border-radius: 3px;
+  color: var(--ui-text-soft);
+  background: transparent;
+  font-size: 10px;
+}
+
+.replica-tools-settings-tabs button.is-active,
+.replica-configuration-switch button.is-active {
+  color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+
+.replica-tools-settings-scroll {
+  margin-top: 7px;
+}
+
+.replica-effect-list {
+  gap: 5px;
+}
+
+.replica-effect-list button {
+  min-height: 56px;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--ui-border-soft);
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text);
+  background: var(--ui-panel-raised);
+}
+
+.replica-effect-list button:hover,
+.replica-effect-list button:focus-visible {
+  border-color: #596a6f;
+  background: var(--ui-panel-hover);
+  outline: none;
+}
+
+.replica-effect-icon {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #405054;
+  border-radius: 5px;
+  color: #a9b7b9;
+  background: #293336;
+  font-size: 14px;
+}
+
+.replica-effect-list button strong {
+  color: var(--ui-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.replica-effect-list button small {
+  overflow: hidden;
+  color: var(--ui-text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replica-effect-list button > b {
+  color: #8a989b;
+  font-size: 16px;
+}
+
+.replica-effect-list button.is-enabled {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent-soft) 62%, var(--ui-panel-raised));
+}
+
+.replica-effect-list button.is-enabled .replica-effect-icon {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+
+.replica-effect-list button.is-enabled > b {
+  color: var(--ui-accent);
+}
+
+.replica-configuration-switch {
+  margin-top: 8px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.replica-configuration-switch button.is-configured::after {
+  content: "";
+}
+
+/* 图标统一使用本地 SVG，避免字符占位符在不同字体和主题下变形。 */
+.tool-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.replica-source-toolbar button,
+.replica-guide-trigger,
+.replica-icon-button,
+.replica-output-path b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.replica-source-toolbar button .tool-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.replica-source-empty > span,
+.replica-tools-screen--empty > span,
+.replica-tools-file-list button > span {
+  display: grid;
+  place-items: center;
+}
+
+.replica-source-empty > span .tool-icon,
+.replica-tools-screen--empty > span .tool-icon {
+  width: 19px;
+  height: 19px;
+}
+
+.replica-tools-file-list button > span .tool-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.replica-guide-trigger .tool-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.replica-output-path b .tool-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.replica-effect-icon {
+  display: grid;
+  place-items: center;
+  color: var(--ui-text-soft);
+  background: var(--ui-panel-hover);
+}
+
+.replica-effect-icon .tool-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.replica-effect-list button > b {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+}
+
+.replica-effect-list button > b .tool-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.replica-effect-list button.is-enabled > b .tool-icon {
+  stroke-width: 2.1;
+}
+
+.replica-icon-button .tool-icon {
+  width: 15px;
+  height: 15px;
+}
+
+:root[data-theme="light"] .replica-effect-icon {
+  border-color: var(--ui-border);
+  background: var(--ui-panel-hover);
+}
+
+/* 底部输出栏改成可扫描的字段网格，1280 宽度仍保留全部字段。 */
+.replica-tools-output-bar {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(72px, 1fr)) 64px minmax(124px, 1.15fr) 142px;
+  align-items: center;
+  gap: 7px;
+  min-height: 72px;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+}
+
+.replica-tools-output-bar label {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--ui-text-muted);
+  font-size: 9px;
+}
+
+.replica-tools-output-bar select,
+.replica-tools-output-bar input {
+  width: 100%;
+}
+
+.replica-tools-output-bar label:nth-last-of-type(1) input {
+  width: 100%;
+}
+
+.replica-tools-output-bar > button {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  margin-left: 0;
+  font-size: 11px;
+}
+
+.replica-tools-output-summary {
+  justify-content: center;
+  gap: 7px;
+  color: var(--ui-text-soft);
+  font-size: 9px;
+}
+
+.replica-tools-output-summary span + span {
+  padding-left: 7px;
+}
+
+/* 指引保持详细，但降低遮罩压迫感并提高正文对比。 */
+.replica-tools-guide {
+  border-color: var(--ui-border);
+  border-radius: 7px;
+  background: var(--ui-panel);
+}
+
+.replica-tools-guide > header,
+.replica-tools-guide > footer,
+.replica-tools-guide article {
+  border-color: var(--ui-border);
+}
+
+.replica-tools-guide > header h2,
+.replica-tools-guide article strong {
+  color: var(--ui-text-strong);
+}
+
+.replica-tools-guide > header small,
+.replica-tools-guide article p,
+.replica-tools-guide > footer,
+.replica-tools-guide__tip p {
+  color: var(--ui-text-soft);
+}
+
+.replica-tools-guide__tip {
+  background: var(--ui-panel-raised);
+}
+
+/* 底部任务区也使用同一套主题，浅色模式下不再保留深色孤岛。 */
+.task-control-bar {
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-panel);
+}
+
+.task-progress {
+  background: var(--ui-border-soft);
+}
+
+.task-progress span {
+  background: var(--ui-accent);
+}
+
+.task-control-summary,
+.task-control-status,
+.task-counts span {
+  color: var(--ui-text-soft);
+}
+
+.task-control-summary strong,
+.task-counts strong {
+  color: var(--ui-text);
+}
+
+.task-control-summary small,
+.task-counts span {
+  font-size: 10px;
+}
+
+.task-quick-actions .panel-toggle,
+.task-cancel-action,
+.task-retry-action {
+  min-height: 30px;
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-soft);
+  background: var(--ui-panel-raised);
+}
+
+.task-quick-actions .panel-toggle:hover:not(:disabled),
+.task-cancel-action:hover:not(:disabled),
+.task-retry-action:hover:not(:disabled) {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+}
+
+.task-primary-action {
+  min-height: 34px;
+  border-color: var(--ui-accent) !important;
+  border-radius: var(--ui-radius-sm) !important;
+  color: #0d2925 !important;
+  background: var(--ui-accent) !important;
+}
+
+.task-primary-action:hover:not(:disabled) {
+  border-color: var(--ui-accent) !important;
+  background: var(--ui-accent) !important;
+}
+
+@media (max-width: 1320px) {
+  .replica-tools-workspace {
+    grid-template-columns: 292px minmax(430px, 1fr) 280px;
+  }
+
+  .replica-tools-output-bar {
+    grid-template-columns: repeat(6, minmax(64px, 1fr)) 56px minmax(108px, 1.05fr) 124px;
+    gap: 5px;
+    padding-inline: 8px;
+  }
+
+  .replica-tools-output-bar label:nth-of-type(4),
+  .replica-tools-output-bar label:nth-of-type(5) {
+    display: grid;
+  }
+
+  .replica-tools-output-bar select,
+  .replica-tools-output-bar input {
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .replica-module-card,
+  .replica-tools-file-list button {
+    transition: none;
+  }
+}

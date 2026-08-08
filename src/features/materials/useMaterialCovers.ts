@@ -28,14 +28,13 @@ export function useMaterialCovers({ selectedVideo, outputDirectory }: UseMateria
   }
 
   function selectVideoCover(video: ImportedVideo) {
-    selectedCoverPath.value = videoCoverPaths.value[video.id] ?? null;
+    selectedCoverPath.value = null;
     coverError.value = null;
     void ensureVideoCover(video);
   }
 
   async function ensureVideoCover(video: ImportedVideo) {
     if (videoCoverPaths.value[video.id]) {
-      selectedCoverPath.value = videoCoverPaths.value[video.id];
       return;
     }
 
@@ -52,9 +51,6 @@ export function useMaterialCovers({ selectedVideo, outputDirectory }: UseMateria
         [video.id]: result.thumbnailPath,
       };
 
-      if (selectedVideo.value?.id === video.id) {
-        selectedCoverPath.value = result.thumbnailPath;
-      }
     } catch (error) {
       if (selectedVideo.value?.id === video.id) {
         coverError.value =

@@ -29,6 +29,14 @@ export type DrawerKey = "logs" | "exports" | "batch" | "scripts";
 
 export type WorkspaceMode = "ai" | "batch" | "tools";
 
+export type VideoProcessingStatus = "pending" | "processing" | "completed" | "failed" | "cancelled";
+
+export interface VideoProcessingState {
+  status: VideoProcessingStatus;
+  progress: number;
+  message: string | null;
+}
+
 export type FeatureKey =
   | "copyRewrite"
   | "fileRenamer"

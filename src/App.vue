@@ -103,6 +103,8 @@ const isWorkspaceVisible = ref(false);
 const workspaceMode = ref<WorkspaceMode>("ai");
 const activeFeature = ref<FeatureKey | null>(null);
 const activeTool = ref<ToolKey | null>(null);
+const frameMaterialFilePath = ref<string | null>(null);
+const fusionMaterialFilePath = ref<string | null>(null);
 const activeDrawer = ref<DrawerKey | null>(null);
 const isWelcomeVisible = ref(false);
 const welcomeStartStep = ref(0);
@@ -353,6 +355,9 @@ const {
   batchMixResults,
   concatCategorizedSegments,
   concatRandomSegments,
+  activeProcessingVideoId,
+  exportError,
+  exportImportedVideos,
   exportSelectedVideo,
   generateBatchMixes,
   isBatchMixing,
@@ -367,7 +372,9 @@ const {
   resetRandomPickState,
   retryFailedBatchMixes,
   setMixing,
+  videoProcessingStates,
 } = useRemixExport({
+  importedVideos,
   selectedVideo,
   outputDirectory,
   canvasAspectRatio,
@@ -1232,6 +1239,10 @@ const isAnyProcessing = computed(
     isGeneratingAiRemix.value,
 );
 
+const videoToolsProcessingProgress = computed(() =>
+  activeProcessingVideoId.value && isExporting.value ? activeTask.value?.progressPercent ?? 0 : 0,
+);
+
 const primaryTaskActionLabel = computed(() => {
   if (workspaceMode.value === "tools") {
     return importedVideos.value.length > 0 ? "请从上方选择一个工具" : "可直接打开语音或密钥工具";
@@ -1547,6 +1558,22 @@ function resetToolSettings(tool: ToolKey) {
 
   if (tool === "zoom") {
     effectScale.value = 1;
+    zoomEnabled.value = false;
+    zoomMode.value = "push";
+    zoomMinScale.value = 1.02;
+    zoomMaxScale.value = 1.08;
+    zoomMinDurationSeconds.value = 8;
+    zoomMaxDurationSeconds.value = 10;
+    return;
+  }
+
+  if (tool === "frame") {
+    frameMaterialFilePath.value = null;
+    return;
+  }
+
+  if (tool === "fusion") {
+    fusionMaterialFilePath.value = null;
     return;
   }
 
@@ -1576,8 +1603,9 @@ function resetToolSettings(tool: ToolKey) {
     return;
   }
 
-  if (tool === "cover" || tool === "frame") {
+  if (tool === "cover") {
     coverFrameSeconds.value = 1;
+    selectedCoverPath.value = null;
     coverError.value = null;
     return;
   }
@@ -1616,6 +1644,32 @@ async function selectPipOverlayFile() {
   } catch (error) {
     mixError.value =
       error instanceof Error ? error.message : String(error ?? "选择画中画素材失败。");
+  }
+}
+
+async function selectFrameMaterialFile() {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: "视频帧操作素材", extensions: ["mp4", "mov", "avi", "mkv", "png", "jpg", "jpeg", "webp", "bmp"] }],
+    });
+    if (!selected || Array.isArray(selected)) return;
+    frameMaterialFilePath.value = selected;
+  } catch (error) {
+    mixError.value = error instanceof Error ? error.message : String(error ?? "选择视频帧操作素材失败。");
+  }
+}
+
+async function selectFusionMaterialFile() {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: "像素融合素材", extensions: ["mp4", "mov", "avi", "mkv", "png", "jpg", "jpeg", "webp", "bmp"] }],
+    });
+    if (!selected || Array.isArray(selected)) return;
+    fusionMaterialFilePath.value = selected;
+  } catch (error) {
+    mixError.value = error instanceof Error ? error.message : String(error ?? "选择像素融合素材失败。");
   }
 }
 
@@ -1733,6 +1787,48 @@ async function selectBgmAudioFile() {
   } catch (error) {
     mixError.value =
       error instanceof Error ? error.message : String(error ?? "选择 BGM 音频失败。");
+  }
+}
+
+async function selectCoverImageFile() {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [
+        {
+          name: "封面图片",
+          extensions: ["png", "jpg", "jpeg", "webp", "bmp"],
+        },
+      ],
+    });
+
+    if (!selected || Array.isArray(selected)) {
+      return;
+    }
+
+    selectedCoverPath.value = selected;
+    coverError.value = null;
+  } catch (error) {
+    coverError.value = error instanceof Error ? error.message : String(error ?? "选择封面图片失败。");
+  }
+}
+
+async function selectCoverImageFolder() {
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+    });
+
+    if (!selected || Array.isArray(selected)) {
+      return;
+    }
+
+    selectedCoverPath.value = selected;
+    coverError.value = null;
+  } catch (error) {
+    coverError.value =
+      error instanceof Error ? error.message : String(error ?? "选择封面图片文件夹失败。");
   }
 }
 
@@ -2163,7 +2259,10 @@ onMounted(() => {
         :output-directory="outputDirectory"
         :is-processing="isSplitting || isExporting || isAnalyzingAiContent"
         :progress-text="aiContentAnalysisProgressText"
-        :error="splitError || aiContentAnalysisError || outputDirectoryError"
+        :error="splitError || aiContentAnalysisError || exportError || outputDirectoryError"
+        :video-processing-states="videoProcessingStates"
+        :active-processing-video-id="activeProcessingVideoId"
+        :processing-progress="videoToolsProcessingProgress"
         :format-duration="formatDuration"
         :format-file-name="formatFileName"
         @import-videos="importVideos"
@@ -2175,7 +2274,7 @@ onMounted(() => {
         @split-selected-video="splitSelectedVideo"
         @analyze-content="analyzePreparedSegmentContent"
         @generate-categorized-segments="concatCategorizedSegments"
-        @start-processing="exportSelectedVideo"
+        @start-processing="exportImportedVideos"
         @open-drawer="activeDrawer = $event"
         @open-tool="activeTool = $event"
       />
@@ -2275,6 +2374,14 @@ onMounted(() => {
       :contrast="contrast"
       :saturation="saturation"
       :effect-scale="effectScale"
+      :zoom-enabled="zoomEnabled"
+      :zoom-mode="zoomMode"
+      :zoom-min-scale="zoomMinScale"
+      :zoom-max-scale="zoomMaxScale"
+      :zoom-min-duration-seconds="zoomMinDurationSeconds"
+      :zoom-max-duration-seconds="zoomMaxDurationSeconds"
+      :frame-material-file-path="frameMaterialFilePath"
+      :fusion-material-file-path="fusionMaterialFilePath"
       :pip-enabled="pipEnabled"
       :pip-overlay-file-path="pipOverlayFilePath"
       :pip-position="pipPosition"
@@ -2288,6 +2395,7 @@ onMounted(() => {
       :bgm-fade-in-seconds="bgmFadeInSeconds"
       :bgm-fade-out-seconds="bgmFadeOutSeconds"
       :selected-cover-url="selectedCoverUrl"
+      :selected-cover-path="selectedCoverPath"
       :cover-frame-seconds="coverFrameSeconds"
       :is-generating-cover="isGeneratingCover"
       :cover-error="coverError"
@@ -2340,7 +2448,13 @@ onMounted(() => {
       @open-output-directory="openOutputDirectory"
       @export-selected-video="exportSelectedVideo"
       @select-pip-overlay-file="selectPipOverlayFile"
+      @select-frame-material-file="selectFrameMaterialFile"
+      @select-fusion-material-file="selectFusionMaterialFile"
+      @clear-frame-material-file="frameMaterialFilePath = null"
+      @clear-fusion-material-file="fusionMaterialFilePath = null"
       @select-bgm-audio-file="selectBgmAudioFile"
+      @select-cover-image-file="selectCoverImageFile"
+      @select-cover-image-folder="selectCoverImageFolder"
       @generate-cover-frame="generateCoverFrame"
       @generate-tts="generateTts"
       @select-asr-source-file="selectAsrSourceFile"
@@ -2369,6 +2483,12 @@ onMounted(() => {
       @update:contrast="contrast = $event"
       @update:saturation="saturation = $event"
       @update:effect-scale="effectScale = $event"
+      @update:zoom-enabled="zoomEnabled = $event"
+      @update:zoom-mode="zoomMode = $event"
+      @update:zoom-min-scale="zoomMinScale = $event"
+      @update:zoom-max-scale="zoomMaxScale = $event"
+      @update:zoom-min-duration-seconds="zoomMinDurationSeconds = $event"
+      @update:zoom-max-duration-seconds="zoomMaxDurationSeconds = $event"
       @update:pip-enabled="pipEnabled = $event"
       @update:pip-position="pipPosition = $event"
       @update:pip-size-ratio="pipSizeRatio = $event"
