@@ -11,7 +11,16 @@ import type { ProjectMaterialsSnapshot } from "../project-recovery/types";
 import { listVideoFilesInFolder } from "./services/materialService";
 import { loadImportedVideos, splitImportedVideos } from "./services/materialWorkflow";
 import { useMaterialCovers } from "./useMaterialCovers";
-import type { SceneSensitivity, SplitMode } from "./types";
+import {
+  cloneMaterialFolderSettings,
+  DEFAULT_MATERIAL_FOLDER_SETTINGS,
+} from "./types";
+import type {
+  MaterialFolder,
+  MaterialFolderSettings,
+  SceneSensitivity,
+  SplitMode,
+} from "./types";
 
 interface UseMaterialsOptions {
   outputDirectory: Readonly<Ref<string | null>>;
@@ -22,6 +31,7 @@ interface UseMaterialsOptions {
 
 export function useMaterials(options: UseMaterialsOptions) {
   const importedVideos = ref<ImportedVideo[]>([]);
+  const materialFolders = ref<MaterialFolder[]>([]);
   const selectedVideo = ref<ImportedVideo | null>(null);
   const isImporting = ref(false);
   const importError = ref<string | null>(null);
@@ -67,7 +77,10 @@ export function useMaterials(options: UseMaterialsOptions) {
         return false;
       }
 
-      await replaceImportedVideos(Array.isArray(selected) ? selected : [selected]);
+      await addMaterialFolderFromFiles(
+        Array.isArray(selected) ? selected : [selected],
+        "单独导入",
+      );
       return true;
     } catch (error) {
       importError.value =
@@ -98,7 +111,7 @@ export function useMaterials(options: UseMaterialsOptions) {
         return false;
       }
 
-      await replaceImportedVideos(filePaths);
+      await addMaterialFolderFromFiles(filePaths, folderNameFromPath(selected), selected);
       return true;
     } catch (error) {
       importError.value =
@@ -109,16 +122,77 @@ export function useMaterials(options: UseMaterialsOptions) {
     }
   }
 
-  async function replaceImportedVideos(filePaths: string[]) {
+  async function addMaterialFolderFromFiles(
+    filePaths: string[],
+    folderName: string,
+    folderPath = getParentPath(filePaths[0] ?? ""),
+  ) {
     const videos = await loadImportedVideos(filePaths);
+    if (videos.length === 0) {
+      throw new Error("没有读取到可用的视频素材。");
+    }
+
+    const existingPaths = new Set(importedVideos.value.map((video) => video.filePath));
+    const newVideos = videos.filter((video) => !existingPaths.has(video.filePath));
+    const folder: MaterialFolder = {
+      id: createMaterialFolderId(folderPath),
+      folderPath,
+      folderName: folderName || "素材文件夹",
+      videoPaths: videos.map((video) => video.filePath),
+      settings: cloneMaterialFolderSettings(DEFAULT_MATERIAL_FOLDER_SETTINGS),
+    };
+
+    materialFolders.value = [
+      ...materialFolders.value.filter((item) => item.folderPath !== folderPath),
+      folder,
+    ];
+    importedVideos.value = [...importedVideos.value, ...newVideos];
+    selectedVideo.value = selectedVideo.value ?? newVideos[0] ?? videos[0] ?? null;
     covers.resetMaterialCovers();
-    importedVideos.value = videos;
-    selectedVideo.value = videos[0] ?? null;
     resetSplitState();
 
     if (selectedVideo.value) {
       covers.selectVideoCover(selectedVideo.value);
     }
+  }
+
+  function removeMaterialFolder(folderId: string) {
+    const folder = materialFolders.value.find((item) => item.id === folderId);
+    if (!folder) return;
+
+    const removedPaths = new Set(folder.videoPaths);
+    materialFolders.value = materialFolders.value.filter((item) => item.id !== folderId);
+    importedVideos.value = importedVideos.value.filter((video) => !removedPaths.has(video.filePath));
+    selectedVideo.value = importedVideos.value[0] ?? null;
+    covers.resetMaterialCovers();
+    if (selectedVideo.value) covers.selectVideoCover(selectedVideo.value);
+    resetSplitState();
+  }
+
+  function updateMaterialFolderSettings(
+    folderId: string,
+    patch: Partial<MaterialFolderSettings>,
+  ) {
+    materialFolders.value = materialFolders.value.map((folder) => {
+      if (folder.id !== folderId) return folder;
+      const nextSettings = {
+        ...folder.settings,
+        ...patch,
+      };
+      nextSettings.variantCount = Math.min(
+        10,
+        Math.max(1, Math.floor(Number(nextSettings.variantCount) || 1)),
+      );
+      return { ...folder, settings: nextSettings };
+    });
+  }
+
+  function applyMaterialFolderSettingsToAll(settings: MaterialFolderSettings) {
+    const nextSettings = cloneMaterialFolderSettings(settings);
+    materialFolders.value = materialFolders.value.map((folder) => ({
+      ...folder,
+      settings: cloneMaterialFolderSettings(nextSettings),
+    }));
   }
 
   function selectVideo(video: ImportedVideo) {
@@ -133,6 +207,7 @@ export function useMaterials(options: UseMaterialsOptions) {
 
   function clearImportedVideos() {
     covers.resetMaterialCovers();
+    materialFolders.value = [];
     importedVideos.value = [];
     selectedVideo.value = null;
     importError.value = null;
@@ -263,6 +338,10 @@ export function useMaterials(options: UseMaterialsOptions) {
     importError.value = null;
     splitError.value = null;
     importedVideos.value = snapshot.importedVideos;
+    materialFolders.value = normalizeMaterialFolders(
+      snapshot.materialFolders,
+      snapshot.importedVideos,
+    );
     selectedVideo.value =
       snapshot.importedVideos.find(
         (video) => video.filePath === snapshot.selectedVideoPath,
@@ -289,6 +368,13 @@ export function useMaterials(options: UseMaterialsOptions) {
       ...importedVideos.value.filter((item) => item.filePath !== video.filePath),
       video,
     ];
+    materialFolders.value = materialFolders.value.map((folder) =>
+      folder.videoPaths.includes(video.filePath)
+        ? folder
+        : folder.videoPaths.includes(selectedVideo.value?.filePath ?? "")
+          ? { ...folder, videoPaths: [...folder.videoPaths, video.filePath] }
+          : folder,
+    );
     if (coverPath) {
       covers.videoCoverPaths.value = {
         ...covers.videoCoverPaths.value,
@@ -304,6 +390,7 @@ export function useMaterials(options: UseMaterialsOptions) {
   return {
     ...covers,
     addRelinkedMaterial,
+    applyMaterialFolderSettingsToAll,
     clearImportedVideos,
     importError,
     importedVideos,
@@ -312,9 +399,11 @@ export function useMaterials(options: UseMaterialsOptions) {
     isImporting,
     isSplitting,
     maximumSegmentSeconds,
+    materialFolders,
     mergeSegmentThumbnailPaths,
     minimumSegmentSeconds,
     restoreMaterials,
+    removeMaterialFolder,
     segmentCategories,
     segmentDurationSeconds,
     sceneSensitivity,
@@ -330,8 +419,55 @@ export function useMaterials(options: UseMaterialsOptions) {
     splitSegmentCount,
     splitSegmentPaths,
     splitMode,
+    updateMaterialFolderSettings,
     updateSegmentCategory,
   };
+}
+
+function createMaterialFolderId(folderPath: string) {
+  return `material-folder-${folderPath.toLowerCase()}-${Date.now().toString(36)}`;
+}
+
+function folderNameFromPath(folderPath: string) {
+  return folderPath.split(/[\\/]/).filter(Boolean).pop() ?? "素材文件夹";
+}
+
+function getParentPath(filePath: string) {
+  const parts = filePath.split(/[\\/]/);
+  parts.pop();
+  return parts.join("\\");
+}
+
+function normalizeMaterialFolders(
+  folders: MaterialFolder[] | undefined,
+  importedVideos: ImportedVideo[],
+) {
+  const validPaths = new Set(importedVideos.map((video) => video.filePath));
+  const normalized = (folders ?? [])
+    .map((folder) => ({
+      ...folder,
+      videoPaths: folder.videoPaths.filter((path) => validPaths.has(path)),
+      settings: {
+        ...DEFAULT_MATERIAL_FOLDER_SETTINGS,
+        ...(folder.settings ?? {}),
+        fixedFirstMaterialKind:
+          folder.settings?.fixedFirstMaterialKind ??
+          DEFAULT_MATERIAL_FOLDER_SETTINGS.fixedFirstMaterialKind,
+      },
+    }))
+    .filter((folder) => folder.videoPaths.length > 0);
+
+  if (normalized.length > 0) return normalized;
+  if (importedVideos.length === 0) return [];
+
+  const fallbackPath = getParentPath(importedVideos[0].filePath);
+  return [{
+    id: createMaterialFolderId(fallbackPath),
+    folderPath: fallbackPath,
+    folderName: folderNameFromPath(fallbackPath),
+    videoPaths: importedVideos.map((video) => video.filePath),
+    settings: cloneMaterialFolderSettings(DEFAULT_MATERIAL_FOLDER_SETTINGS),
+  }];
 }
 
 function validateSmartSplitSettings(minimum: number, maximum: number) {

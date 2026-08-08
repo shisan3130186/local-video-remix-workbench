@@ -2,6 +2,7 @@ import type { AiRemixSegment } from "../ai-remix/types";
 import type { NarratedSubtitlePosition, NarratedSubtitleSize } from "../tts/types";
 import type { RemixExportSettings, SegmentCategory } from "../../services/videoMixService";
 import type { ImportedVideo } from "../../types/videoProbe";
+import type { MaterialFolder } from "../materials/types";
 
 export interface SavedAiRemixSegment
   extends Omit<AiRemixSegment, "thumbnailUrl"> {}
@@ -15,6 +16,7 @@ export interface SavedAiRemixShot {
 
 export interface ProjectMaterialsSnapshot {
   importedVideos: ImportedVideo[];
+  materialFolders?: MaterialFolder[];
   selectedVideoPath: string | null;
   segmentDurationSeconds: number;
   splitOutputDirectory: string | null;

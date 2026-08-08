@@ -2,6 +2,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import type { AiRemixPlannedShot, AiRemixSegment } from "../ai-remix/types";
 import { sanitizeAiRemixContentAnalysis } from "../ai-remix/analysisCache";
 import { DEFAULT_WATERMARK_REMOVAL_SETTINGS, DEFAULT_WATERMARK_SETTINGS } from "../watermark";
+import { DEFAULT_MATERIAL_FOLDER_SETTINGS } from "../materials/types";
 import type { ProjectStateSnapshot } from "./types";
 
 export interface SanitizedProjectSnapshot {
@@ -97,6 +98,36 @@ export function sanitizeProjectSnapshot(
       ? project.materials.splitOutputDirectory
       : null;
 
+  const materialFolders = (project.materials.materialFolders ?? [])
+    .map((folder) => {
+      const videoPaths = folder.videoPaths.filter((path) => !missingFiles.has(path));
+      const fixedPath = folder.settings.fixedFirstMaterialPath;
+      const fixedMissing = fixedPath
+        ? folder.settings.fixedFirstMaterialKind === "folder"
+          ? missingDirectories.has(fixedPath)
+          : missingFiles.has(fixedPath)
+        : false;
+      return {
+        ...folder,
+        videoPaths,
+        settings: {
+          ...DEFAULT_MATERIAL_FOLDER_SETTINGS,
+          ...folder.settings,
+          ...(fixedMissing
+            ? {
+                fixedFirstMaterialEnabled: false,
+                fixedFirstMaterialPath: null,
+                fixedFirstMaterialKind: null,
+              }
+            : {}),
+        },
+      };
+    })
+    .filter(
+      (folder) =>
+        !missingDirectories.has(folder.folderPath) && folder.videoPaths.length > 0,
+    );
+
   const remixSettings = cloneJsonValue(project.remixSettings);
   remixSettings.watermarkSettings = {
     ...DEFAULT_WATERMARK_SETTINGS,
@@ -173,6 +204,7 @@ export function sanitizeProjectSnapshot(
     materials: {
       ...project.materials,
       importedVideos,
+      materialFolders,
       selectedVideoPath: importedVideos.some(
         (video) => video.filePath === project.materials.selectedVideoPath,
       )

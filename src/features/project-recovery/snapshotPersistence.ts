@@ -58,6 +58,12 @@ function cloneProjectState(project: ProjectStateSnapshot) {
 function collectFilePaths(project: ProjectStateSnapshot) {
   return uniquePaths([
     ...project.materials.importedVideos.map((video) => video.filePath),
+    ...(project.materials.materialFolders ?? []).flatMap((folder) => [
+      ...folder.videoPaths,
+      folder.settings.fixedFirstMaterialKind === "file"
+        ? folder.settings.fixedFirstMaterialPath
+        : null,
+    ]),
     ...project.materials.splitSegmentPaths,
     ...Object.values(project.materials.segmentThumbnailPaths),
     ...Object.values(project.materials.videoCoverPaths),
@@ -76,6 +82,12 @@ function collectDirectoryPaths(project: ProjectStateSnapshot) {
   return uniquePaths([
     project.outputDirectory,
     project.materials.splitOutputDirectory,
+    ...(project.materials.materialFolders ?? []).flatMap((folder) => [
+      folder.folderPath,
+      folder.settings.fixedFirstMaterialKind === "folder"
+        ? folder.settings.fixedFirstMaterialPath
+        : null,
+    ]),
   ]);
 }
 

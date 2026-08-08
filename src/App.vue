@@ -36,6 +36,8 @@ import {
 } from "./features/material-library";
 import type { MaterialLibraryState } from "./features/material-library";
 import { useMaterials } from "./features/materials";
+import type { FixedMaterialKind } from "./features/materials/types";
+import type { MaterialFolderSettings } from "./features/materials/types";
 import { AccessRequirementDialog, MembershipDialog, useMembership } from "./features/membership";
 import { PosterMakerWorkbench } from "./features/poster-maker";
 import {
@@ -310,6 +312,9 @@ const {
   isImporting,
   isSplitting,
   maximumSegmentSeconds,
+  materialFolders,
+  applyMaterialFolderSettingsToAll,
+  removeMaterialFolder,
   mergeSegmentThumbnailPaths,
   minimumSegmentSeconds,
   restoreMaterials,
@@ -331,6 +336,7 @@ const {
   splitSegmentPaths,
   splitMode,
   updateSegmentCategory,
+  updateMaterialFolderSettings,
   videoCoverUrls,
   videoCoverPaths,
 } = useMaterials({
@@ -630,6 +636,7 @@ const projectState = computed(
     outputDirectory: outputDirectory.value,
     materials: {
       importedVideos: importedVideos.value,
+      materialFolders: materialFolders.value,
       selectedVideoPath: selectedVideo.value?.filePath ?? null,
       segmentDurationSeconds: segmentDurationSeconds.value,
       splitOutputDirectory: splitOutputDirectory.value,
@@ -1337,6 +1344,31 @@ async function importVideoFolder() {
   }
 }
 
+async function selectFixedMaterial(folderId: string, kind: FixedMaterialKind) {
+  const selected = await open(
+    kind === "folder"
+      ? { directory: true, multiple: false }
+      : {
+          multiple: false,
+          filters: [{ name: "视频文件", extensions: ["mp4", "mov", "avi", "mkv"] }],
+        },
+  );
+  if (!selected || Array.isArray(selected)) return;
+
+  updateMaterialFolderSettings(folderId, {
+    fixedFirstMaterialEnabled: true,
+    fixedFirstMaterialPath: selected,
+    fixedFirstMaterialKind: kind,
+  });
+}
+
+function updateFolderSettings(
+  folderId: string,
+  patch: Partial<MaterialFolderSettings>,
+) {
+  updateMaterialFolderSettings(folderId, patch);
+}
+
 function selectVideo(video: ImportedVideo) {
   selectMaterialVideo(video);
   generationOutputDirectory.value = null;
@@ -1955,12 +1987,17 @@ onMounted(() => {
         :format-duration="formatDuration"
         :format-file-name="formatFileName"
         :match-mode="aiMatchMode"
+        :material-folders="materialFolders"
         @import-videos="importVideos"
         @import-video-folder="importVideoFolder"
         @clear-videos="clearImportedVideos"
         @select-video="selectVideo"
         @select-segment="selectSegment"
         @update-match-mode="aiMatchMode = $event"
+        @remove-material-folder="removeMaterialFolder"
+        @update-material-folder-settings="updateFolderSettings"
+        @select-fixed-material="selectFixedMaterial"
+        @apply-folder-settings-to-all="applyMaterialFolderSettingsToAll"
         @open-tool="activeTool = $event"
         @open-drawer="activeDrawer = $event"
       />
