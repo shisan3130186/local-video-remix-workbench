@@ -149,8 +149,8 @@ const aspectOptions: Array<{ value: CanvasAspectRatio; label: string }> = [
   { value: "square11", label: "1:1" },
 ];
 const fillOptions: Array<{ value: CanvasBackgroundMode; label: string }> = [
-  { value: "black", label: "适配" },
-  { value: "blur", label: "填充" },
+  { value: "black", label: "适应填充" },
+  { value: "blur", label: "模糊填充" },
 ];
 const positionOptions: Array<{ value: WatermarkPosition; label: string }> = [
   { value: "topLeft", label: "左上" },
@@ -223,7 +223,9 @@ const textBoxStyle = computed<CSSProperties>(() => ({
 }));
 
 const foregroundVideoStyle = computed<CSSProperties>(() => ({
-  transform: `scale(${Math.max(1, Math.min(1.2, effectScale.value))})`,
+  // 裁剪和文字编辑都只操作画布覆盖层，不改变原生 video 的几何尺寸。
+  // 这样添加文本时不会把素材画面、时间戳或控制条一起放大。
+  transform: isCropEditorOpen.value || isTextEditorOpen.value ? undefined : `scale(${Math.max(1, Math.min(1.2, effectScale.value))})`,
   filter: props.hslEnabled
     ? `hue-rotate(${props.hue}deg) saturate(${Math.max(0, props.saturation)}) brightness(${Math.max(0, props.brightness + 1)})`
     : undefined,
@@ -241,7 +243,7 @@ const dynamicZoomStyle = computed<CSSProperties>(() => {
 });
 
 const dynamicZoomClass = computed(() => {
-  if (!props.zoomEnabled || !isPreviewPlaying.value) return "";
+  if (isCropEditorOpen.value || isTextEditorOpen.value || !props.zoomEnabled || !isPreviewPlaying.value) return "";
   if (props.zoomMode === "pull") return "video-frame__foreground--zoom-pull";
   if (props.zoomMode === "random") return "video-frame__foreground--zoom-random";
   return "video-frame__foreground--zoom-push";
@@ -383,7 +385,7 @@ function startRemovalResize(event: PointerEvent, regionIndex: number, handle: Cr
 }
 
 function startTextDrag(event: PointerEvent) {
-  if (!previewCanvasRef.value || (event.target as HTMLElement).isContentEditable) return;
+  if (!watermarkAssetLayerRef.value || (event.target as HTMLElement).isContentEditable) return;
   event.preventDefault();
   pointerInteraction.value = {
     kind: "text-move",
@@ -396,7 +398,7 @@ function startTextDrag(event: PointerEvent) {
 }
 
 function startTextResize(event: PointerEvent, handle: CropHandle) {
-  if (!previewCanvasRef.value) return;
+  if (!watermarkAssetLayerRef.value) return;
   event.preventDefault();
   pointerInteraction.value = {
     kind: "text-resize",
@@ -454,7 +456,12 @@ function handlePointerMove(event: PointerEvent) {
   const canvasRect = previewCanvasRef.value?.getBoundingClientRect();
   const assetLayerRect = watermarkAssetLayerRef.value?.getBoundingClientRect();
   if (!interaction || !canvasRect) return;
-  const interactionRect = interaction.kind === "watermark-asset-move" || interaction.kind === "watermark-asset-resize" ? assetLayerRect : canvasRect;
+  const interactionRect = interaction.kind === "watermark-asset-move"
+    || interaction.kind === "watermark-asset-resize"
+    || interaction.kind === "text-move"
+    || interaction.kind === "text-resize"
+    ? assetLayerRect
+    : canvasRect;
   if (!interactionRect) return;
   const deltaX = ((event.clientX - interaction.startX) / interactionRect.width) * 100;
   const deltaY = ((event.clientY - interaction.startY) / interactionRect.height) * 100;
@@ -557,7 +564,7 @@ async function enableTextEditing() {
     watermarkEnabled.value = true;
     if (!watermarkText.value.trim()) {
       watermarkText.value = "这里是文字";
-      watermarkTextFontSize.value = 48;
+      watermarkTextFontSize.value = 40;
     }
     await nextTick();
     if (!textEditorRef.value) return;
@@ -713,9 +720,9 @@ function previewPause() {
         <output>{{ effectScale.toFixed(2) }}×</output>
         <button type="button" @click="effectScale = 1">重置</button>
       </div>
-      <div v-if="previewUrl" class="video-frame" :class="{ 'video-frame--portrait': isPortraitPreview }">
+      <div v-if="previewUrl" class="video-frame replica-stable-preview-frame" :class="{ 'video-frame--portrait': isPortraitPreview, 'is-text-editing': isTextEditorOpen, 'is-crop-editing': isCropEditorOpen }">
         <div ref="previewCanvasRef" class="video-frame__canvas" :class="{ 'video-frame__canvas--fit': canvasAspectRatio !== 'original', 'video-frame__canvas--blur': shouldShowBlurBackground }" :style="previewCanvasStyle">
-          <video v-if="shouldShowBlurBackground" ref="previewBackgroundVideoRef" class="video-frame__background" :src="previewUrl" muted playsinline preload="metadata" tabindex="-1" aria-hidden="true"></video>
+          <video v-if="shouldShowBlurBackground" ref="previewBackgroundVideoRef" class="video-frame__background" :src="previewUrl" muted autoplay loop playsinline preload="metadata" tabindex="-1" aria-hidden="true" @loadeddata="emit('syncPreviewBackground')"></video>
           <video :key="previewUrl" ref="previewVideoRef" class="video-frame__foreground" :class="dynamicZoomClass" :src="previewUrl" controls preload="metadata" :style="{ ...foregroundVideoStyle, ...dynamicZoomStyle }" @play="previewPlay" @pause="previewPause" @seeked="emit('syncPreviewBackground')" @timeupdate="emit('syncPreviewBackground')" @ratechange="emit('syncPreviewBackground')"></video>
           <div v-if="canvasAspectRatio !== 'original' && !isCropEditorOpen" class="replica-aspect-guide" aria-hidden="true">
             <span class="replica-aspect-guide__frame" :style="aspectGuideStyle"></span>
@@ -739,12 +746,12 @@ function previewPause() {
               <button v-for="handle in (['nw', 'ne', 'sw', 'se'] as CropHandle[])" :key="handle" class="replica-removal-region__handle" :class="`replica-removal-region__handle--${handle}`" type="button" :aria-label="`调整水印区域 ${regionIndex + 1} ${handle}`" @pointerdown.stop="startRemovalResize($event, regionIndex, handle)"></button>
             </div>
           </template>
-          <div v-if="isTextEditorOpen" class="replica-text-box" :style="textBoxStyle" aria-label="画面文字编辑框" @pointerdown="startTextDrag">
-            <span ref="textEditorRef" class="replica-text-box__content" contenteditable="true" role="textbox" aria-multiline="true" spellcheck="false" @input="updateWatermarkText" @pointerdown.stop></span>
-            <button v-for="handle in (['nw', 'ne', 'sw', 'se'] as CropHandle[])" :key="handle" class="replica-text-handle" :class="`replica-text-handle--${handle}`" type="button" :aria-label="`调整文字${handle}`" @pointerdown.stop="startTextResize($event, handle)"></button>
-            <button class="replica-text-box__close" type="button" aria-label="关闭文字编辑" @click.stop="isTextEditorOpen = false">×</button>
-          </div>
           <div ref="watermarkAssetLayerRef" class="video-frame__media-layer" :style="mediaLayerStyle">
+            <div v-if="isTextEditorOpen" class="replica-text-box" :style="textBoxStyle" aria-label="画面文字编辑框" @pointerdown="startTextDrag">
+              <span ref="textEditorRef" class="replica-text-box__content" contenteditable="true" role="textbox" aria-multiline="true" spellcheck="false" @input="updateWatermarkText" @pointerdown.stop></span>
+              <button v-for="handle in (['nw', 'ne', 'sw', 'se'] as CropHandle[])" :key="handle" class="replica-text-handle" :class="`replica-text-handle--${handle}`" type="button" :aria-label="`调整文字${handle}`" @pointerdown.stop="startTextResize($event, handle)"></button>
+              <button class="replica-text-box__close" type="button" aria-label="关闭文字编辑" @click.stop="isTextEditorOpen = false">×</button>
+            </div>
             <span v-if="!isTextEditorOpen && watermarkEnabled && watermarkKind === 'text' && watermarkText.trim()" class="replica-preview-watermark" :style="watermarkStyle">{{ watermarkText }}</span>
             <div v-if="watermarkEnabled && watermarkKind === 'image' && props.watermarkAssetPreviewUrl" class="replica-preview-asset-watermark" :class="watermarkAssetClass" :style="watermarkAssetStyle" aria-label="可调整的图片/视频水印" @pointerdown="startAssetWatermarkDrag">
               <video v-if="props.watermarkAssetType === 'video'" :src="props.watermarkAssetPreviewUrl" muted autoplay loop playsinline aria-hidden="true"></video>

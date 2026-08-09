@@ -151,7 +151,7 @@ const utilityModules: Array<{
         >
           <span class="replica-module-card__title-row">
             <strong>{{ module.title }}</strong>
-            <em :class="{ 'is-pending': !module.available }">{{ module.available ? "功能可用" : "即将接入" }}</em>
+            <em :class="{ 'is-available': module.available, 'is-pending': !module.available }">{{ module.available ? "功能可用" : "即将接入" }}</em>
           </span>
           <span class="replica-module-card__tags">
             <small v-for="tag in module.tags" :key="tag">{{ tag }}</small>

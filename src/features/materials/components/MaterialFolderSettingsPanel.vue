@@ -4,10 +4,11 @@ import type {
   FixedMaterialKind,
   MaterialFolderSettings,
 } from "../types";
+import ToolIcon from "../../../components/ToolIcon.vue";
 
 const props = defineProps<{
   settings: MaterialFolderSettings;
-  mode?: "ai" | "batch";
+  mode?: "ai" | "batch" | "category";
   disabled?: boolean;
   applyToAllDisabled?: boolean;
 }>();
@@ -47,7 +48,7 @@ function updateSettingNumber(key: "clipMinSeconds" | "clipMaxSeconds" | "materia
         </div>
       </div>
 
-      <div class="replica-folder-setting-row" v-else>
+      <div class="replica-folder-setting-row" v-else-if="props.mode === 'ai'">
         <span>混剪模式</span>
         <div class="replica-folder-segmented">
           <button type="button" :class="{ 'is-active': settings.videoMode === 'script' }" :disabled="disabled" @click="emit('update', { videoMode: 'script' })">文案模式</button>
@@ -55,12 +56,12 @@ function updateSettingNumber(key: "clipMinSeconds" | "clipMaxSeconds" | "materia
         </div>
       </div>
 
-      <template v-if="props.mode === 'batch' && settings.videoMode === 'custom'">
+      <template v-if="(props.mode === 'batch' && settings.videoMode === 'custom') || props.mode === 'category'">
         <div class="replica-folder-setting-row replica-folder-setting-row--range-inputs">
           <span>素材截取范围</span>
           <span class="replica-number-range"><input :value="settings.clipMinSeconds" type="number" min="0" @input="updateSettingNumber('clipMinSeconds', $event)" /><i>秒 -</i><input :value="settings.clipMaxSeconds" type="number" min="0" @input="updateSettingNumber('clipMaxSeconds', $event)" /><i>秒</i></span>
         </div>
-        <label class="replica-folder-setting-row replica-folder-setting-row--input">
+        <label v-if="props.mode === 'batch'" class="replica-folder-setting-row replica-folder-setting-row--input">
           <span>使用素材数量</span>
           <span class="replica-number-field"><input :value="settings.materialCount" type="number" min="1" max="999" @input="updateSettingNumber('materialCount', $event)" /><em>个</em></span>
         </label>
@@ -77,22 +78,22 @@ function updateSettingNumber(key: "clipMinSeconds" | "clipMaxSeconds" | "materia
         </div>
       </template>
 
-      <div class="replica-folder-setting-row" v-if="props.mode !== 'batch' || settings.videoMode !== 'custom'">
+      <div class="replica-folder-setting-row" v-if="props.mode === 'ai' || (props.mode === 'batch' && settings.videoMode !== 'custom')">
         <span>素材抽取方式</span>
         <b>{{ props.mode === 'batch' ? '由 AI 根据文案自动匹配' : '由模型自动匹配' }}</b>
       </div>
 
-      <div class="replica-folder-setting-row" v-if="props.mode !== 'batch' || settings.videoMode !== 'custom'">
+      <div class="replica-folder-setting-row" v-if="props.mode === 'ai' || (props.mode === 'batch' && settings.videoMode !== 'custom')">
         <span>使用素材数量</span>
         <b>由模型自动计算</b>
       </div>
 
-      <label class="replica-folder-setting-row replica-folder-setting-row--input" v-if="props.mode !== 'batch' || settings.videoMode !== 'custom'">
+      <label class="replica-folder-setting-row replica-folder-setting-row--input" v-if="props.mode === 'ai' || (props.mode === 'batch' && settings.videoMode !== 'custom')">
         <span>每个文案裂变数量</span>
         <span class="replica-number-field"><input :value="settings.variantCount" type="number" min="1" max="10" step="1" :disabled="disabled" @input="updateNumber" /><em>个</em></span>
       </label>
 
-      <div class="replica-folder-setting-row">
+      <div v-if="props.mode !== 'category'" class="replica-folder-setting-row">
         <span>允许素材重复</span>
         <div class="replica-folder-segmented replica-folder-segmented--compact">
           <button type="button" :class="{ 'is-active': settings.allowMaterialRepeat }" :disabled="disabled" @click="emit('update', { allowMaterialRepeat: true })">允许</button>
@@ -108,7 +109,7 @@ function updateSettingNumber(key: "clipMinSeconds" | "clipMaxSeconds" | "materia
         </div>
       </div>
 
-      <div class="replica-folder-fixed-material">
+      <div v-if="props.mode !== 'category'" class="replica-folder-fixed-material">
         <div class="replica-folder-setting-row">
           <span>固定首素材</span>
           <div class="replica-folder-segmented replica-folder-segmented--compact">
@@ -121,8 +122,8 @@ function updateSettingNumber(key: "clipMinSeconds" | "clipMaxSeconds" | "materia
           <small v-if="settings.fixedFirstMaterialKind">{{ settings.fixedFirstMaterialKind === 'file' ? '文件' : '文件夹' }}</small>
         </div>
         <div class="replica-fixed-material-actions">
-          <button type="button" :disabled="disabled" @click="emit('selectFixedMaterial', 'file')">▱ 选择文件</button>
-          <button type="button" :disabled="disabled" @click="emit('selectFixedMaterial', 'folder')">□ 选择文件夹</button>
+           <button type="button" :disabled="disabled" @click="emit('selectFixedMaterial', 'file')"><ToolIcon name="file" />选择文件</button>
+           <button type="button" :disabled="disabled" @click="emit('selectFixedMaterial', 'folder')"><ToolIcon name="folder" />选择文件夹</button>
         </div>
         <div class="replica-folder-setting-row">
           <span>固定方式</span>

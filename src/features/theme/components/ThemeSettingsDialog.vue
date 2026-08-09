@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { ResolvedTheme, ThemePreference } from "../useTheme";
 
 const props = defineProps<{
@@ -21,10 +21,19 @@ const themeOptions: Array<{
   label: string;
   description: string;
 }> = [
-  { value: "system", label: "跟随系统", description: "自动跟随电脑的外观设置" },
-  { value: "light", label: "浅色", description: "适合明亮环境与白天使用" },
-  { value: "dark", label: "深色", description: "降低眩光，适合长时间剪辑" },
+  { value: "system", label: "跟随系统", description: "自动匹配电脑的明暗外观" },
+  { value: "pearl", label: "珍珠雾白", description: "通透、柔和，适合长时间工作" },
+  { value: "sand", label: "暖砂晨光", description: "低对比暖白，减轻视觉紧张" },
+  { value: "mist", label: "冰雾银蓝", description: "克制冷白，信息层级更清晰" },
+  { value: "night", label: "夜航墨色", description: "夜间使用的低亮度深色界面" },
 ];
+
+const activeThemeLabel = computed(() => {
+  if (props.preference === "system") {
+    return props.resolvedTheme === "dark" ? "跟随系统 · 夜航墨色" : "跟随系统 · 珍珠雾白";
+  }
+  return themeOptions.find((option) => option.value === props.preference)?.label ?? "珍珠雾白";
+});
 
 function closeDialog() {
   emit("close");
@@ -88,7 +97,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
           <div class="theme-dialog__body">
             <div class="theme-dialog__section-heading">
               <strong>主题</strong>
-              <span>当前生效：{{ resolvedTheme === "dark" ? "深色" : "浅色" }}</span>
+              <span>当前生效：{{ activeThemeLabel }}</span>
             </div>
 
             <div class="theme-option-grid" role="radiogroup" aria-label="主题模式">

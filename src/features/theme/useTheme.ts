@@ -1,21 +1,23 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
-export type ThemePreference = "system" | "light" | "dark";
+export type ThemePreference = "system" | "pearl" | "sand" | "mist" | "night";
 export type ResolvedTheme = "light" | "dark";
 
 const THEME_STORAGE_KEY = "smartcut:theme-preference";
 const SYSTEM_THEME_QUERY = "(prefers-color-scheme: dark)";
 
 function isThemePreference(value: string | null): value is ThemePreference {
-  return value === "system" || value === "light" || value === "dark";
+  return value === "system" || value === "pearl" || value === "sand" || value === "mist" || value === "night";
 }
 
 function readStoredPreference(): ThemePreference {
   try {
     const storedPreference = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return isThemePreference(storedPreference) ? storedPreference : "system";
+    // Keep existing installations usable after replacing the old two-theme selector.
+    if (storedPreference === "light" || storedPreference === "dark") return "pearl";
+    return isThemePreference(storedPreference) ? storedPreference : "pearl";
   } catch {
-    return "system";
+    return "pearl";
   }
 }
 
@@ -27,12 +29,24 @@ export function useTheme() {
   const preference = ref<ThemePreference>(readStoredPreference());
   const systemTheme = ref<ResolvedTheme>(readSystemTheme());
   const resolvedTheme = computed<ResolvedTheme>(() =>
-    preference.value === "system" ? systemTheme.value : preference.value,
+    preference.value === "system"
+      ? systemTheme.value
+      : preference.value === "night"
+        ? "dark"
+        : "light",
+  );
+  const activeVariant = computed<Exclude<ThemePreference, "system">>(() =>
+    preference.value === "system"
+      ? systemTheme.value === "dark"
+        ? "night"
+        : "pearl"
+      : preference.value,
   );
   let systemThemeMedia: MediaQueryList | null = null;
 
-  function applyTheme(theme: ResolvedTheme) {
+  function applyTheme(theme: ResolvedTheme, variant: Exclude<ThemePreference, "system">) {
     document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.themeVariant = variant;
     document.documentElement.style.colorScheme = theme;
   }
 
@@ -45,9 +59,9 @@ export function useTheme() {
   }
 
   watch(
-    resolvedTheme,
-    (nextTheme) => {
-      applyTheme(nextTheme);
+    [resolvedTheme, activeVariant],
+    ([nextTheme, nextVariant]) => {
+      applyTheme(nextTheme, nextVariant);
     },
     { immediate: true },
   );
@@ -73,6 +87,7 @@ export function useTheme() {
   return {
     preference,
     resolvedTheme,
+    activeVariant,
     setThemePreference,
   };
 }

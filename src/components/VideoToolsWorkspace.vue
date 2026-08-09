@@ -9,8 +9,10 @@ import type { VideoProcessingState } from "../types/workbench";
 import type { OutputFrameRate, OutputQuality, OutputResolution, VideoEncoder } from "../types/outputSettings";
 import ToolIcon from "./ToolIcon.vue";
 import type { ToolIconName } from "./ToolIcon.vue";
+import BatchPreviewCanvas from "./BatchPreviewCanvas.vue";
 import StickerWatermarkPanel from "../features/video-effects/components/StickerWatermarkPanel.vue";
 import type { PipPosition, SubtitlePosition, SubtitleSize } from "../services/videoMixService";
+import type { CanvasAspectRatio, CanvasBackgroundMode } from "../services/videoMixService";
 import type { WatermarkAssetType, WatermarkRemovalSettings, WatermarkSettings, WatermarkTrajectory } from "../features/watermark/types";
 
 const props = defineProps<{
@@ -107,15 +109,12 @@ const settingsTab = ref<"effects" | "stickers">("effects");
 const configurationMode = ref<"manual" | "smart">("smart");
 const enabledEffectKeys = ref<ToolKey[]>([]);
 const smartMatchMode = defineModel<AiRemixMatchMode>("smartMatchMode", { required: true });
-const previewOrientationClass = computed(() => {
-  const width = props.selectedVideo?.width ?? 0;
-  const height = props.selectedVideo?.height ?? 0;
-  return width > height ? "is-landscape" : "is-portrait";
-});
 const outputResolution = defineModel<OutputResolution>("outputResolution", { required: true });
 const outputFrameRate = defineModel<OutputFrameRate>("outputFrameRate", { required: true });
 const outputQuality = defineModel<OutputQuality>("outputQuality", { required: true });
 const outputEncoder = defineModel<VideoEncoder>("outputEncoder", { required: true });
+const canvasAspectRatio = defineModel<CanvasAspectRatio>("canvasAspectRatio", { required: true });
+const canvasBackgroundMode = defineModel<CanvasBackgroundMode>("canvasBackgroundMode", { required: true });
 const guideOpen = ref(typeof window === "undefined" || window.localStorage.getItem("video-tools-guide-dismissed") !== "1");
 const guideDontRemind = ref(false);
 const outputFormat = ref<"mp4" | "mov" | "webm">("mp4");
@@ -251,28 +250,13 @@ function processingLabel(video: ImportedVideo) {
     </aside>
 
     <main class="replica-tools-center">
-      <section class="replica-tools-preview">
-        <header class="replica-tools-preview__header">
-          <button class="replica-guide-trigger" type="button" @click="guideOpen = true"><ToolIcon name="info" />使用指引</button>
-          <span>{{ selectedVideo?.fileName ?? '' }}</span>
-          <div class="replica-preview-actions">
-            <button type="button" @click="emit('openTool', 'canvas')">视频裁剪</button>
-            <button type="button" @click="emit('openTool', 'watermark')">添加文本</button>
-          </div>
-        </header>
-        <div v-if="previewUrl" class="replica-tools-screen">
-          <video
-            :src="previewUrl"
-            :class="previewOrientationClass"
-            :width="selectedVideo?.width ?? undefined"
-            :height="selectedVideo?.height ?? undefined"
-            controls
-            playsinline
-            preload="metadata"
-          ></video>
-        </div>
-        <div v-else class="replica-tools-screen replica-tools-screen--empty"><span><ToolIcon name="video" /></span><strong>导入视频后在此预览</strong><small>选择左侧素材即可查看画面</small></div>
-      </section>
+      <BatchPreviewCanvas
+        v-model:canvas-aspect-ratio="canvasAspectRatio"
+        v-model:canvas-background-mode="canvasBackgroundMode"
+        :preview-url="previewUrl"
+        :selected-video="selectedVideo"
+        @open-guide="guideOpen = true"
+      />
 
       <section v-if="view === 'effects'" class="replica-split-settings">
         <header><strong>视频分割：</strong><div class="replica-split-modes"><button type="button" :class="{ 'is-active': splitMode === 'disabled' }" @click="splitMode = 'disabled'">不启用</button><button type="button" :class="{ 'is-active': splitMode === 'scene' }" @click="splitMode = 'scene'">AI智能分割</button><button type="button" :class="{ 'is-active': splitMode === 'fixed' }" @click="splitMode = 'fixed'">自定义间隔</button></div><span class="replica-split-output-label">分段输出：</span><div class="replica-split-output"><button type="button" :class="{ 'is-active': outputGrouping === 'file' }" @click="outputGrouping = 'file'">文件名分类</button><button type="button" :class="{ 'is-active': outputGrouping === 'folder' }" @click="outputGrouping = 'folder'">文件夹分类</button><button type="button" :class="{ 'is-active': outputGrouping === 'none' }" @click="outputGrouping = 'none'">不分类</button></div></header>
@@ -289,7 +273,7 @@ function processingLabel(video: ImportedVideo) {
       <section v-else class="replica-extract-results">
         <header><strong>提炼片段</strong><span>{{ splitSegmentPaths.length }} 个</span></header>
         <div v-if="splitSegmentPaths.length === 0" class="replica-category-empty"><strong>还没有内容片段</strong><small>先切片，再用本地或云端模型分析片段内容</small><button type="button" :disabled="!selectedVideo || isProcessing" @click="emit('splitSelectedVideo')">生成内容切片</button></div>
-        <div v-else class="replica-extract-grid"><button v-for="segmentPath in splitSegmentPaths" :key="segmentPath" type="button" :class="{ 'is-active': selectedSegmentPath === segmentPath }" @click="emit('selectSegment', segmentPath)"><img v-if="segmentThumbnailUrls[segmentPath]" :src="segmentThumbnailUrls[segmentPath]" alt="" /><span v-else>▶</span><b>{{ formatFileName(segmentPath) }}</b><small v-if="preparedSegmentByPath.get(segmentPath)?.contentAnalysis">{{ preparedSegmentByPath.get(segmentPath)?.contentAnalysis?.theme }}</small><small v-else>等待内容分析</small></button></div>
+        <div v-else class="replica-extract-grid"><button v-for="segmentPath in splitSegmentPaths" :key="segmentPath" type="button" :class="{ 'is-active': selectedSegmentPath === segmentPath }" @click="emit('selectSegment', segmentPath)"><img v-if="segmentThumbnailUrls[segmentPath]" :src="segmentThumbnailUrls[segmentPath]" alt="" /><span v-else><ToolIcon name="video" /></span><b>{{ formatFileName(segmentPath) }}</b><small v-if="preparedSegmentByPath.get(segmentPath)?.contentAnalysis">{{ preparedSegmentByPath.get(segmentPath)?.contentAnalysis?.theme }}</small><small v-else>等待内容分析</small></button></div>
       </section>
     </main>
 

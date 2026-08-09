@@ -317,9 +317,9 @@
 .voice-selector-card > p {
   margin: 12px 0 0;
   padding: 10px 12px;
-  background: rgba(10, 207, 131, 0.06);
-  border-left: 3px solid var(--vl-accent);
+  border: 1px solid var(--glass-border-soft);
   border-radius: 4px;
+  background: var(--glass-control);
   font-size: 12px;
   color: var(--vl-text-dim);
   line-height: 1.5;
@@ -1052,8 +1052,8 @@
   --theme-text: #e6e8e9;
   --theme-text-soft: #b9bdc0;
   --theme-muted: #8d9296;
-  --theme-accent: #39c8b5;
-  --theme-accent-soft: rgba(57, 200, 181, 0.16);
+  --theme-accent: #d1d1d6;
+  --theme-accent-soft: rgba(255, 255, 255, 0.12);
   --theme-shadow: rgba(0, 0, 0, 0.46);
 }
 
@@ -1068,7 +1068,7 @@
   --theme-text: #1f2933;
   --theme-text-soft: #4d5965;
   --theme-muted: #6d7883;
-  --theme-accent: #168f82;
-  --theme-accent-soft: rgba(22, 143, 130, 0.11);
+  --theme-accent: #636366;
+  --theme-accent-soft: rgba(118, 118, 128, 0.14);
   --theme-shadow: rgba(72, 84, 96, 0.18);
 }

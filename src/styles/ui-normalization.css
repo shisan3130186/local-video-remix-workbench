@@ -18,8 +18,8 @@
   --ui-panel: #1c2022;
   --ui-panel-raised: #22282a;
   --ui-panel-hover: #283033;
-  --ui-accent: #41c8b6;
-  --ui-accent-soft: rgba(65, 200, 182, 0.13);
+  --ui-accent: #d1d1d6;
+  --ui-accent-soft: rgba(255, 255, 255, 0.12);
 }
 
 :root[data-theme="light"] {
@@ -32,8 +32,8 @@
   --ui-panel: #ffffff;
   --ui-panel-raised: #f3f7f7;
   --ui-panel-hover: #e9f1f0;
-  --ui-accent: #128f81;
-  --ui-accent-soft: rgba(18, 143, 129, 0.10);
+  --ui-accent: #636366;
+  --ui-accent-soft: rgba(118, 118, 128, 0.14);
 }
 
 body,
@@ -856,6 +856,318 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
   .replica-module-card,
   .replica-tools-file-list button {
+    transition: none;
+  }
+}
+
+/*
+ * 稳定预览与桌面工作台收口层
+ * 这部分只统一视觉和画面几何，不改变视频处理参数或后端链路。
+ * 方向：保留竞品三栏密度，采用 Apple 风格的清晰层级、克制边框和连续交互反馈。
+ */
+:root {
+  color-scheme: dark;
+  --ui-focus-ring: 0 0 0 2px color-mix(in srgb, var(--ui-accent) 34%, transparent);
+  --ui-control-height-sm: 28px;
+  --ui-control-height-md: 32px;
+  --ui-transition: 160ms ease;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+.app-shell:not(.app-shell--home) button,
+.app-shell:not(.app-shell--home) input,
+.app-shell:not(.app-shell--home) select,
+.app-shell:not(.app-shell--home) textarea {
+  transition: border-color var(--ui-transition), background-color var(--ui-transition), color var(--ui-transition), box-shadow var(--ui-transition), transform var(--ui-transition), opacity var(--ui-transition);
+}
+
+.app-shell:not(.app-shell--home) button:active:not(:disabled) {
+  transform: translateY(1px) scale(.985);
+}
+
+.app-shell:not(.app-shell--home) button:focus-visible,
+.app-shell:not(.app-shell--home) input:focus-visible,
+.app-shell:not(.app-shell--home) select:focus-visible,
+.app-shell:not(.app-shell--home) textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.app-shell:not(.app-shell--home) button:disabled,
+.app-shell:not(.app-shell--home) input:disabled,
+.app-shell:not(.app-shell--home) select:disabled,
+.app-shell:not(.app-shell--home) textarea:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}
+
+.app-shell:not(.app-shell--home) .panel,
+.app-shell:not(.app-shell--home) .replica-video-preview,
+.app-shell:not(.app-shell--home) .replica-script-workspace,
+.app-shell:not(.app-shell--home) .replica-tools-source,
+.app-shell:not(.app-shell--home) .replica-tools-preview,
+.app-shell:not(.app-shell--home) .replica-tools-settings,
+.app-shell:not(.app-shell--home) .replica-batch-source,
+.app-shell:not(.app-shell--home) .replica-batch-preview,
+.app-shell:not(.app-shell--home) .replica-batch-content,
+.app-shell:not(.app-shell--home) .replica-split-settings,
+.app-shell:not(.app-shell--home) .replica-tools-output-bar {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .025);
+}
+
+/* AI 预览：外框永远占满中栏，portrait 类不再偷偷改成另一种比例。 */
+.replica-ai-stage .replica-video-preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.replica-ai-stage .replica-stable-preview-frame,
+.replica-ai-stage .replica-stable-preview-frame.video-frame--portrait {
+  flex: 1 1 0;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: auto;
+  align-self: stretch;
+  justify-self: stretch;
+}
+
+.replica-ai-stage .replica-stable-preview-frame .video-frame__canvas {
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid rgba(255, 255, 255, .07);
+  border-radius: 5px;
+  background: #0b0e10;
+}
+
+.replica-ai-stage .replica-stable-preview-frame .video-frame__foreground {
+  transform-origin: center;
+}
+
+/* 文字和裁剪都是覆盖层，不能触发视频本体的 scale 或动态动画。 */
+.replica-ai-stage .replica-stable-preview-frame.is-text-editing .video-frame__foreground,
+.replica-ai-stage .replica-stable-preview-frame.is-crop-editing .video-frame__foreground,
+.replica-batch-canvas.is-text-editing .replica-batch-canvas__foreground,
+.replica-batch-canvas.is-crop-editing .replica-batch-canvas__foreground {
+  transform: none !important;
+  animation: none !important;
+}
+
+.replica-ai-stage .replica-stable-preview-frame.is-text-editing .video-frame__canvas,
+.replica-ai-stage .replica-stable-preview-frame.is-crop-editing .video-frame__canvas {
+  contain: layout paint;
+}
+
+/* 批量混剪与视频效果处理共用同一套稳定舞台。 */
+.replica-batch-preview--canvas .replica-batch-screen--canvas {
+  padding: 8px;
+  background: #0b0e10;
+}
+
+.replica-batch-preview--canvas .replica-batch-canvas {
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  background: #0b0e10;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .07);
+}
+
+.replica-batch-preview--canvas .replica-batch-media-frame {
+  isolation: isolate;
+}
+
+.replica-batch-preview--canvas .replica-batch-canvas__foreground {
+  transform-origin: center;
+}
+
+.replica-batch-preview--canvas .replica-batch-canvas__background {
+  filter: blur(18px);
+  opacity: .64;
+}
+
+.replica-batch-preview--canvas .replica-batch-aspect-guide {
+  border-color: rgba(96, 233, 214, .88);
+  border-radius: 4px;
+}
+
+/* 控件层级：主操作清楚、次要操作安静，避免每个按钮都抢焦点。 */
+.replica-canvas-controls,
+.replica-control-group,
+.replica-inline-editor,
+.replica-preview-actions,
+.replica-preview-tools {
+  min-width: 0;
+}
+
+.replica-control-group > span,
+.replica-inline-editor > label,
+.replica-canvas-controls > .replica-inline-tool {
+  color: var(--ui-text-muted);
+  font-weight: 500;
+}
+
+.replica-control-group button,
+.replica-inline-tool,
+.replica-guide-trigger,
+.replica-preview-actions button,
+.replica-preview-tools button {
+  border-radius: var(--ui-radius-sm);
+}
+
+.replica-control-group button.is-active,
+.replica-inline-tool.is-active,
+.replica-preview-actions button.is-active {
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 62%, var(--ui-border));
+  background: var(--ui-accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .035);
+}
+
+.replica-effect-list button,
+.replica-material-folder,
+.replica-material-video,
+.replica-tools-file-list button,
+.replica-extract-grid > button {
+  transition: border-color var(--ui-transition), background-color var(--ui-transition), box-shadow var(--ui-transition), transform var(--ui-transition);
+}
+
+.replica-effect-list button:hover:not(:disabled),
+.replica-material-folder:hover,
+.replica-material-video:hover,
+.replica-tools-file-list button:hover,
+.replica-extract-grid > button:hover {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .035);
+}
+
+.replica-material-folder__settings {
+  display: grid;
+  place-items: center;
+}
+
+.replica-material-folder__settings .tool-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.replica-material-folder__caret {
+  display: inline-grid;
+  place-items: center;
+}
+
+.replica-material-folder__caret .tool-icon {
+  width: 12px;
+  height: 12px;
+  transition: transform var(--ui-transition);
+}
+
+.replica-material-folder__caret.is-open .tool-icon {
+  transform: rotate(90deg);
+}
+
+.replica-material-folder__icon .tool-icon,
+.replica-source-empty > span .tool-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.replica-source-toolbar button,
+.replica-batch-source .replica-source-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.replica-source-toolbar button .tool-icon,
+.replica-fixed-material-actions button .tool-icon,
+.replica-bgm-file-row button .tool-icon,
+.replica-guide-trigger .tool-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* 文本输入统一使用明确的标签、克制的背景和高可读焦点。 */
+.app-shell:not(.app-shell--home) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.app-shell:not(.app-shell--home) select,
+.app-shell:not(.app-shell--home) textarea {
+  border-color: var(--ui-border);
+  color: var(--ui-text);
+  background: var(--ui-panel-raised);
+}
+
+.app-shell:not(.app-shell--home) input::placeholder,
+.app-shell:not(.app-shell--home) textarea::placeholder {
+  color: var(--ui-text-muted);
+  opacity: 1;
+}
+
+.app-shell:not(.app-shell--home) input:hover:not(:disabled),
+.app-shell:not(.app-shell--home) select:hover:not(:disabled),
+.app-shell:not(.app-shell--home) textarea:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ui-border) 65%, var(--ui-text-soft));
+}
+
+/* 进度条和滚动条保持轻量，不把工作区切成很多高亮色块。 */
+.task-progress,
+.replica-video-processing-track {
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-border) 72%, transparent);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-text-muted) 42%, transparent);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ui-text-soft) 64%, transparent);
+  background-clip: padding-box;
+}
+
+@media (max-width: 1280px) {
+  .replica-ai-stage .replica-pane-heading,
+  .replica-batch-preview--canvas .replica-batch-canvas-toolbar {
+    padding-inline: 8px;
+  }
+
+  .replica-ai-stage .replica-canvas-controls,
+  .replica-batch-preview--canvas .replica-canvas-controls {
+    gap: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell:not(.app-shell--home) button,
+  .app-shell:not(.app-shell--home) input,
+  .app-shell:not(.app-shell--home) select,
+  .app-shell:not(.app-shell--home) textarea,
+  .replica-effect-list button,
+  .replica-material-folder,
+  .replica-material-video,
+  .replica-tools-file-list button,
+  .replica-extract-grid > button {
     transition: none;
   }
 }

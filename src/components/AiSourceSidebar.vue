@@ -4,6 +4,7 @@ import type { ImportedVideo } from "../types/videoProbe";
 import type { AiRemixMatchMode } from "../features/ai-remix";
 import MaterialFolderSettingsPanel from "../features/materials/components/MaterialFolderSettingsPanel.vue";
 import type { FixedMaterialKind, MaterialFolder, MaterialFolderSettings } from "../features/materials/types";
+import ToolIcon from "./ToolIcon.vue";
 
 const props = defineProps<{
   importedVideos: ImportedVideo[];
@@ -59,12 +60,12 @@ function removeFolder(folder: MaterialFolder) {
 <template>
   <aside class="replica-source-sidebar" aria-label="素材文件夹">
     <div class="replica-source-toolbar">
-      <button class="is-primary" type="button" @click="emit('importVideoFolder')">▱ 导入文件夹</button>
-      <button type="button" :disabled="importedVideos.length === 0" aria-label="清空列表" @click="emit('clearVideos')">⌫</button>
+       <button class="is-primary" type="button" @click="emit('importVideoFolder')"><ToolIcon name="folder" />导入文件夹</button>
+       <button type="button" :disabled="importedVideos.length === 0" aria-label="清空列表" @click="emit('clearVideos')"><ToolIcon name="trash" /></button>
     </div>
 
     <div v-if="materialFolders.length === 0" class="replica-source-empty">
-      <span aria-hidden="true">▱</span>
+       <span aria-hidden="true"><ToolIcon name="folder" /></span>
       <strong>暂无文件夹</strong>
       <small>点击导入按钮或拖拽添加素材文件夹</small>
     </div>
@@ -73,8 +74,8 @@ function removeFolder(folder: MaterialFolder) {
       <article v-for="folder in materialFolders" :key="folder.id" class="replica-material-folder">
         <header class="replica-material-folder__header">
           <button class="replica-material-folder__toggle" type="button" @click="toggleFolder(folder.id)">
-            <span class="replica-material-folder__caret" :class="{ 'is-open': expandedFolderIds.includes(folder.id) }">⌄</span>
-            <span class="replica-material-folder__icon" aria-hidden="true">□</span>
+             <span class="replica-material-folder__caret" :class="{ 'is-open': expandedFolderIds.includes(folder.id) }"><ToolIcon name="chevron" /></span>
+             <span class="replica-material-folder__icon" aria-hidden="true"><ToolIcon name="folder" /></span>
             <strong :title="folder.folderPath">{{ folder.folderName }}</strong>
             <small>{{ folderVideos(folder).length }}</small>
           </button>
@@ -85,8 +86,8 @@ function removeFolder(folder: MaterialFolder) {
               title="文件夹详细设置"
               :class="{ 'is-active': settingsFolderId === folder.id }"
               @click.stop="openFolderSettings(folder.id)"
-            >⚙</button>
-            <button type="button" aria-label="移除素材文件夹" title="移除文件夹" @click.stop="removeFolder(folder)">⌫</button>
+            ><ToolIcon name="settings" /></button>
+             <button type="button" aria-label="移除素材文件夹" title="移除文件夹" @click.stop="removeFolder(folder)"><ToolIcon name="trash" /></button>
           </div>
         </header>
 
@@ -100,7 +101,7 @@ function removeFolder(folder: MaterialFolder) {
             @click="emit('selectVideo', video)"
           >
             <img v-if="videoCoverUrls[video.id]" :src="videoCoverUrls[video.id]" alt="" />
-            <span v-else aria-hidden="true">▶</span>
+             <span v-else aria-hidden="true"><ToolIcon name="video" /></span>
             <b>{{ video.fileName }}</b>
             <small>{{ formatDuration(video.durationSeconds) }}</small>
           </button>
@@ -126,7 +127,7 @@ function removeFolder(folder: MaterialFolder) {
           @click="emit('selectSegment', segmentPath)"
         >
           <img v-if="segmentThumbnailUrls[segmentPath]" :src="segmentThumbnailUrls[segmentPath]" alt="" />
-          <span v-else aria-hidden="true">▶</span>
+           <span v-else aria-hidden="true"><ToolIcon name="video" /></span>
           <b>{{ formatFileName(segmentPath) }}</b>
         </button>
       </div>

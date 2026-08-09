@@ -264,8 +264,8 @@ function statusClass(snapshot: TaskSnapshot) {
 }
 
 .task-queue-panel__chip--running {
-  background: var(--theme-accent-soft, rgba(57, 200, 181, 0.16));
-  color: var(--theme-accent, #39c8b5);
+  background: var(--theme-accent-soft, rgba(255, 255, 255, 0.12));
+  color: var(--theme-accent, #d1d1d6);
 }
 
 .task-queue-panel__chip--cancelling {
@@ -298,8 +298,8 @@ function statusClass(snapshot: TaskSnapshot) {
 .task-queue-panel__progress span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--theme-accent, #39c8b5), #5ed1d1);
-  transition: width 0.3s ease;
+  background: linear-gradient(90deg, #8e8e93, #e5e5ea);
+  transition: none;
 }
 
 .task-queue-panel__active-stage {

@@ -6,6 +6,7 @@ import { findTtsVoice, TTS_LANGUAGE_LABELS, TTS_SCENE_LABELS } from "../features
 import VisualProcessingPanel from "../features/video-effects/components/VisualProcessingPanel.vue";
 import type { DynamicZoomMode } from "../services/videoMixService";
 import type { WatermarkAssetType, WatermarkTrajectory } from "../features/watermark/types";
+import ToolIcon from "./ToolIcon.vue";
 
 const props = defineProps<{
   workspaceMode: Exclude<WorkspaceMode, "tools">;
@@ -119,7 +120,7 @@ watch(() => selectedVoice.value?.id ?? ttsSpeaker.value, () => {
         <header><strong>背景音乐</strong><label class="replica-switch"><input v-model="bgmEnabled" type="checkbox" /><span></span></label></header>
         <div class="replica-bgm-file-row">
           <span :title="props.bgmAudioFilePath ?? '未选择文件'">{{ bgmFileName }}</span>
-          <button type="button" :disabled="!bgmEnabled" aria-label="选择本地音乐" title="选择本地音乐" @click="emit('selectBgmAudioFile')">▱</button>
+           <button type="button" :disabled="!bgmEnabled" aria-label="选择本地音乐" title="选择本地音乐" @click="emit('selectBgmAudioFile')"><ToolIcon name="folder-open" /></button>
         </div>
         <label class="replica-range-row"><span>BGM音量</span><input v-model.number="bgmVolume" :disabled="!bgmEnabled" type="range" min="0" max="1" step="0.05" /><output>{{ Math.round(bgmVolume * 100) }}%</output></label>
       </section>
