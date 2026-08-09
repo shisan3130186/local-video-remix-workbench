@@ -7,6 +7,7 @@ import type {
 
 const props = defineProps<{
   settings: MaterialFolderSettings;
+  mode?: "ai" | "batch";
   disabled?: boolean;
   applyToAllDisabled?: boolean;
 }>();
@@ -27,12 +28,26 @@ function updateNumber(event: Event) {
   const value = Number((event.target as HTMLInputElement).value);
   emit("update", { variantCount: Number.isFinite(value) ? value : 1 });
 }
+
+function updateSettingNumber(key: "clipMinSeconds" | "clipMaxSeconds" | "materialCount" | "exportCount", event: Event) {
+  const value = Number((event.target as HTMLInputElement).value);
+  emit("update", { [key]: Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0 });
+}
 </script>
 
 <template>
   <section class="replica-folder-settings" aria-label="素材文件夹详细设置">
     <div class="replica-folder-settings__body">
-      <div class="replica-folder-setting-row">
+      <div class="replica-folder-setting-row" v-if="props.mode === 'batch'">
+        <span>混剪模式</span>
+        <div class="replica-folder-segmented">
+          <button type="button" :class="{ 'is-active': settings.videoMode === 'custom' }" :disabled="disabled" @click="emit('update', { videoMode: 'custom' })">自定义</button>
+          <button type="button" :class="{ 'is-active': settings.videoMode === 'script' }" :disabled="disabled" @click="emit('update', { videoMode: 'script' })">文案模式</button>
+          <button type="button" :class="{ 'is-active': settings.videoMode === 'audio' }" :disabled="disabled" @click="emit('update', { videoMode: 'audio' })">音频模式</button>
+        </div>
+      </div>
+
+      <div class="replica-folder-setting-row" v-else>
         <span>混剪模式</span>
         <div class="replica-folder-segmented">
           <button type="button" :class="{ 'is-active': settings.videoMode === 'script' }" :disabled="disabled" @click="emit('update', { videoMode: 'script' })">文案模式</button>
@@ -40,17 +55,39 @@ function updateNumber(event: Event) {
         </div>
       </div>
 
-      <div class="replica-folder-setting-row">
+      <template v-if="props.mode === 'batch' && settings.videoMode === 'custom'">
+        <div class="replica-folder-setting-row replica-folder-setting-row--range-inputs">
+          <span>素材截取范围</span>
+          <span class="replica-number-range"><input :value="settings.clipMinSeconds" type="number" min="0" @input="updateSettingNumber('clipMinSeconds', $event)" /><i>秒 -</i><input :value="settings.clipMaxSeconds" type="number" min="0" @input="updateSettingNumber('clipMaxSeconds', $event)" /><i>秒</i></span>
+        </div>
+        <label class="replica-folder-setting-row replica-folder-setting-row--input">
+          <span>使用素材数量</span>
+          <span class="replica-number-field"><input :value="settings.materialCount" type="number" min="1" max="999" @input="updateSettingNumber('materialCount', $event)" /><em>个</em></span>
+        </label>
+        <label class="replica-folder-setting-row replica-folder-setting-row--input">
+          <span>混剪导出数量</span>
+          <span class="replica-number-field"><input :value="settings.exportCount" type="number" min="1" max="999" @input="updateSettingNumber('exportCount', $event)" /><em>条</em></span>
+        </label>
+        <div class="replica-folder-setting-row">
+          <span>素材抽取方式</span>
+          <div class="replica-folder-segmented replica-folder-segmented--compact">
+            <button type="button" :class="{ 'is-active': settings.extractionOrder === 'random' }" :disabled="disabled" @click="emit('update', { extractionOrder: 'random' })">随机抽取</button>
+            <button type="button" :class="{ 'is-active': settings.extractionOrder === 'ordered' }" :disabled="disabled" @click="emit('update', { extractionOrder: 'ordered' })">顺序抽取</button>
+          </div>
+        </div>
+      </template>
+
+      <div class="replica-folder-setting-row" v-if="props.mode !== 'batch' || settings.videoMode !== 'custom'">
         <span>素材抽取方式</span>
-        <b>由模型自动匹配</b>
+        <b>{{ props.mode === 'batch' ? '由 AI 根据文案自动匹配' : '由模型自动匹配' }}</b>
       </div>
 
-      <div class="replica-folder-setting-row">
+      <div class="replica-folder-setting-row" v-if="props.mode !== 'batch' || settings.videoMode !== 'custom'">
         <span>使用素材数量</span>
         <b>由模型自动计算</b>
       </div>
 
-      <label class="replica-folder-setting-row replica-folder-setting-row--input">
+      <label class="replica-folder-setting-row replica-folder-setting-row--input" v-if="props.mode !== 'batch' || settings.videoMode !== 'custom'">
         <span>每个文案裂变数量</span>
         <span class="replica-number-field"><input :value="settings.variantCount" type="number" min="1" max="10" step="1" :disabled="disabled" @input="updateNumber" /><em>个</em></span>
       </label>

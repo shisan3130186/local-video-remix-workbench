@@ -8,7 +8,8 @@ export interface SmartSplitSettings {
   maximumSegmentSeconds: number;
 }
 
-export type MaterialFolderVideoMode = "script" | "audio";
+export type MaterialFolderVideoMode = "custom" | "script" | "audio";
+export type MaterialFolderExtractionOrder = "random" | "ordered";
 export type MaterialFolderOutputMode = "byScript" | "flat";
 export type FixedMaterialMode = "default" | "independentJoin";
 export type FixedMaterialKind = "file" | "folder";
@@ -17,6 +18,11 @@ export interface MaterialFolderSettings {
   videoMode: MaterialFolderVideoMode;
   extractionMode: "auto";
   materialCountMode: "auto";
+  clipMinSeconds: number;
+  clipMaxSeconds: number;
+  materialCount: number;
+  exportCount: number;
+  extractionOrder: MaterialFolderExtractionOrder;
   variantCount: number;
   allowMaterialRepeat: boolean;
   outputMode: MaterialFolderOutputMode;
@@ -38,6 +44,11 @@ export const DEFAULT_MATERIAL_FOLDER_SETTINGS: MaterialFolderSettings = {
   videoMode: "script",
   extractionMode: "auto",
   materialCountMode: "auto",
+  clipMinSeconds: 0,
+  clipMaxSeconds: 0,
+  materialCount: 1,
+  exportCount: 1,
+  extractionOrder: "random",
   variantCount: 1,
   allowMaterialRepeat: true,
   outputMode: "byScript",

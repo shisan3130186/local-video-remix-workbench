@@ -1030,6 +1030,69 @@ body {
 :root[data-theme="light"] .replica-video-processing-state.is-completed { color: #18834d; }
 :root[data-theme="light"] .replica-video-processing-state.is-failed { color: #ba3d3d; }
 
+/* 贴画与水印：沿用竞品右侧的紧凑卡片布局，直接展开已完成的处理参数。 */
+.replica-sticker-watermark-panel { display: grid; gap: 8px; padding-bottom: 6px; }
+.replica-inline-effect-card { display: grid; gap: 8px; padding: 10px; border: 1px solid #303437; border-radius: 6px; background: #25282a; }
+.replica-inline-effect-card__header { display: flex; align-items: center; justify-content: space-between; color: #e1e5e6; font-size: 11px; }
+.replica-inline-file-row,
+.replica-inline-range-row,
+.replica-inline-number-row,
+.replica-inline-select-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; color: #aeb5b7; font-size: 9px; }
+.replica-inline-file-row span { min-width: 0; overflow: hidden; color: #858d90; text-overflow: ellipsis; white-space: nowrap; }
+.replica-inline-file-row button { display: grid; width: 27px; height: 26px; place-items: center; border: 1px solid #3b4c4d; border-radius: 4px; color: #55d6c4; background: rgba(57,200,181,.12); cursor: pointer; }
+.replica-inline-range-row input { width: 100%; min-width: 0; accent-color: var(--replica-accent); }
+.replica-inline-range-row output { min-width: 37px; color: #d7dcdd; text-align: right; font-variant-numeric: tabular-nums; }
+.replica-inline-select-row select,
+.replica-inline-field input,
+.replica-inline-style-grid input,
+.replica-inline-style-grid select,
+.replica-inline-number-row input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 26px; border: 1px solid #353a3d; border-radius: 4px; padding: 4px 6px; color: #dce1e2; background: #1d2022; font-size: 9px; }
+.replica-inline-select-row select { grid-column: 2 / -1; }
+.replica-inline-number-row input { grid-column: 2 / -1; }
+.replica-inline-segmented { display: grid; gap: 4px; }
+.replica-inline-segmented--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.replica-inline-segmented button,
+.replica-inline-trajectory-row button { min-height: 26px; border: 1px solid #353a3d; border-radius: 4px; color: #aeb5b7; background: #202325; font-size: 9px; cursor: pointer; }
+.replica-inline-segmented button.is-active,
+.replica-inline-trajectory-row button.is-active { border-color: rgba(85,214,196,.7); color: #55d6c4; background: rgba(57,200,181,.16); }
+.replica-inline-field { display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: center; gap: 7px; color: #aeb5b7; font-size: 9px; }
+.replica-inline-style-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.replica-inline-style-grid label { display: grid; gap: 4px; color: #9aa3a5; font-size: 8px; }
+.replica-inline-color-row { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+.replica-inline-color-row button { display: grid; min-height: 25px; place-items: center; border: 1px solid #3b4144; border-radius: 50%; color: #fff; background: #1d2022; font-size: 13px; font-weight: 700; cursor: pointer; text-shadow: 0 1px 2px #000; }
+.replica-inline-color-row button.is-active { border-color: var(--replica-accent); box-shadow: 0 0 0 1px rgba(85,214,196,.25); }
+.replica-inline-label { color: #9aa3a5; font-size: 9px; }
+.replica-inline-trajectory-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; }
+.replica-inline-help { color: #7f898b; font-size: 8px; line-height: 1.45; }
+.replica-inline-divider { height: 1px; background: #353a3d; }
+.replica-inline-check { display: inline-flex; align-items: center; gap: 6px; color: #c3c9ca; font-size: 9px; }
+.replica-inline-check input { accent-color: var(--replica-accent); }
+.replica-inline-effect-card button:disabled,
+.replica-inline-effect-card input:disabled,
+.replica-inline-effect-card select:disabled { cursor: not-allowed; opacity: .5; }
+
+:root[data-theme="light"] .replica-inline-effect-card { border-color: #d8dfe0; background: #f3f6f6; }
+:root[data-theme="light"] .replica-inline-effect-card__header { color: #243133; }
+:root[data-theme="light"] .replica-inline-file-row,
+:root[data-theme="light"] .replica-inline-range-row,
+:root[data-theme="light"] .replica-inline-number-row,
+:root[data-theme="light"] .replica-inline-select-row,
+:root[data-theme="light"] .replica-inline-field,
+:root[data-theme="light"] .replica-inline-style-grid label,
+:root[data-theme="light"] .replica-inline-label { color: #657174; }
+:root[data-theme="light"] .replica-inline-file-row span,
+:root[data-theme="light"] .replica-inline-help { color: #7b8789; }
+:root[data-theme="light"] .replica-inline-select-row select,
+:root[data-theme="light"] .replica-inline-field input,
+:root[data-theme="light"] .replica-inline-style-grid input,
+:root[data-theme="light"] .replica-inline-style-grid select,
+:root[data-theme="light"] .replica-inline-number-row input,
+:root[data-theme="light"] .replica-inline-segmented button,
+:root[data-theme="light"] .replica-inline-trajectory-row button { border-color: #d2dada; color: #586467; background: #fff; }
+:root[data-theme="light"] .replica-inline-segmented button.is-active,
+:root[data-theme="light"] .replica-inline-trajectory-row button.is-active { border-color: #73cfc4; color: #078f81; background: #dff5f2; }
+:root[data-theme="light"] .replica-inline-divider { background: #d8e0e0; }
+
 /* 视频效果处理首次进入时的详细操作指引。 */
 .replica-tools-guide-backdrop {
   position: fixed;
@@ -1901,3 +1964,95 @@ body {
   .replica-effect-segmented { margin-left: 0; }
   .replica-effect-select { grid-template-columns: 1fr; }
 }
+/* 视频混剪页：文件夹配置、画布直接操作和任务确认。 */
+.replica-batch-workspace--remix { grid-template-columns: 348px minmax(520px, 1fr) 304px; }
+.replica-batch-right-column { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-width: 0; min-height: 0; gap: 8px; }
+.replica-batch-right-column > .replica-settings-rail { min-height: 0; }
+.replica-batch-source--folders { min-height: 0; }
+.replica-batch-source-footer--folders { margin-top: auto; }
+.replica-batch-center--remix { grid-template-rows: minmax(360px, 1fr) minmax(190px, .58fr); }
+.replica-batch-preview--canvas { grid-template-rows: auto minmax(0, 1fr); }
+.replica-batch-canvas-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 37px; padding: 0 10px; border-bottom: 1px solid #292c2e; }
+.replica-canvas-controls { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.replica-control-group { display: inline-flex; align-items: center; gap: 2px; overflow: hidden; border: 1px solid #343a3d; border-radius: 4px; }
+.replica-control-group > span { padding: 0 5px; color: #858b8e; font-size: 8px; white-space: nowrap; }
+.replica-control-group button,
+.replica-inline-tool { min-height: 25px; padding: 0 7px; border: 0; border-left: 1px solid #343a3d; color: #aeb5b8; background: #232628; font-size: 8px; white-space: nowrap; cursor: pointer; }
+.replica-control-group button.is-active,
+.replica-inline-tool.is-active { color: #54d4c1; background: rgba(57,200,181,.2); }
+.replica-control-group button:disabled { cursor: not-allowed; opacity: .45; }
+.replica-guide-trigger { min-height: 26px; padding: 0; border: 0; color: #d8dddf; background: transparent; font-size: 10px; font-weight: 600; cursor: pointer; }
+.replica-batch-inline-editor { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 10px; border-bottom: 1px solid #303437; color: #aeb5b8; background: #1d2022; font-size: 9px; }
+.replica-batch-inline-editor input[type="range"] { width: 150px; }
+.replica-batch-inline-editor--text input:not([type="range"]) { flex: 1; min-width: 0; height: 24px; padding: 0 7px; border: 1px solid #363c3f; border-radius: 3px; color: #e0e3e4; background: #151719; font-size: 9px; }
+.replica-batch-inline-editor button { min-height: 24px; padding: 0 7px; border: 1px solid #363c3f; border-radius: 3px; color: #aeb5b8; background: #252729; font-size: 8px; }
+.replica-batch-screen--canvas { padding: 14px; }
+.replica-batch-screen--canvas.is-blur-fill::before { position: absolute; inset: 0; background: #111; content: ""; filter: blur(18px); opacity: .72; }
+.replica-batch-canvas { position: relative; display: grid; width: min(100%, 620px); height: min(100%, 520px); min-height: 0; place-items: center; overflow: hidden; background: #050607; box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+.replica-batch-canvas video { display: block; width: 100%; height: 100%; object-fit: contain; background: #050607; transition: transform .16s ease; }
+.replica-batch-canvas video.is-portrait { width: auto; max-width: 100%; }
+.replica-batch-aspect-guide { position: absolute; inset: 0; border: 1px dashed rgba(255,255,255,.66); pointer-events: none; }
+.replica-batch-crop-guide { position: absolute; inset: 8% 10%; display: grid; place-items: center; border: 1px solid #5de0cd; box-shadow: 0 0 0 999px rgba(0,0,0,.28); color: #c8fff5; font-size: 9px; pointer-events: none; }
+.replica-batch-crop-guide::before,
+.replica-batch-crop-guide::after { position: absolute; width: 100%; height: 33.33%; border-top: 1px solid rgba(93,224,205,.48); border-bottom: 1px solid rgba(93,224,205,.48); content: ""; }
+.replica-batch-crop-guide::after { width: 33.33%; height: 100%; border-top: 0; border-bottom: 0; border-right: 1px solid rgba(93,224,205,.48); border-left: 1px solid rgba(93,224,205,.48); }
+.replica-batch-text-overlay { position: absolute; top: 50%; left: 50%; max-width: 80%; padding: 4px 8px; color: #fff; font-size: 20px; font-weight: 700; text-align: center; text-shadow: 0 1px 4px #000; transform: translate(-50%, -50%); pointer-events: none; }
+.replica-batch-content--script > header { min-height: 42px; }
+.replica-batch-content--script > header > div { display: grid; gap: 2px; }
+.replica-batch-content--script > header small { color: #7f878a; font-size: 8px; }
+.replica-script-tabs { display: flex; gap: 3px; padding: 7px 10px 0; }
+.replica-script-tabs button { min-height: 24px; padding: 0 8px; border: 1px solid #363c3f; border-radius: 3px; color: #8e9699; background: #1d2022; font-size: 8px; cursor: pointer; }
+.replica-script-tabs button.is-active { color: #54d4c1; border-color: rgba(57,200,181,.5); background: rgba(57,200,181,.14); }
+.replica-script-tabs button:disabled { cursor: not-allowed; opacity: .5; }
+.replica-batch-content--script textarea { margin-top: 7px; }
+.replica-batch-script-footer { display: flex; align-items: center; justify-content: space-between; padding: 0 10px 8px; color: #747d80; font-size: 8px; }
+.replica-batch-script-footer button,
+.replica-setting-link__action { border: 0; color: #55d6c4; background: transparent; font-size: 9px; cursor: pointer; }
+.replica-batch-script-footer button:disabled { cursor: not-allowed; opacity: .45; }
+.replica-voice-row--compact { width: 100%; }
+.replica-batch-create--task > button { color: #102421; background: var(--replica-accent); }
+.replica-batch-task-backdrop,
+.replica-batch-guide-backdrop { position: fixed; z-index: 40; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(0,0,0,.62); }
+.replica-batch-task-dialog,
+.replica-batch-guide { width: min(560px, 100%); border: 1px solid #3a4143; border-radius: 6px; color: #dfe4e5; background: #202426; box-shadow: 0 18px 55px rgba(0,0,0,.4); }
+.replica-batch-task-dialog header,
+.replica-batch-guide header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #343a3d; }
+.replica-batch-task-dialog header button,
+.replica-batch-guide header button { width: 26px; height: 26px; border: 0; color: #aab2b5; background: transparent; font-size: 18px; cursor: pointer; }
+.replica-batch-task-summary { display: grid; gap: 7px; padding: 16px; }
+.replica-batch-task-summary p { display: flex; justify-content: space-between; margin: 0; padding: 9px 10px; border: 1px solid #343a3d; border-radius: 4px; background: #1b1e20; font-size: 10px; }
+.replica-batch-task-summary span { color: #8e979a; }
+.replica-batch-task-dialog footer,
+.replica-batch-guide footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; border-top: 1px solid #343a3d; }
+.replica-batch-task-dialog footer button,
+.replica-batch-guide footer button { min-height: 30px; padding: 0 13px; border: 1px solid #3a4143; border-radius: 4px; color: #b9c1c3; background: #262b2d; font-size: 9px; cursor: pointer; }
+.replica-batch-task-dialog footer .is-primary,
+.replica-batch-guide footer .is-primary { color: #102421; border-color: transparent; background: var(--replica-accent); }
+.replica-batch-guide { width: min(720px, 100%); }
+.replica-batch-guide header > div { display: grid; gap: 3px; }
+.replica-batch-guide header small { color: #8c9598; font-size: 9px; }
+.replica-batch-guide ol { display: grid; gap: 12px; margin: 0; padding: 18px 28px 18px 42px; }
+.replica-batch-guide li { padding-left: 4px; color: #aeb7ba; font-size: 10px; line-height: 1.55; }
+.replica-batch-guide li::marker { color: var(--replica-accent); font-weight: 700; }
+.replica-batch-guide li strong,
+.replica-batch-guide li span { display: block; }
+.replica-batch-guide li strong { margin-bottom: 3px; color: #e4e9ea; font-size: 11px; }
+.replica-batch-guide footer label { color: #899295; font-size: 9px; }
+
+@media (max-width: 1280px) {
+  .replica-batch-workspace--remix { grid-template-columns: 300px minmax(470px, 1fr) 280px; gap: 8px; }
+  .replica-canvas-controls { gap: 2px; }
+  .replica-control-group > span { display: none; }
+  .replica-control-group button,
+  .replica-inline-tool { padding-inline: 5px; }
+}
+
+:root[data-theme="light"] .replica-batch-task-dialog,
+:root[data-theme="light"] .replica-batch-guide { border-color: var(--theme-border-strong); color: var(--theme-text); background: var(--theme-panel); }
+:root[data-theme="light"] .replica-batch-task-dialog header,
+:root[data-theme="light"] .replica-batch-guide header,
+:root[data-theme="light"] .replica-batch-task-dialog footer,
+:root[data-theme="light"] .replica-batch-guide footer { border-color: var(--theme-border); }
+:root[data-theme="light"] .replica-batch-task-summary p { border-color: var(--theme-border); background: var(--theme-panel-muted); }
+:root[data-theme="light"] .replica-batch-guide li strong { color: var(--theme-text); }
+:root[data-theme="light"] .replica-batch-guide li { color: var(--theme-text-soft); }

@@ -9,6 +9,9 @@ import type { VideoProcessingState } from "../types/workbench";
 import type { OutputFrameRate, OutputQuality, OutputResolution, VideoEncoder } from "../types/outputSettings";
 import ToolIcon from "./ToolIcon.vue";
 import type { ToolIconName } from "./ToolIcon.vue";
+import StickerWatermarkPanel from "../features/video-effects/components/StickerWatermarkPanel.vue";
+import type { PipPosition, SubtitlePosition, SubtitleSize } from "../services/videoMixService";
+import type { WatermarkAssetType, WatermarkRemovalSettings, WatermarkSettings, WatermarkTrajectory } from "../features/watermark/types";
 
 const props = defineProps<{
   view: "effects" | "extract";
@@ -33,7 +36,22 @@ const props = defineProps<{
   smartConfigError: string | null;
   frameMaterialFilePath: string | null;
   fusionMaterialFilePath: string | null;
+  pipEnabled: boolean;
   pipOverlayFilePath: string | null;
+  pipPosition: PipPosition;
+  pipSizeRatio: number;
+  pipOpacity: number;
+  watermarkSettings: WatermarkSettings;
+  watermarkEnabled: boolean;
+  watermarkAssetType: WatermarkAssetType;
+  watermarkImageFilePath: string | null;
+  watermarkOpacity: number;
+  watermarkImageSizeRatio: number;
+  watermarkTrajectory: WatermarkTrajectory;
+  watermarkRemovalSettings: WatermarkRemovalSettings;
+  subtitleEnabled: boolean;
+  subtitlePosition: SubtitlePosition;
+  subtitleSize: SubtitleSize;
   formatDuration: (durationSeconds: number | null) => string;
   formatFileName: (path: string) => string;
 }>();
@@ -52,6 +70,29 @@ const emit = defineEmits<{
   requestSmartConfig: [];
   openTool: [tool: ToolKey];
   openDrawer: [drawer: DrawerKey];
+  selectPipOverlayFile: [];
+  selectWatermarkAsset: [];
+  "update:pipEnabled": [value: boolean];
+  "update:pipPosition": [value: PipPosition];
+  "update:pipSizeRatio": [value: number];
+  "update:pipOpacity": [value: number];
+  "update:watermarkTextEnabled": [value: boolean];
+  "update:watermarkKind": [value: WatermarkSettings["kind"]];
+  "update:watermarkText": [value: string];
+  "update:watermarkPosition": [value: WatermarkSettings["position"]];
+  "update:watermarkOpacity": [value: number];
+  "update:watermarkTextFontSize": [value: number];
+  "update:watermarkTextColor": [value: string];
+  "update:watermarkRemovalEnabled": [value: boolean];
+  "update:watermarkRemovalRegionCount": [value: number];
+  "update:subtitleEnabled": [value: boolean];
+  "update:subtitlePosition": [value: SubtitlePosition];
+  "update:subtitleSize": [value: SubtitleSize];
+  "update:watermarkAssetEnabled": [value: boolean];
+  "update:watermarkAssetType": [value: WatermarkAssetType];
+  "update:watermarkOpacityAsset": [value: number];
+  "update:watermarkImageSizeRatio": [value: number];
+  "update:watermarkTrajectory": [value: WatermarkTrajectory];
 }>();
 
 const splitMode = ref<"disabled" | "scene" | "fixed">("scene");
@@ -120,17 +161,11 @@ const effectGroups: Array<{ title: string; key: ToolKey; note: string; icon: Too
   { title: "动态缩放", key: "zoom", note: "实现类似远镜的效果", icon: "zoom" },
 ];
 
-const watermarkGroups: Array<{ title: string; key: ToolKey; note: string; icon: ToolIconName }> = [
-  { title: "贴画", key: "pip", note: "添加贴画或叠加素材", icon: "pip" },
-  { title: "文本水印", key: "watermark", note: "在画面中添加文字水印", icon: "file" },
-  { title: "图片 / 视频水印", key: "watermark", note: "添加图片或视频水印", icon: "cover" },
-  { title: "去除水印", key: "watermark", note: "手动框选或自动检测", icon: "adjust" },
-];
-
 const resolvedEnabledEffectKeySet = computed(() => {
   const keys = new Set(enabledEffectKeys.value);
   if (props.pipOverlayFilePath) keys.add("pip");
   if (props.fusionMaterialFilePath) keys.add("fusion");
+  if (props.watermarkSettings.enabled || props.watermarkEnabled || props.watermarkRemovalSettings.enabled) keys.add("watermark");
   return keys;
 });
 
@@ -262,10 +297,55 @@ function processingLabel(video: ImportedVideo) {
       <template v-if="view === 'effects'">
         <div class="replica-tools-settings-tabs"><button type="button" :class="{ 'is-active': settingsTab === 'effects' }" @click="settingsTab = 'effects'">视频效果</button><button type="button" :class="{ 'is-active': settingsTab === 'stickers' }" @click="settingsTab = 'stickers'">贴画与水印</button></div>
         <div class="replica-tools-settings-scroll">
-          <div v-if="configurationMode === 'smart' && isSmartConfiguring" class="replica-smart-config-status" role="status"><span class="replica-smart-config-status__pulse"></span><div><strong>AI 正在分析当前视频</strong><small>正在读取画面特征并生成效果配置，请稍候。</small></div></div>
-          <div v-else-if="configurationMode === 'smart' && smartEffectPlan" class="replica-smart-config-summary"><header><strong>AI 配置方案</strong><select v-model="smartMatchMode" aria-label="AI 配置模式"><option value="local">本地策略</option><option value="cloud">云端视觉理解</option></select></header><p>{{ smartEffectPlan.summary }}</p><small>{{ smartEffectPlan.description }}</small><div><span>已启用 {{ smartEffectPlan.enabledEffectKeys.length }} 项</span><span>待补充 {{ smartEffectPlan.pendingEffectKeys.length }} 项</span></div></div>
-          <p v-if="smartConfigError" class="replica-smart-config-error" role="alert">{{ smartConfigError }}</p>
-          <div class="replica-effect-list"><button v-for="group in (settingsTab === 'effects' ? effectGroups : watermarkGroups)" :key="`${settingsTab}-${group.title}`" type="button" :class="{ 'is-enabled': settingsTab === 'effects' && isEffectEnabled(group.key), 'is-smart-pending': settingsTab === 'effects' && isSmartPending(group.key) }" @click="openEffect(group)" @contextmenu.prevent="toggleEffect(group)"><span class="replica-effect-icon"><ToolIcon :name="group.icon" /></span><span><strong>{{ group.title }}</strong><small>{{ group.note }}<template v-if="settingsTab === 'effects' && isSmartPending(group.key)"> · 需要素材</template></small></span><b><ToolIcon :name="settingsTab === 'effects' && isEffectEnabled(group.key) ? 'check' : 'chevron'" /></b></button></div>
+          <template v-if="settingsTab === 'effects'">
+            <div v-if="configurationMode === 'smart' && isSmartConfiguring" class="replica-smart-config-status" role="status"><span class="replica-smart-config-status__pulse"></span><div><strong>AI 正在分析当前视频</strong><small>正在读取画面特征并生成效果配置，请稍候。</small></div></div>
+            <div v-else-if="configurationMode === 'smart' && smartEffectPlan" class="replica-smart-config-summary"><header><strong>AI 配置方案</strong><select v-model="smartMatchMode" aria-label="AI 配置模式"><option value="local">本地策略</option><option value="cloud">云端视觉理解</option></select></header><p>{{ smartEffectPlan.summary }}</p><small>{{ smartEffectPlan.description }}</small><div><span>已启用 {{ smartEffectPlan.enabledEffectKeys.length }} 项</span><span>待补充 {{ smartEffectPlan.pendingEffectKeys.length }} 项</span></div></div>
+            <p v-if="smartConfigError" class="replica-smart-config-error" role="alert">{{ smartConfigError }}</p>
+            <div class="replica-effect-list"><button v-for="group in effectGroups" :key="group.title" type="button" :class="{ 'is-enabled': isEffectEnabled(group.key), 'is-smart-pending': isSmartPending(group.key) }" @click="openEffect(group)" @contextmenu.prevent="toggleEffect(group)"><span class="replica-effect-icon"><ToolIcon :name="group.icon" /></span><span><strong>{{ group.title }}</strong><small>{{ group.note }}<template v-if="isSmartPending(group.key)"> · 需要素材</template></small></span><b><ToolIcon :name="isEffectEnabled(group.key) ? 'check' : 'chevron'" /></b></button></div>
+          </template>
+          <StickerWatermarkPanel
+            v-else
+            :pip-enabled="props.pipEnabled"
+            :pip-overlay-file-path="props.pipOverlayFilePath"
+            :pip-position="props.pipPosition"
+            :pip-size-ratio="props.pipSizeRatio"
+            :pip-opacity="props.pipOpacity"
+            :watermark-settings="props.watermarkSettings"
+            :watermark-enabled="props.watermarkEnabled"
+            :watermark-asset-type="props.watermarkAssetType"
+            :watermark-image-file-path="props.watermarkImageFilePath"
+            :watermark-opacity="props.watermarkOpacity"
+            :watermark-image-size-ratio="props.watermarkImageSizeRatio"
+            :watermark-trajectory="props.watermarkTrajectory"
+            :watermark-removal-settings="props.watermarkRemovalSettings"
+            :subtitle-enabled="props.subtitleEnabled"
+            :subtitle-position="props.subtitlePosition"
+            :subtitle-size="props.subtitleSize"
+            :disabled="props.isProcessing"
+            @select-pip-overlay-file="emit('selectPipOverlayFile')"
+            @select-watermark-asset="emit('selectWatermarkAsset')"
+            @update:pip-enabled="emit('update:pipEnabled', $event)"
+            @update:pip-position="emit('update:pipPosition', $event)"
+            @update:pip-size-ratio="emit('update:pipSizeRatio', $event)"
+            @update:pip-opacity="emit('update:pipOpacity', $event)"
+            @update:watermark-text-enabled="emit('update:watermarkTextEnabled', $event)"
+            @update:watermark-kind="emit('update:watermarkKind', $event)"
+            @update:watermark-text="emit('update:watermarkText', $event)"
+            @update:watermark-position="emit('update:watermarkPosition', $event)"
+            @update:watermark-opacity="emit('update:watermarkOpacity', $event)"
+            @update:watermark-text-font-size="emit('update:watermarkTextFontSize', $event)"
+            @update:watermark-text-color="emit('update:watermarkTextColor', $event)"
+            @update:watermark-removal-enabled="emit('update:watermarkRemovalEnabled', $event)"
+            @update:watermark-removal-region-count="emit('update:watermarkRemovalRegionCount', $event)"
+            @update:subtitle-enabled="emit('update:subtitleEnabled', $event)"
+            @update:subtitle-position="emit('update:subtitlePosition', $event)"
+            @update:subtitle-size="emit('update:subtitleSize', $event)"
+            @update:watermark-asset-enabled="emit('update:watermarkAssetEnabled', $event)"
+            @update:watermark-asset-type="emit('update:watermarkAssetType', $event)"
+            @update:watermark-opacity-asset="emit('update:watermarkOpacityAsset', $event)"
+            @update:watermark-image-size-ratio="emit('update:watermarkImageSizeRatio', $event)"
+            @update:watermark-trajectory="emit('update:watermarkTrajectory', $event)"
+          />
         </div>
         <div class="replica-configuration-switch"><button type="button" :class="{ 'is-active': configurationMode === 'manual' }" @click="configurationMode = 'manual'; enabledEffectKeys = []">手动配置</button><button type="button" :class="{ 'is-active': configurationMode === 'smart', 'is-configured': Boolean(smartEffectPlan) }" @click="configureSmartly">{{ isSmartConfiguring ? '分析中…' : '智能配置' }}</button></div>
       </template>
