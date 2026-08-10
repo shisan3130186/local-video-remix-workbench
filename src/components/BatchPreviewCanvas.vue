@@ -84,7 +84,8 @@ const videoStyle = computed<CSSProperties>(() => ({
   maxWidth: "none",
   maxHeight: "none",
   objectFit: "contain",
-  transform: cropOpen.value || textOpen.value ? undefined : `scale(${cropScale.value})`,
+  // 只有裁剪编辑状态才缩放素材，退出裁剪后恢复完整画面。
+  transform: cropOpen.value ? `scale(${cropScale.value})` : undefined,
 }));
 const canvasStyle = computed(() => ({
   width: "100%",

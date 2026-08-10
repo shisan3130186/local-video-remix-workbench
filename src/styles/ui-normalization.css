@@ -952,11 +952,9 @@ textarea {
   transform-origin: center;
 }
 
-/* 文字和裁剪都是覆盖层，不能触发视频本体的 scale 或动态动画。 */
+/* 文字编辑是覆盖层，不能触发视频本体的 scale 或动态动画。 */
 .replica-ai-stage .replica-stable-preview-frame.is-text-editing .video-frame__foreground,
-.replica-ai-stage .replica-stable-preview-frame.is-crop-editing .video-frame__foreground,
-.replica-batch-canvas.is-text-editing .replica-batch-canvas__foreground,
-.replica-batch-canvas.is-crop-editing .replica-batch-canvas__foreground {
+.replica-batch-canvas.is-text-editing .replica-batch-canvas__foreground {
   transform: none !important;
   animation: none !important;
 }

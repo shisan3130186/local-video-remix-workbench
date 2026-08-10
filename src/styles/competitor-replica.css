@@ -1381,10 +1381,16 @@ body {
 .replica-preview-watermark {
   position: absolute;
   z-index: 2;
-  max-width: 84%;
+  max-width: 100%;
   pointer-events: none;
   text-shadow: 0 1px 3px rgba(0, 0, 0, .75);
+  white-space: nowrap;
+}
+
+.replica-preview-watermark--wrapped {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 
 .replica-removal-region { position: absolute; z-index: 6; box-sizing: border-box; border: 2px dashed #ff4f5d; background: rgba(255, 64, 82, .13); cursor: move; }
@@ -1713,11 +1719,11 @@ body {
   box-sizing: border-box;
   width: max-content;
   min-width: 120px;
-  max-width: calc(100% - 16px);
+  max-width: calc(100% - 8px);
   transform: translate(-50%, -50%);
   border: 1px solid #42ddca;
   border-radius: 2px;
-  padding: 6px 10px;
+  padding: 4px 6px;
   background: rgba(255, 255, 255, .08);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), 0 5px 22px rgba(0, 0, 0, .18);
   cursor: move;
@@ -1727,18 +1733,24 @@ body {
 
 .replica-text-box__content {
   display: block;
-  min-width: 92px;
+  min-width: 0;
   outline: none;
   color: inherit;
   font-weight: 650;
   line-height: 1.12;
   text-align: center;
   text-shadow: 0 2px 4px rgba(0, 0, 0, .8), 0 0 1px rgba(0, 0, 0, .9);
+  overflow-wrap: normal;
+  white-space: nowrap;
+  word-break: normal;
+  cursor: text;
+  user-select: text;
+}
+
+.replica-text-box--wrap .replica-text-box__content {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   word-break: keep-all;
-  cursor: text;
-  user-select: text;
 }
 
 .replica-text-handle {

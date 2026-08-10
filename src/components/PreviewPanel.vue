@@ -222,10 +222,15 @@ const textBoxStyle = computed<CSSProperties>(() => ({
   fontSize: `${Math.max(18, Math.min(96, watermarkTextFontSize.value))}px`,
 }));
 
+const textNeedsWrapping = computed(() => {
+  const text = watermarkText.value;
+  return text.includes("\n") || Array.from(text).length > 8;
+});
+
 const foregroundVideoStyle = computed<CSSProperties>(() => ({
-  // 裁剪和文字编辑都只操作画布覆盖层，不改变原生 video 的几何尺寸。
-  // 这样添加文本时不会把素材画面、时间戳或控制条一起放大。
-  transform: isCropEditorOpen.value || isTextEditorOpen.value ? undefined : `scale(${Math.max(1, Math.min(1.2, effectScale.value))})`,
+  // 只有裁剪编辑状态才应用缩放；普通预览和文字编辑始终完整显示原始素材。
+  // 这样关闭文字或切换工具时不会把上一次裁剪的缩放值带回播放器。
+  transform: isCropEditorOpen.value ? `scale(${Math.max(1, Math.min(1.2, effectScale.value))})` : undefined,
   filter: props.hslEnabled
     ? `hue-rotate(${props.hue}deg) saturate(${Math.max(0, props.saturation)}) brightness(${Math.max(0, props.brightness + 1)})`
     : undefined,
@@ -747,12 +752,12 @@ function previewPause() {
             </div>
           </template>
           <div ref="watermarkAssetLayerRef" class="video-frame__media-layer" :style="mediaLayerStyle">
-            <div v-if="isTextEditorOpen" class="replica-text-box" :style="textBoxStyle" aria-label="画面文字编辑框" @pointerdown="startTextDrag">
+            <div v-if="isTextEditorOpen" class="replica-text-box" :class="{ 'replica-text-box--wrap': textNeedsWrapping }" :style="textBoxStyle" aria-label="画面文字编辑框" @pointerdown="startTextDrag">
               <span ref="textEditorRef" class="replica-text-box__content" contenteditable="true" role="textbox" aria-multiline="true" spellcheck="false" @input="updateWatermarkText" @pointerdown.stop></span>
               <button v-for="handle in (['nw', 'ne', 'sw', 'se'] as CropHandle[])" :key="handle" class="replica-text-handle" :class="`replica-text-handle--${handle}`" type="button" :aria-label="`调整文字${handle}`" @pointerdown.stop="startTextResize($event, handle)"></button>
               <button class="replica-text-box__close" type="button" aria-label="关闭文字编辑" @click.stop="isTextEditorOpen = false">×</button>
             </div>
-            <span v-if="!isTextEditorOpen && watermarkEnabled && watermarkKind === 'text' && watermarkText.trim()" class="replica-preview-watermark" :style="watermarkStyle">{{ watermarkText }}</span>
+            <span v-if="!isTextEditorOpen && watermarkEnabled && watermarkKind === 'text' && watermarkText.trim()" class="replica-preview-watermark" :class="{ 'replica-preview-watermark--wrapped': textNeedsWrapping }" :style="watermarkStyle">{{ watermarkText }}</span>
             <div v-if="watermarkEnabled && watermarkKind === 'image' && props.watermarkAssetPreviewUrl" class="replica-preview-asset-watermark" :class="watermarkAssetClass" :style="watermarkAssetStyle" aria-label="可调整的图片/视频水印" @pointerdown="startAssetWatermarkDrag">
               <video v-if="props.watermarkAssetType === 'video'" :src="props.watermarkAssetPreviewUrl" muted autoplay loop playsinline aria-hidden="true"></video>
               <img v-else :src="props.watermarkAssetPreviewUrl" alt="图片/视频水印预览" />
