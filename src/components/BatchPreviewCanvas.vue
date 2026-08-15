@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch, type CSSProperties } from "vue";
 import type { ImportedVideo } from "../types/videoProbe";
-import type { CanvasAspectRatio, CanvasBackgroundMode } from "../services/videoMixService";
+import type { CanvasAspectRatio, CanvasBackgroundMode, CanvasCropSettings } from "../services/videoMixService";
 import ToolIcon from "./ToolIcon.vue";
 
 const props = defineProps<{
@@ -17,11 +17,23 @@ const emit = defineEmits<{
 
 const aspectRatio = defineModel<CanvasAspectRatio>("canvasAspectRatio", { required: true });
 const backgroundMode = defineModel<CanvasBackgroundMode>("canvasBackgroundMode", { required: true });
+const effectScale = defineModel<number>("effectScale", { required: true });
+const cropSettings = defineModel<CanvasCropSettings>("cropSettings", { required: true });
+const watermarkEnabled = defineModel<boolean>("watermarkEnabled", { required: true });
+const watermarkKind = defineModel<"text" | "image">("watermarkKind", { required: true });
+const watermarkText = defineModel<string>("watermarkText", { required: true });
+const watermarkPosition = defineModel<"topLeft" | "topRight" | "bottomLeft" | "bottomRight" | "center">("watermarkPosition", { required: true });
 const cropOpen = ref(false);
 const textOpen = ref(false);
-const overlayText = ref("");
-const cropScale = ref(1);
-const cropRect = ref({ x: 16, y: 10, width: 68, height: 80 });
+const cropRect = computed({
+  get: () => cropSettings.value,
+  set: (value: CanvasCropSettings) => {
+    cropSettings.value = {
+      ...value,
+      enabled: value.x > 0 || value.y > 0 || value.width < 100 || value.height < 100,
+    };
+  },
+});
 const cropPointer = ref<{ kind: "move" | "resize"; handle?: "nw" | "ne" | "sw" | "se"; startX: number; startY: number; startRect: typeof cropRect.value } | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
 const canvasSize = ref({ width: 0, height: 0 });
@@ -85,7 +97,7 @@ const videoStyle = computed<CSSProperties>(() => ({
   maxHeight: "none",
   objectFit: "contain",
   // 只有裁剪编辑状态才缩放素材，退出裁剪后恢复完整画面。
-  transform: cropOpen.value ? `scale(${cropScale.value})` : undefined,
+  transform: cropOpen.value ? `scale(${Math.max(1, Math.min(1.2, effectScale.value))})` : undefined,
 }));
 const canvasStyle = computed(() => ({
   width: "100%",
@@ -155,13 +167,23 @@ function handleCropPointerMove(event: PointerEvent) {
   if (interaction.handle?.includes("e")) right = clamp(start.x + start.width + deltaX, left + 12, 100);
   if (interaction.handle?.includes("n")) top = clamp(start.y + deltaY, 0, bottom - 12);
   if (interaction.handle?.includes("s")) bottom = clamp(start.y + start.height + deltaY, top + 12, 100);
-  cropRect.value = { x: left, y: top, width: right - left, height: bottom - top };
-  cropScale.value = clamp(86 / cropRect.value.width, 1, 1.3);
+  cropRect.value = { enabled: true, x: left, y: top, width: right - left, height: bottom - top };
 }
 
 function resetCrop() {
-  cropScale.value = 1;
-  cropRect.value = { x: 16, y: 10, width: 68, height: 80 };
+  effectScale.value = 1;
+  cropRect.value = { enabled: false, x: 0, y: 0, width: 100, height: 100 };
+}
+
+function enableTextOverlay() {
+  watermarkEnabled.value = true;
+  watermarkKind.value = "text";
+  watermarkPosition.value = "center";
+}
+
+function clearTextOverlay() {
+  watermarkText.value = "";
+  if (watermarkKind.value === "text") watermarkEnabled.value = false;
 }
 
 function syncNativeVideoSize(event: Event) {
@@ -212,14 +234,14 @@ onUnmounted(() => {
 
     <div v-if="cropOpen" class="replica-batch-inline-editor">
       <label for="batch-crop-scale">裁剪缩放</label>
-      <input id="batch-crop-scale" v-model.number="cropScale" type="range" min="1" max="1.3" step="0.01" />
-      <output>{{ cropScale.toFixed(2) }}×</output>
+      <input id="batch-crop-scale" v-model.number="effectScale" type="range" min="1" max="1.2" step="0.01" />
+      <output>{{ effectScale.toFixed(2) }}×</output>
       <button type="button" @click="resetCrop">重置</button>
     </div>
     <div v-if="textOpen" class="replica-batch-inline-editor replica-batch-inline-editor--text">
       <label for="batch-overlay-text">画面文本</label>
-      <input id="batch-overlay-text" v-model="overlayText" maxlength="80" placeholder="输入要显示在画面中的文字" />
-      <button type="button" @click="overlayText = ''">清空</button>
+      <input id="batch-overlay-text" v-model="watermarkText" maxlength="80" placeholder="输入要显示在画面中的文字" @input="enableTextOverlay" />
+      <button type="button" @click="clearTextOverlay">清空</button>
     </div>
 
     <div class="replica-batch-screen replica-batch-screen--canvas" :class="{ 'is-blur-fill': backgroundMode === 'blur' && aspectRatio !== 'original' }">
@@ -234,7 +256,7 @@ onUnmounted(() => {
           <button v-for="handle in (['nw', 'ne', 'sw', 'se'] as const)" :key="handle" class="replica-crop-handle" :class="`replica-crop-handle--${handle}`" type="button" :aria-label="`调整裁剪框${handle}`" @pointerdown.stop="startCropInteraction($event, 'resize', handle)"></button>
           <span class="replica-crop-size">{{ Math.round(cropRect.width) }}% × {{ Math.round(cropRect.height) }}%</span>
         </div>
-        <div v-if="overlayText" class="replica-batch-text-overlay">{{ overlayText }}</div>
+        <div v-if="watermarkEnabled && watermarkKind === 'text' && watermarkText" class="replica-batch-text-overlay">{{ watermarkText }}</div>
       </div>
        <div v-if="!previewUrl" class="replica-batch-screen--empty"><span><ToolIcon name="video" /></span><strong>选择素材后在此预览</strong></div>
     </div>

@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed } from "vue";
 import { formatFileName } from "./inputHelpers";
 import ToolIcon from "../ToolIcon.vue";
+import type { FusionSettings } from "../../services/videoMixService";
 
-const props = defineProps<{ materialFilePath: string | null }>();
-const emit = defineEmits<{ selectMaterialFile: []; clearMaterialFile: []; reset: [] }>();
-const enabled = ref(false);
-const intervalMin = ref(15);
-const intervalMax = ref(60);
-const strength = ref(0.2);
+const props = defineProps<{ materialFilePath: string | null; settings: FusionSettings }>();
+const emit = defineEmits<{ selectMaterialFile: []; clearMaterialFile: []; reset: []; "update:settings": [value: FusionSettings] }>();
+const settings = computed({ get: () => props.settings, set: (value: FusionSettings) => emit("update:settings", value) });
 </script>
 
 <template>
@@ -17,7 +15,7 @@ const strength = ref(0.2);
       <h2>像素融合 - 参数设置</h2>
       <div class="replica-parameter-panel__actions">
         <button class="replica-parameter-button" type="button" @click="emit('reset')">重置</button>
-        <button class="replica-parameter-button replica-parameter-button--enable" :class="{ 'is-enabled': enabled }" type="button" @click="enabled = !enabled">{{ enabled ? "已启用" : "启用" }}</button>
+        <button class="replica-parameter-button replica-parameter-button--enable" :class="{ 'is-enabled': settings.enabled }" type="button" @click="settings = { ...settings, enabled: !settings.enabled }">{{ settings.enabled ? "已启用" : "启用" }}</button>
       </div>
     </header>
 
@@ -30,13 +28,13 @@ const strength = ref(0.2);
 
     <div class="replica-effect-row">
       <strong>融合间隔</strong>
-      <label class="replica-range-field"><input v-model.number="intervalMin" type="number" min="1" /><span>帧</span></label>
+      <label class="replica-range-field"><input :value="settings.intervalMin" type="number" min="1" @input="settings = { ...settings, intervalMin: Number(($event.target as HTMLInputElement).value) || 1 }" /><span>帧</span></label>
       <em>—</em>
-      <label class="replica-range-field"><input v-model.number="intervalMax" type="number" min="1" /><span>帧</span></label>
+      <label class="replica-range-field"><input :value="settings.intervalMax" type="number" min="1" @input="settings = { ...settings, intervalMax: Number(($event.target as HTMLInputElement).value) || 1 }" /><span>帧</span></label>
     </div>
     <div class="replica-effect-row">
       <strong>融合强度</strong>
-      <label class="replica-range-field"><input v-model.number="strength" type="number" min="0.01" max="1" step="0.01" /></label>
+      <label class="replica-range-field"><input :value="settings.strength" type="number" min="0.01" max="1" step="0.01" @input="settings = { ...settings, strength: Number(($event.target as HTMLInputElement).value) || 0.01 }" /></label>
       <small>范围 0.01 - 1.0</small>
     </div>
     <p class="replica-parameter-help">每间隔随机帧数做一次像素融合，设置 1 - 1 可实现全局融合。可根据需求自行调整融合强度。</p>

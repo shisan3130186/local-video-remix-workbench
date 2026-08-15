@@ -75,6 +75,7 @@ import {
   createAiRemixOutputDirectory,
   exportJianyingDraftPackage,
   isExistingDirectory,
+  listFilesInFolder,
   openPathInFileManager,
 } from "./services/fileManagerService";
 import { checkFfmpegEnvironment } from "./services/videoProbeService";
@@ -98,6 +99,11 @@ const fileManagerError = ref<string | null>(null);
 const generationOutputError = ref<string | null>(null);
 const aiRemixInputMode = ref<"custom" | "script" | "audio">("custom");
 const aiMatchMode = ref<AiRemixMatchMode>("local");
+const contentAnalysisMode = ref<AiRemixMatchMode>("local");
+const extractShotType = ref(true);
+const extractPersonAction = ref(true);
+const extractSellingPoints = ref(true);
+const extractUsableCopy = ref(true);
 const draftExportFeedback = ref<string | null>(null);
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
@@ -209,6 +215,7 @@ const {
   clearLogs: clearAsrLogs,
   runTask,
 });
+const batchScript = ref("");
 
 const {
   deleteScriptEntry,
@@ -229,6 +236,10 @@ const {
   bgmEnabled,
   bgmFadeInSeconds,
   bgmFadeOutSeconds,
+  bgmFadeEnabled,
+  bgmLoopPlaybackEnabled,
+  bgmVolumeMin,
+  bgmVolumeMax,
   bgmVolume,
   brightness,
   hslEnabled,
@@ -240,6 +251,20 @@ const {
   encoderCapabilities,
   encoderDetectionError,
   effectScale,
+  entranceEffect,
+  frameOperationSettings,
+  fusionSettings,
+  cropSettings,
+  cropBlackBars,
+  randomRotationMinDegrees,
+  randomRotationMaxDegrees,
+  sharpness,
+  noiseReduction,
+  temperature,
+  visualStyle,
+  glowEnabled,
+  grainEnabled,
+  vignetteEnabled,
   zoomEnabled,
   zoomMode,
   zoomMinScale,
@@ -248,27 +273,53 @@ const {
   zoomMaxDurationSeconds,
   isDetectingEncoders,
   originalVolume,
+  originalVolumeMin,
+  originalVolumeMax,
+  originalFadeEnabled,
+  dynamicAudioAdjustEnabled,
   outputEncoder,
+  outputFormat,
   outputFrameRate,
   outputQuality,
   outputResolution,
   outputSettings,
+  keepOriginal,
+  namingMode,
   pipEnabled,
+  pipMode,
+  pipMainSizeMin,
+  pipMainSizeMax,
+  pipBlurMin,
+  pipBlurMax,
+  pipOffsetXMin,
+  pipOffsetXMax,
+  pipOffsetYMin,
+  pipOffsetYMax,
   pipMargin,
   pipOpacity,
   pipOverlayFilePath,
   pipPosition,
   pipSizeRatio,
   playbackSpeed,
+  playbackSpeedMode,
+  playbackSpeedMin,
+  playbackSpeedMax,
+  playbackSegmentMinSeconds,
+  playbackSegmentMaxSeconds,
   remixExportSettings,
   rotationMode,
   restoreRemixSettings,
   saturation,
   smoothRemixEnabled,
   subtitleEnabled,
+  subtitleFontFamily,
+  subtitleOpacity,
   subtitlePosition,
   subtitleSize,
   subtitleText,
+  subtitleTextColor,
+  threadMode,
+  variantCount,
   resetWatermarkSettings,
   resetWatermarkRemovalSettings,
   validateWatermarkSettings,
@@ -324,6 +375,7 @@ const {
   removeMaterialFolder,
   mergeSegmentThumbnailPaths,
   minimumSegmentSeconds,
+  sceneConfidenceScore,
   restoreMaterials,
   segmentCategories,
   segmentDurationSeconds,
@@ -342,6 +394,9 @@ const {
   splitSegmentCount,
   splitSegmentPaths,
   splitMode,
+  splitOutputGrouping,
+  trimEndSeconds,
+  trimStartSeconds,
   updateSegmentCategory,
   updateMaterialFolderSettings,
   videoCoverUrls,
@@ -364,13 +419,13 @@ const {
   batchMixError,
   batchMixFailures,
   batchMixResults,
-  concatCategorizedSegments,
-  concatRandomSegments,
+  concatCategorizedSegments: concatCategorizedSegmentsInternal,
+  concatRandomSegments: concatRandomSegmentsInternal,
   activeProcessingVideoId,
   exportError,
-  exportImportedVideos,
-  exportSelectedVideo,
-  generateBatchMixes,
+  exportImportedVideos: exportImportedVideosInternal,
+  exportSelectedVideo: exportSelectedVideoInternal,
+  generateBatchMixes: generateBatchMixesInternal,
   isBatchMixing,
   isExporting,
   isMixing,
@@ -381,13 +436,17 @@ const {
   randomSelectedSegments,
   recordMixResult,
   resetRandomPickState,
-  retryFailedBatchMixes,
+  retryFailedBatchMixes: retryFailedBatchMixesInternal,
   setMixing,
   videoProcessingStates,
 } = useRemixExport({
   importedVideos,
+  materialFolders,
+  batchScript,
+  asrSourceFilePath,
   selectedVideo,
   outputDirectory,
+  coverImagePath: selectedCoverPath,
   remixExportSettings,
   segmentPaths: splitSegmentPaths,
   segmentCategories,
@@ -422,18 +481,18 @@ const {
   aiPreparationError,
   aiPreparedSegments,
   aiScript,
-  analyzePreparedSegmentContent,
-  generateAiRemixVideos,
+  analyzePreparedSegmentContent: analyzePreparedSegmentContentInternal,
+  generateAiRemixVideos: generateAiRemixVideosInternal,
   isGeneratingAiRemix,
   isAnalyzingAiContent,
   isPlanningAiRemix,
   isPreparingAiSegments,
-  prepareAiRemixVariants,
-  prepareSegmentAssets,
-  requestAiRemixPlan,
+  prepareAiRemixVariants: prepareAiRemixVariantsInternal,
+  prepareSegmentAssets: prepareSegmentAssetsInternal,
+  requestAiRemixPlan: requestAiRemixPlanInternal,
   resetAiRemixState,
   restoreAiPreparedSegments,
-  retryFailedAiRemixVideos,
+  retryFailedAiRemixVideos: retryFailedAiRemixVideosInternal,
   restoreAiRemixState,
   updateAiSegmentContentAnalysis,
 } = useAiRemix({
@@ -471,9 +530,22 @@ const {
 const isRewritingAiScript = ref(false);
 const aiRewriteFeedback = ref<string | null>(null);
 
+function analyzeContentFromTools() {
+  return analyzePreparedSegmentContent({
+    mode: contentAnalysisMode.value,
+    dimensions: {
+      shotType: extractShotType.value,
+      personAction: extractPersonAction.value,
+      sellingPoints: extractSellingPoints.value,
+      usableCopy: extractUsableCopy.value,
+    },
+  });
+}
+
 async function rewriteAiScript() {
   const source = aiScript.value.trim();
   if (!source || isRewritingAiScript.value) return;
+  if (!ensureFeatureAccess({ aiService: true })) return;
   isRewritingAiScript.value = true;
   aiRewriteFeedback.value = null;
   try {
@@ -492,6 +564,30 @@ async function rewriteAiScript() {
     aiRewriteFeedback.value = error instanceof Error ? error.message : "AI 改写失败，请检查模型配置。";
   } finally {
     isRewritingAiScript.value = false;
+  }
+}
+
+async function rewriteBatchScript() {
+  const source = batchScript.value.trim();
+  if (!source) return;
+  if (!ensureFeatureAccess({ aiService: true })) return;
+  try {
+    const result = await rewriteScripts({
+      scripts: source.split(/\r?\n\s*\r?\n/).map((item) => item.trim()).filter(Boolean),
+      style: "conservative",
+      targetLength: "similar",
+      customPrompt: "保留原意和信息点，润色成自然、适合短视频口播的文案。",
+      count: 1,
+    });
+    const rewritten = result.items
+      .map((item) => item.versions[0]?.trim())
+      .filter((item): item is string => Boolean(item))
+      .join("\n\n");
+    if (!rewritten) throw new Error("AI 没有返回可用的改写文案。");
+    batchScript.value = rewritten;
+    appendBatchMixLog("AI 改写完成，已替换当前批量文案。", "success");
+  } catch (error) {
+    appendBatchMixLog(error instanceof Error ? error.message : "AI 改写失败，请检查模型配置。", "error");
   }
 }
 
@@ -652,6 +748,13 @@ const projectState = computed(
       materialFolders: materialFolders.value,
       selectedVideoPath: selectedVideo.value?.filePath ?? null,
       segmentDurationSeconds: segmentDurationSeconds.value,
+      splitMode: splitMode.value,
+      splitOutputGrouping: splitOutputGrouping.value,
+      trimStartSeconds: trimStartSeconds.value,
+      trimEndSeconds: trimEndSeconds.value,
+      sceneConfidenceScore: sceneConfidenceScore.value,
+      minimumSegmentSeconds: minimumSegmentSeconds.value,
+      maximumSegmentSeconds: maximumSegmentSeconds.value,
       splitOutputDirectory: splitOutputDirectory.value,
       splitSegmentPaths: splitSegmentPaths.value,
       segmentCategories: segmentCategories.value,
@@ -803,12 +906,22 @@ function openMembershipCenter(page: "profile" | "api" = "profile") {
   openMembershipDialog();
 }
 
-function ensureFeatureAccess(): boolean {
+function refreshFeatureAccessRequirements() {
+  if (!isDesktopRuntime) return;
+  missingAuthorization.value = membershipStatus.value?.memberActive !== true;
+}
+
+interface FeatureAccessRequirements {
+  aiService?: boolean;
+  ttsService?: boolean;
+}
+
+function ensureFeatureAccess(requirements: FeatureAccessRequirements = {}): boolean {
   if (!isDesktopRuntime) return true;
 
-  missingAuthorization.value = membershipStatus.value?.memberActive !== true;
-  missingAiService.value = apiConfigStatus.value?.aiConfigured !== true;
-  missingTtsService.value = apiConfigStatus.value?.ttsConfigured !== true;
+  refreshFeatureAccessRequirements();
+  missingAiService.value = requirements.aiService === true && apiConfigStatus.value?.aiConfigured !== true;
+  missingTtsService.value = requirements.ttsService === true && apiConfigStatus.value?.ttsConfigured !== true;
   if (!missingAuthorization.value && !missingAiService.value && !missingTtsService.value) {
     return true;
   }
@@ -822,8 +935,67 @@ function confirmAccessRequirement() {
   openMembershipCenter(missingAuthorization.value ? "profile" : "api");
 }
 
-function openWorkspace(mode: WorkspaceMode = "ai", batchKind?: "remix" | "category") {
+async function prepareSegmentAssets(...args: Parameters<typeof prepareSegmentAssetsInternal>) {
   if (!ensureFeatureAccess()) return;
+  return prepareSegmentAssetsInternal(...args);
+}
+
+async function analyzePreparedSegmentContent(...args: Parameters<typeof analyzePreparedSegmentContentInternal>) {
+  if (!ensureFeatureAccess({ aiService: args[0]?.mode !== "local" })) return;
+  return analyzePreparedSegmentContentInternal(...args);
+}
+
+async function requestAiRemixPlan() {
+  if (!ensureFeatureAccess({ aiService: true })) return;
+  return requestAiRemixPlanInternal();
+}
+
+async function prepareAiRemixVariants(...args: Parameters<typeof prepareAiRemixVariantsInternal>) {
+  if (!ensureFeatureAccess()) return null;
+  return prepareAiRemixVariantsInternal(...args);
+}
+
+async function generateAiRemixVideos(...args: Parameters<typeof generateAiRemixVideosInternal>) {
+  if (!ensureFeatureAccess()) return;
+  return generateAiRemixVideosInternal(...args);
+}
+
+async function retryFailedAiRemixVideos(...args: Parameters<typeof retryFailedAiRemixVideosInternal>) {
+  if (!ensureFeatureAccess()) return;
+  return retryFailedAiRemixVideosInternal(...args);
+}
+
+async function concatRandomSegments() {
+  if (!ensureFeatureAccess()) return;
+  return concatRandomSegmentsInternal();
+}
+
+async function concatCategorizedSegments() {
+  if (!ensureFeatureAccess()) return;
+  return concatCategorizedSegmentsInternal();
+}
+
+async function generateBatchMixes() {
+  if (!ensureFeatureAccess()) return;
+  return generateBatchMixesInternal();
+}
+
+async function retryFailedBatchMixes(...args: Parameters<typeof retryFailedBatchMixesInternal>) {
+  if (!ensureFeatureAccess()) return;
+  return retryFailedBatchMixesInternal(...args);
+}
+
+async function exportImportedVideos() {
+  if (!ensureFeatureAccess()) return;
+  return exportImportedVideosInternal();
+}
+
+async function exportSelectedVideo() {
+  if (!ensureFeatureAccess()) return;
+  return exportSelectedVideoInternal();
+}
+
+function openWorkspace(mode: WorkspaceMode = "ai", batchKind?: "remix" | "category") {
   activeFeature.value = null;
   workspaceMode.value = mode;
   if (mode === "batch" && batchKind) batchWorkspaceKind.value = batchKind;
@@ -834,7 +1006,6 @@ function openWorkspace(mode: WorkspaceMode = "ai", batchKind?: "remix" | "catego
 }
 
 function openWorkspaceTool(tool: ToolKey) {
-  if (!ensureFeatureAccess()) return;
   activeFeature.value = null;
   workspaceMode.value = "tools";
   if (tool === "effects") {
@@ -855,7 +1026,6 @@ function changeWorkspaceMode(mode: WorkspaceMode) {
 }
 
 function openFeature(feature: FeatureKey) {
-  if (!ensureFeatureAccess()) return;
   activeFeature.value = feature;
   activeTool.value = null;
   activeDrawer.value = null;
@@ -875,11 +1045,9 @@ watch(
     () => apiConfigStatus.value?.aiConfigured,
     () => apiConfigStatus.value?.ttsConfigured,
   ],
-  ([memberActive, aiConfigured, ttsConfigured]) => {
-    if (!isDesktopRuntime || !isWorkspaceVisible.value) return;
-    if (memberActive === true && aiConfigured === true && ttsConfigured === true) return;
-    goHome();
-    ensureFeatureAccess();
+  () => {
+    if (!isDesktopRuntime) return;
+    refreshFeatureAccessRequirements();
   },
 );
 
@@ -889,7 +1057,6 @@ function useFeatureText(text: string) {
 }
 
 async function continueHomeProject() {
-  if (!ensureFeatureAccess()) return;
   if (pendingProjectSnapshot.value?.snapshot) {
     await restorePendingSnapshot();
     return;
@@ -898,7 +1065,6 @@ async function continueHomeProject() {
 }
 
 async function restoreProjectWithAccess() {
-  if (!ensureFeatureAccess()) return;
   await restorePendingSnapshot();
 }
 
@@ -1077,6 +1243,7 @@ async function cleanupTaskTempFiles(silentWhenEmpty = false) {
 }
 
 async function generateCurrentAiRemixVideo() {
+  if (!ensureFeatureAccess({ ttsService: ttsVideoEnabled.value })) return;
   const variants = await prepareAiRemixVariants();
 
   if (!variants) {
@@ -1175,6 +1342,7 @@ function useAudioAsRemixScript() {
     return;
   }
   aiScript.value = asrResult.value.text.trim();
+  batchScript.value = asrResult.value.text.trim();
   aiRemixInputMode.value = "audio";
   generationOutputError.value = null;
   activeTool.value = null;
@@ -1420,6 +1588,7 @@ async function selectOutputDirectory() {
 }
 
 async function splitSelectedVideo() {
+  if (!ensureFeatureAccess()) return;
   if (!(await ensureSplitOutputDirectory())) {
     return;
   }
@@ -1455,6 +1624,8 @@ async function ensureSplitOutputDirectory() {
 async function requestSmartEffectConfig() {
   smartConfigError.value = null;
 
+  if (!ensureFeatureAccess({ aiService: true })) return;
+
   if (!selectedVideo.value) {
     smartConfigError.value = "请先选择一个视频素材，再让 AI 分析画面。";
     return;
@@ -1488,9 +1659,17 @@ async function requestSmartEffectConfig() {
 function applySmartEffectDefaults(plan: SmartEffectPlan) {
   const enabled = new Set(plan.enabledEffectKeys);
 
-  applyHorizontalMirror.value = false;
+  applyHorizontalMirror.value = enabled.has("rotate");
   applyVerticalMirror.value = false;
-  rotationMode.value = "none";
+  rotationMode.value = enabled.has("rotate") ? "rotate180" : "none";
+  entranceEffect.value = enabled.has("entrance") ? "smooth-up" : "none";
+  frameOperationSettings.value = {
+    ...frameOperationSettings.value,
+    enabled: enabled.has("frame"),
+    mode: "extract",
+    intervalMin: 60,
+    intervalMax: 60,
+  };
 
   hslEnabled.value = enabled.has("effects");
   if (hslEnabled.value) {
@@ -1514,6 +1693,46 @@ function applySmartEffectDefaults(plan: SmartEffectPlan) {
   pipEnabled.value = false;
 }
 
+const enabledVideoToolEffectKeys = computed<ToolKey[]>(() => {
+  const keys: ToolKey[] = [];
+  if (bgmEnabled.value && bgmAudioFilePath.value) keys.push("audio");
+  if (selectedCoverPath.value) keys.push("cover");
+  if (entranceEffect.value !== "none") keys.push("entrance");
+  if (frameOperationSettings.value.enabled) keys.push("frame");
+  if (fusionSettings.value.enabled) keys.push("fusion");
+  if (pipEnabled.value && pipOverlayFilePath.value) keys.push("pip");
+  if (
+    applyHorizontalMirror.value ||
+    applyVerticalMirror.value ||
+    rotationMode.value !== "none" ||
+    Math.abs(randomRotationMinDegrees.value) > 0.001 ||
+    Math.abs(randomRotationMaxDegrees.value) > 0.001
+  ) keys.push("rotate");
+  if (
+    Math.abs(playbackSpeed.value - 1) > 0.001 ||
+    Math.abs(playbackSpeedMin.value - 1) > 0.001 ||
+    Math.abs(playbackSpeedMax.value - 1) > 0.001
+  ) keys.push("speed");
+  if (watermarkEnabled.value || watermarkRemovalEnabled.value) keys.push("watermark");
+  if (zoomEnabled.value || Math.abs(effectScale.value - 1) > 0.001) keys.push("zoom");
+  if (
+    hslEnabled.value ||
+    Math.abs(brightness.value) > 0.001 ||
+    Math.abs(contrast.value - 1) > 0.001 ||
+    Math.abs(saturation.value - 1) > 0.001 ||
+    cropSettings.value.enabled ||
+    cropBlackBars.value ||
+    sharpness.value > 0 ||
+    noiseReduction.value > 0 ||
+    Math.abs(temperature.value - 6500) > 0.5 ||
+    visualStyle.value !== "none" ||
+    glowEnabled.value ||
+    grainEnabled.value ||
+    vignetteEnabled.value
+  ) keys.push("effects");
+  return keys;
+});
+
 function validatePlaybackSpeed() {
   if (!Number.isFinite(playbackSpeed.value)) {
     return "变速倍数必须是有效数字。";
@@ -1521,6 +1740,27 @@ function validatePlaybackSpeed() {
 
   if (playbackSpeed.value < 0.5 || playbackSpeed.value > 2) {
     return "变速倍数暂时只支持 0.5 到 2.0。";
+  }
+
+  if (
+    !Number.isFinite(playbackSpeedMin.value) ||
+    !Number.isFinite(playbackSpeedMax.value) ||
+    playbackSpeedMin.value < 0.5 ||
+    playbackSpeedMax.value > 2 ||
+    playbackSpeedMin.value > playbackSpeedMax.value
+  ) {
+    return "变速倍率范围必须在 0.5 到 2.0 之间，并且最小值不能大于最大值。";
+  }
+
+  if (
+    playbackSpeedMode.value === "segment" &&
+    (!Number.isFinite(playbackSegmentMinSeconds.value) ||
+      !Number.isFinite(playbackSegmentMaxSeconds.value) ||
+      playbackSegmentMinSeconds.value < 1 ||
+      playbackSegmentMaxSeconds.value > 120 ||
+      playbackSegmentMinSeconds.value > playbackSegmentMaxSeconds.value)
+  ) {
+    return "分段时长必须在 1 到 120 秒之间，并且最短时长不能大于最长时长。";
   }
 
   return null;
@@ -1547,6 +1787,18 @@ function validatePictureInPictureSettings() {
     return "画中画边距必须在 0 到 240 之间。";
   }
 
+  const pipRanges = [
+    [pipMainSizeMin.value, pipMainSizeMax.value, 0.1, 1, "主视频大小"],
+    [pipBlurMin.value, pipBlurMax.value, 0, 100, "虚化强度"],
+    [pipOffsetXMin.value, pipOffsetXMax.value, 0, 1, "左右偏移"],
+    [pipOffsetYMin.value, pipOffsetYMax.value, 0, 1, "上下偏移"],
+  ] as const;
+  for (const [minimum, maximum, lower, upper, label] of pipRanges) {
+    if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum < lower || maximum > upper || minimum > maximum) {
+      return `${label}范围无效，请检查最小值和最大值。`;
+    }
+  }
+
   return null;
 }
 
@@ -1562,10 +1814,24 @@ function validateBgmSettings() {
   if (!Number.isFinite(originalVolume.value) || originalVolume.value < 0 || originalVolume.value > 2) {
     return "原视频音量必须在 0 到 2 之间。";
   }
+  if (
+    !Number.isFinite(originalVolumeMin.value) ||
+    !Number.isFinite(originalVolumeMax.value) ||
+    originalVolumeMin.value < 0 ||
+    originalVolumeMax.value > 2 ||
+    originalVolumeMin.value > originalVolumeMax.value
+  ) return "主视频音量范围必须在 0% 到 200% 之间。";
 
   if (!Number.isFinite(bgmVolume.value) || bgmVolume.value < 0 || bgmVolume.value > 2) {
     return "BGM 音量必须在 0 到 2 之间。";
   }
+  if (
+    !Number.isFinite(bgmVolumeMin.value) ||
+    !Number.isFinite(bgmVolumeMax.value) ||
+    bgmVolumeMin.value < 0 ||
+    bgmVolumeMax.value > 2 ||
+    bgmVolumeMin.value > bgmVolumeMax.value
+  ) return "背景音乐音量范围必须在 0% 到 200% 之间。";
 
   if (!Number.isFinite(bgmFadeInSeconds.value) || bgmFadeInSeconds.value < 0 || bgmFadeInSeconds.value > 10) {
     return "BGM 淡入秒数必须在 0 到 10 之间。";
@@ -1609,18 +1875,43 @@ function resetToolSettings(tool: ToolKey) {
 
   if (tool === "speed") {
     playbackSpeed.value = 1;
+    playbackSpeedMode.value = "global";
+    playbackSpeedMin.value = 1;
+    playbackSpeedMax.value = 1;
+    playbackSegmentMinSeconds.value = 2;
+    playbackSegmentMaxSeconds.value = 4;
     return;
   }
 
   if (tool === "rotate") {
+    applyHorizontalMirror.value = false;
+    applyVerticalMirror.value = false;
     rotationMode.value = "none";
+    randomRotationMinDegrees.value = 0;
+    randomRotationMaxDegrees.value = 0;
     return;
   }
 
   if (tool === "effects" || tool === "adjust") {
+    hslEnabled.value = false;
+    hue.value = 0;
     brightness.value = 0;
     contrast.value = 1;
     saturation.value = 1;
+    cropSettings.value = { enabled: false, x: 0, y: 0, width: 100, height: 100 };
+    cropBlackBars.value = false;
+    sharpness.value = 0;
+    noiseReduction.value = 0;
+    temperature.value = 6500;
+    visualStyle.value = "none";
+    glowEnabled.value = false;
+    grainEnabled.value = false;
+    vignetteEnabled.value = false;
+    return;
+  }
+
+  if (tool === "entrance") {
+    entranceEffect.value = "none";
     return;
   }
 
@@ -1637,11 +1928,13 @@ function resetToolSettings(tool: ToolKey) {
 
   if (tool === "frame") {
     frameMaterialFilePath.value = null;
+    frameOperationSettings.value = { ...frameOperationSettings.value, enabled: false, materialFilePath: null };
     return;
   }
 
   if (tool === "fusion") {
     fusionMaterialFilePath.value = null;
+    fusionSettings.value = { ...fusionSettings.value, enabled: false, materialFilePath: null };
     return;
   }
 
@@ -1652,6 +1945,15 @@ function resetToolSettings(tool: ToolKey) {
     pipSizeRatio.value = 0.3;
     pipOpacity.value = 1;
     pipMargin.value = 24;
+    pipMode.value = "external";
+    pipMainSizeMin.value = 0.96;
+    pipMainSizeMax.value = 0.99;
+    pipBlurMin.value = 40;
+    pipBlurMax.value = 50;
+    pipOffsetXMin.value = 0.5;
+    pipOffsetXMax.value = 0.5;
+    pipOffsetYMin.value = 0.5;
+    pipOffsetYMax.value = 0.5;
     return;
   }
 
@@ -1659,7 +1961,15 @@ function resetToolSettings(tool: ToolKey) {
     bgmEnabled.value = false;
     bgmAudioFilePath.value = null;
     originalVolume.value = 1;
+    originalVolumeMin.value = 0.95;
+    originalVolumeMax.value = 1.05;
+    originalFadeEnabled.value = false;
+    dynamicAudioAdjustEnabled.value = true;
     bgmVolume.value = 0.35;
+    bgmVolumeMin.value = 0.25;
+    bgmVolumeMax.value = 0.35;
+    bgmFadeEnabled.value = false;
+    bgmLoopPlaybackEnabled.value = true;
     bgmFadeInSeconds.value = 0.5;
     bgmFadeOutSeconds.value = 0.5;
     return;
@@ -1679,10 +1989,15 @@ function resetToolSettings(tool: ToolKey) {
   }
 
   if (tool === "export") {
+    outputFormat.value = "mp4";
     outputResolution.value = "followCanvas";
     outputFrameRate.value = "source";
     outputQuality.value = "standard";
     outputEncoder.value = "auto";
+    keepOriginal.value = true;
+    namingMode.value = "serial";
+    threadMode.value = "single";
+    variantCount.value = 1;
     return;
   }
 
@@ -1723,6 +2038,7 @@ async function selectFrameMaterialFile() {
     });
     if (!selected || Array.isArray(selected)) return;
     frameMaterialFilePath.value = selected;
+    frameOperationSettings.value = { ...frameOperationSettings.value, materialFilePath: selected };
   } catch (error) {
     mixError.value = error instanceof Error ? error.message : String(error ?? "选择视频帧操作素材失败。");
   }
@@ -1736,6 +2052,7 @@ async function selectFusionMaterialFile() {
     });
     if (!selected || Array.isArray(selected)) return;
     fusionMaterialFilePath.value = selected;
+    fusionSettings.value = { ...fusionSettings.value, materialFilePath: selected };
   } catch (error) {
     mixError.value = error instanceof Error ? error.message : String(error ?? "选择像素融合素材失败。");
   }
@@ -1841,7 +2158,7 @@ async function selectBgmAudioFile() {
       filters: [
         {
           name: "音频文件",
-          extensions: ["mp3", "wav", "m4a", "aac", "flac", "ogg"],
+          extensions: ["mp3", "wav", "m4a", "aac", "flac", "ogg", "mp4", "mov", "mkv", "avi", "webm"],
         },
       ],
     });
@@ -1856,6 +2173,30 @@ async function selectBgmAudioFile() {
     mixError.value =
       error instanceof Error ? error.message : String(error ?? "选择 BGM 音频失败。");
   }
+}
+
+async function selectBgmAudioFolder() {
+  try {
+    const selected = await open({ directory: true, multiple: false });
+    if (!selected || Array.isArray(selected)) return;
+    const supportedExtensions = new Set([
+      "mp3", "wav", "m4a", "aac", "flac", "ogg", "mp4", "mov", "mkv", "avi", "webm",
+    ]);
+    const candidates = (await listFilesInFolder(selected)).filter((path) => {
+      const extension = path.split(".").pop()?.toLowerCase() ?? "";
+      return supportedExtensions.has(extension);
+    });
+    if (candidates.length === 0) throw new Error("所选文件夹中没有可用的音频或视频文件。");
+    bgmAudioFilePath.value = candidates[Math.floor(Math.random() * candidates.length)];
+    bgmEnabled.value = true;
+  } catch (error) {
+    mixError.value = error instanceof Error ? error.message : "读取 BGM 文件夹失败。";
+  }
+}
+
+function clearBgmAudioFile() {
+  bgmAudioFilePath.value = null;
+  bgmEnabled.value = false;
 }
 
 async function selectCoverImageFile() {
@@ -2023,6 +2364,11 @@ onMounted(() => {
           type="button"
           @click="openMembershipCenter('profile')"
         >{{ isWorkspaceVisible ? "♙" : membershipTopBarText }}</button>
+        <span
+          v-if="isWorkspaceVisible && membershipStatus?.memberActive !== true"
+          class="workspace-access-hint"
+          role="status"
+        >可浏览 · 处理需会员</span>
         <button
           class="top-help-button theme-top-button"
           type="button"
@@ -2175,6 +2521,7 @@ onMounted(() => {
         v-model:canvas-aspect-ratio="canvasAspectRatio"
         v-model:canvas-background-mode="canvasBackgroundMode"
         v-model:effect-scale="effectScale"
+        v-model:crop-settings="cropSettings"
         v-model:watermark-removal-region-count="watermarkRemovalRegionCount"
         v-model:watermark-removal-manual-regions="watermarkRemovalManualRegions"
         v-model:watermark-enabled="watermarkEnabled"
@@ -2261,6 +2608,7 @@ onMounted(() => {
         @select-audio-source="selectAsrSourceFile"
         @recognize-audio="recognizeAsr"
         @use-recognized-audio="useAudioAsRemixScript"
+        @rewrite-batch-script="rewriteBatchScript"
         @rewrite-ai-script="rewriteAiScript"
         @open-generation-directory="openAiGenerationDirectory"
         @export-jianying-draft="exportAiJianyingDraft"
@@ -2268,7 +2616,7 @@ onMounted(() => {
 
       <BatchWorkspacePanel
         v-else-if="workspaceMode === 'batch'"
-        v-model:script="aiScript"
+        v-model:script="batchScript"
         v-model:original-volume="originalVolume"
         v-model:bgm-enabled="bgmEnabled"
         v-model:bgm-volume="bgmVolume"
@@ -2279,6 +2627,9 @@ onMounted(() => {
         v-model:subtitle-enabled="subtitleEnabled"
         v-model:subtitle-position="subtitlePosition"
         v-model:subtitle-size="subtitleSize"
+        v-model:subtitle-font-family="subtitleFontFamily"
+        v-model:subtitle-text-color="subtitleTextColor"
+        v-model:subtitle-opacity="subtitleOpacity"
         v-model:watermark-removal-enabled="watermarkRemovalEnabled"
         v-model:watermark-removal-region-count="watermarkRemovalRegionCount"
         v-model:watermark-enabled="watermarkEnabled"
@@ -2299,6 +2650,11 @@ onMounted(() => {
         v-model:zoom-max-duration-seconds="zoomMaxDurationSeconds"
         v-model:canvas-aspect-ratio="canvasAspectRatio"
         v-model:canvas-background-mode="canvasBackgroundMode"
+        v-model:effect-scale="effectScale"
+        v-model:crop-settings="cropSettings"
+        v-model:watermark-text="watermarkText"
+        v-model:watermark-kind="watermarkKind"
+        v-model:watermark-position="watermarkPosition"
         :kind="batchWorkspaceKind"
         :imported-videos="importedVideos"
         :selected-video="selectedVideo"
@@ -2346,6 +2702,7 @@ onMounted(() => {
         @select-audio-source="selectAsrSourceFile"
         @recognize-audio="recognizeAsr"
         @use-recognized-audio="useAudioAsRemixScript"
+        @rewrite-batch-script="rewriteBatchScript"
         @update-material-folder-settings="updateFolderSettings"
         @select-fixed-material="selectFixedMaterial"
         @apply-folder-settings-to-all="applyMaterialFolderSettingsToAll"
@@ -2353,10 +2710,15 @@ onMounted(() => {
 
       <VideoToolsWorkspace
         v-else
+        v-model:output-format="outputFormat"
         v-model:output-resolution="outputResolution"
         v-model:output-frame-rate="outputFrameRate"
         v-model:output-quality="outputQuality"
         v-model:output-encoder="outputEncoder"
+        v-model:keep-original="keepOriginal"
+        v-model:naming-mode="namingMode"
+        v-model:thread-mode="threadMode"
+        v-model:variant-count="variantCount"
         :view="toolsWorkspaceView"
         :imported-videos="importedVideos"
         :selected-video="selectedVideo"
@@ -2375,11 +2737,31 @@ onMounted(() => {
         :active-processing-video-id="activeProcessingVideoId"
         :processing-progress="videoToolsProcessingProgress"
         v-model:smart-match-mode="aiMatchMode"
+        v-model:content-analysis-mode="contentAnalysisMode"
+        v-model:extract-shot-type="extractShotType"
+        v-model:extract-person-action="extractPersonAction"
+        v-model:extract-selling-points="extractSellingPoints"
+        v-model:extract-usable-copy="extractUsableCopy"
+        v-model:split-mode="splitMode"
+        v-model:split-output-grouping="splitOutputGrouping"
+        v-model:segment-duration-seconds="segmentDurationSeconds"
+        v-model:scene-sensitivity="sceneSensitivity"
+        v-model:minimum-segment-seconds="minimumSegmentSeconds"
+        v-model:maximum-segment-seconds="maximumSegmentSeconds"
+        v-model:trim-start-seconds="trimStartSeconds"
+        v-model:trim-end-seconds="trimEndSeconds"
+        v-model:scene-confidence-score="sceneConfidenceScore"
         v-model:canvas-aspect-ratio="canvasAspectRatio"
         v-model:canvas-background-mode="canvasBackgroundMode"
+        v-model:effect-scale="effectScale"
+        v-model:crop-settings="cropSettings"
+        v-model:watermark-text="watermarkText"
+        v-model:watermark-kind="watermarkKind"
+        v-model:watermark-position="watermarkPosition"
         :smart-effect-plan="smartEffectPlan"
         :is-smart-configuring="isSmartConfiguring"
         :smart-config-error="smartConfigError"
+        :enabled-effect-keys="enabledVideoToolEffectKeys"
         :frame-material-file-path="frameMaterialFilePath"
         :fusion-material-file-path="fusionMaterialFilePath"
         :pip-enabled="pipEnabled"
@@ -2407,12 +2789,13 @@ onMounted(() => {
         @select-segment="selectSegment"
         @select-output-directory="selectOutputDirectory"
         @split-selected-video="splitSelectedVideo"
-        @analyze-content="analyzePreparedSegmentContent"
+        @analyze-content="analyzeContentFromTools"
         @generate-categorized-segments="concatCategorizedSegments"
         @start-processing="exportImportedVideos"
         @request-smart-config="requestSmartEffectConfig"
         @open-drawer="activeDrawer = $event"
         @open-tool="activeTool = $event"
+        @disable-effect="resetToolSettings"
         @select-pip-overlay-file="selectPipOverlayFile"
         @select-watermark-asset="selectWatermarkImageFile"
         @update:pip-enabled="pipEnabled = $event"
@@ -2420,9 +2803,6 @@ onMounted(() => {
         @update:pip-size-ratio="pipSizeRatio = $event"
         @update:pip-opacity="pipOpacity = $event"
         @update:watermark-text-enabled="watermarkEnabled = $event"
-        @update:watermark-kind="watermarkKind = $event"
-        @update:watermark-text="watermarkText = $event"
-        @update:watermark-position="watermarkPosition = $event"
         @update:watermark-opacity="watermarkOpacity = $event"
         @update:watermark-text-font-size="watermarkTextFontSize = $event"
         @update:watermark-text-color="watermarkTextColor = $event"
@@ -2456,6 +2836,9 @@ onMounted(() => {
         v-model:subtitle-enabled="subtitleEnabled"
         v-model:subtitle-position="subtitlePosition"
         v-model:subtitle-size="subtitleSize"
+        v-model:subtitle-font-family="subtitleFontFamily"
+        v-model:subtitle-text-color="subtitleTextColor"
+        v-model:subtitle-opacity="subtitleOpacity"
         v-model:watermark-removal-enabled="watermarkRemovalEnabled"
         v-model:watermark-removal-region-count="watermarkRemovalRegionCount"
         v-model:watermark-enabled="watermarkEnabled"
@@ -2539,9 +2922,36 @@ onMounted(() => {
       :zoom-max-scale="zoomMaxScale"
       :zoom-min-duration-seconds="zoomMinDurationSeconds"
       :zoom-max-duration-seconds="zoomMaxDurationSeconds"
+      :crop-black-bars="cropBlackBars"
+      :random-rotation-min-degrees="randomRotationMinDegrees"
+      :random-rotation-max-degrees="randomRotationMaxDegrees"
+      :sharpness="sharpness"
+      :noise-reduction="noiseReduction"
+      :temperature="temperature"
+      :visual-style="visualStyle"
+      :glow-enabled="glowEnabled"
+      :grain-enabled="grainEnabled"
+      :vignette-enabled="vignetteEnabled"
+      :playback-speed-mode="playbackSpeedMode"
+      :playback-speed-min="playbackSpeedMin"
+      :playback-speed-max="playbackSpeedMax"
+      :playback-segment-min-seconds="playbackSegmentMinSeconds"
+      :playback-segment-max-seconds="playbackSegmentMaxSeconds"
       :frame-material-file-path="frameMaterialFilePath"
       :fusion-material-file-path="fusionMaterialFilePath"
+      :entrance-effect="entranceEffect"
+      :frame-operation-settings="frameOperationSettings"
+      :fusion-settings="fusionSettings"
       :pip-enabled="pipEnabled"
+      :pip-mode="pipMode"
+      :pip-main-size-min="pipMainSizeMin"
+      :pip-main-size-max="pipMainSizeMax"
+      :pip-blur-min="pipBlurMin"
+      :pip-blur-max="pipBlurMax"
+      :pip-offset-x-min="pipOffsetXMin"
+      :pip-offset-x-max="pipOffsetXMax"
+      :pip-offset-y-min="pipOffsetYMin"
+      :pip-offset-y-max="pipOffsetYMax"
       :pip-overlay-file-path="pipOverlayFilePath"
       :pip-position="pipPosition"
       :pip-size-ratio="pipSizeRatio"
@@ -2550,7 +2960,15 @@ onMounted(() => {
       :bgm-enabled="bgmEnabled"
       :bgm-audio-file-path="bgmAudioFilePath"
       :original-volume="originalVolume"
+      :original-volume-min="originalVolumeMin"
+      :original-volume-max="originalVolumeMax"
+      :original-fade-enabled="originalFadeEnabled"
+      :dynamic-audio-adjust-enabled="dynamicAudioAdjustEnabled"
       :bgm-volume="bgmVolume"
+      :bgm-volume-min="bgmVolumeMin"
+      :bgm-volume-max="bgmVolumeMax"
+      :bgm-fade-enabled="bgmFadeEnabled"
+      :bgm-loop-playback-enabled="bgmLoopPlaybackEnabled"
       :bgm-fade-in-seconds="bgmFadeInSeconds"
       :bgm-fade-out-seconds="bgmFadeOutSeconds"
       :selected-cover-url="selectedCoverUrl"
@@ -2609,9 +3027,14 @@ onMounted(() => {
       @select-pip-overlay-file="selectPipOverlayFile"
       @select-frame-material-file="selectFrameMaterialFile"
       @select-fusion-material-file="selectFusionMaterialFile"
-      @clear-frame-material-file="frameMaterialFilePath = null"
-      @clear-fusion-material-file="fusionMaterialFilePath = null"
+      @clear-frame-material-file="frameMaterialFilePath = null; frameOperationSettings = { ...frameOperationSettings, materialFilePath: null }"
+      @clear-fusion-material-file="fusionMaterialFilePath = null; fusionSettings = { ...fusionSettings, materialFilePath: null }"
+      @update:entrance-effect="entranceEffect = $event"
+      @update:frame-operation-settings="frameOperationSettings = $event"
+      @update:fusion-settings="fusionSettings = $event"
       @select-bgm-audio-file="selectBgmAudioFile"
+      @select-bgm-audio-folder="selectBgmAudioFolder"
+      @clear-bgm-audio-file="clearBgmAudioFile"
       @select-cover-image-file="selectCoverImageFile"
       @select-cover-image-folder="selectCoverImageFolder"
       @generate-cover-frame="generateCoverFrame"
@@ -2648,14 +3071,46 @@ onMounted(() => {
       @update:zoom-max-scale="zoomMaxScale = $event"
       @update:zoom-min-duration-seconds="zoomMinDurationSeconds = $event"
       @update:zoom-max-duration-seconds="zoomMaxDurationSeconds = $event"
+      @update:crop-black-bars="cropBlackBars = $event"
+      @update:random-rotation-min-degrees="randomRotationMinDegrees = $event"
+      @update:random-rotation-max-degrees="randomRotationMaxDegrees = $event"
+      @update:sharpness="sharpness = $event"
+      @update:noise-reduction="noiseReduction = $event"
+      @update:temperature="temperature = $event"
+      @update:visual-style="visualStyle = $event"
+      @update:glow-enabled="glowEnabled = $event"
+      @update:grain-enabled="grainEnabled = $event"
+      @update:vignette-enabled="vignetteEnabled = $event"
+      @update:playback-speed-mode="playbackSpeedMode = $event"
+      @update:playback-speed-min="playbackSpeedMin = $event"
+      @update:playback-speed-max="playbackSpeedMax = $event"
+      @update:playback-segment-min-seconds="playbackSegmentMinSeconds = $event"
+      @update:playback-segment-max-seconds="playbackSegmentMaxSeconds = $event"
       @update:pip-enabled="pipEnabled = $event"
+      @update:pip-mode="pipMode = $event"
+      @update:pip-main-size-min="pipMainSizeMin = $event"
+      @update:pip-main-size-max="pipMainSizeMax = $event"
+      @update:pip-blur-min="pipBlurMin = $event"
+      @update:pip-blur-max="pipBlurMax = $event"
+      @update:pip-offset-x-min="pipOffsetXMin = $event"
+      @update:pip-offset-x-max="pipOffsetXMax = $event"
+      @update:pip-offset-y-min="pipOffsetYMin = $event"
+      @update:pip-offset-y-max="pipOffsetYMax = $event"
       @update:pip-position="pipPosition = $event"
       @update:pip-size-ratio="pipSizeRatio = $event"
       @update:pip-opacity="pipOpacity = $event"
       @update:pip-margin="pipMargin = $event"
       @update:bgm-enabled="bgmEnabled = $event"
       @update:original-volume="originalVolume = $event"
+      @update:original-volume-min="originalVolumeMin = $event"
+      @update:original-volume-max="originalVolumeMax = $event"
+      @update:original-fade-enabled="originalFadeEnabled = $event"
+      @update:dynamic-audio-adjust-enabled="dynamicAudioAdjustEnabled = $event"
       @update:bgm-volume="bgmVolume = $event"
+      @update:bgm-volume-min="bgmVolumeMin = $event"
+      @update:bgm-volume-max="bgmVolumeMax = $event"
+      @update:bgm-fade-enabled="bgmFadeEnabled = $event"
+      @update:bgm-loop-playback-enabled="bgmLoopPlaybackEnabled = $event"
       @update:bgm-fade-in-seconds="bgmFadeInSeconds = $event"
       @update:bgm-fade-out-seconds="bgmFadeOutSeconds = $event"
       @update:cover-frame-seconds="coverFrameSeconds = $event"

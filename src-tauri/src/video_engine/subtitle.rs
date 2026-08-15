@@ -22,6 +22,23 @@ pub struct NarratedSubtitleSettings {
     pub size: NarratedSubtitleSize,
 }
 
+#[derive(Debug, Clone)]
+pub struct SubtitleStyleSettings {
+    pub font_family: String,
+    pub text_color: String,
+    pub opacity: f64,
+}
+
+impl Default for SubtitleStyleSettings {
+    fn default() -> Self {
+        Self {
+            font_family: "Microsoft YaHei".to_string(),
+            text_color: "#ffffff".to_string(),
+            opacity: 1.0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum NarratedSubtitlePosition {
@@ -69,19 +86,50 @@ pub fn prepare_ass_subtitle(
     duration_seconds: f64,
     settings: NarratedSubtitleSettings,
 ) -> Result<Option<String>, String> {
+    prepare_ass_subtitle_with_style(
+        output_path,
+        text,
+        duration_seconds,
+        settings,
+        SubtitleStyleSettings::default(),
+    )
+}
+
+pub fn prepare_ass_subtitle_with_style(
+    output_path: &Path,
+    text: &str,
+    duration_seconds: f64,
+    settings: NarratedSubtitleSettings,
+    style: SubtitleStyleSettings,
+) -> Result<Option<String>, String> {
     if !settings.enabled {
         return Ok(None);
     }
 
-    let content = build_ass_document(text, duration_seconds, settings)?;
+    let content = build_ass_document_with_style(text, duration_seconds, settings, &style)?;
     fs::write(output_path, content).map_err(|error| format!("无法创建临时字幕文件：{error}"))?;
     Ok(Some(build_ass_filter(output_path)?))
 }
 
+#[cfg(test)]
 fn build_ass_document(
     text: &str,
     duration_seconds: f64,
     settings: NarratedSubtitleSettings,
+) -> Result<String, String> {
+    build_ass_document_with_style(
+        text,
+        duration_seconds,
+        settings,
+        &SubtitleStyleSettings::default(),
+    )
+}
+
+fn build_ass_document_with_style(
+    text: &str,
+    duration_seconds: f64,
+    settings: NarratedSubtitleSettings,
+    style: &SubtitleStyleSettings,
 ) -> Result<String, String> {
     if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
         return Err("字幕时长无效。".to_string());
@@ -105,6 +153,8 @@ fn build_ass_document(
     let font_size = effective_font_size(settings.size, longest_cue);
     let alignment = subtitle_alignment(settings.position);
     let margin_v = subtitle_margin(settings.position);
+    let font_family = normalize_ass_font_family(&style.font_family)?;
+    let primary_color = ass_primary_color(&style.text_color, style.opacity)?;
     let dialogue_lines = cues
         .iter()
         .map(|cue| {
@@ -127,11 +177,41 @@ fn build_ass_document(
          WrapStyle: 0\n\n\
          [V4+ Styles]\n\
          Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n\
-         Style: Default,Microsoft YaHei,{font_size},&H00FFFFFF,&H00FFFFFF,&H64000000,&H64000000,-1,0,0,0,100,100,0,0,3,4,0,{alignment},80,80,{margin_v},1\n\n\
+         Style: Default,{font_family},{font_size},{primary_color},{primary_color},&H64000000,&H64000000,-1,0,0,0,100,100,0,0,3,4,0,{alignment},80,80,{margin_v},1\n\n\
          [Events]\n\
          Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n\
          {dialogue_lines}\n"
     ))
+}
+
+fn normalize_ass_font_family(value: &str) -> Result<String, String> {
+    let normalized = value.trim();
+    if normalized.is_empty()
+        || normalized.chars().count() > 80
+        || normalized
+            .chars()
+            .any(|character| matches!(character, ',' | '\n' | '\r'))
+    {
+        return Err("字幕字体名称无效。".to_string());
+    }
+    Ok(normalized.to_string())
+}
+
+fn ass_primary_color(value: &str, opacity: f64) -> Result<String, String> {
+    if value.len() != 7
+        || !value.starts_with('#')
+        || !value[1..].bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err("字幕颜色必须是 #RRGGBB 格式。".to_string());
+    }
+    if !opacity.is_finite() || !(0.1..=1.0).contains(&opacity) {
+        return Err("字幕透明度必须在 10% 到 100% 之间。".to_string());
+    }
+    let red = &value[1..3];
+    let green = &value[3..5];
+    let blue = &value[5..7];
+    let alpha = ((1.0 - opacity) * 255.0).round() as u8;
+    Ok(format!("&H{alpha:02X}{blue}{green}{red}").to_ascii_uppercase())
 }
 
 fn normalize_subtitle_text(text: &str) -> String {
@@ -383,6 +463,23 @@ mod tests {
         assert!(content.contains("Microsoft YaHei,46"));
         assert!(content.contains("Dialogue: 0,0:00:00.00,0:00:03.21"));
         assert!(content.contains("这是第一句自动字幕"));
+    }
+
+    #[test]
+    fn writes_selected_font_color_and_opacity_into_ass_style() {
+        let content = build_ass_document_with_style(
+            "字幕样式测试",
+            2.0,
+            default_settings(),
+            &SubtitleStyleSettings {
+                font_family: "SimHei".to_string(),
+                text_color: "#50d7b0".to_string(),
+                opacity: 0.8,
+            },
+        )
+        .unwrap();
+
+        assert!(content.contains("Style: Default,SimHei,46,&H33B0D750,&H33B0D750"));
     }
 
     #[test]

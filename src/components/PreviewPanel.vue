@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch, type CSSProperties } from "vue";
 import type { AiRemixPlannedShot, AiRemixSegment } from "../features/ai-remix";
 import type { ImportedVideo } from "../types/videoProbe";
-import type { CanvasAspectRatio, CanvasBackgroundMode, DynamicZoomMode } from "../services/videoMixService";
+import type { CanvasAspectRatio, CanvasBackgroundMode, CanvasCropSettings, DynamicZoomMode } from "../services/videoMixService";
 import type { WatermarkAssetType, WatermarkKind, WatermarkPosition, WatermarkRemovalRegion, WatermarkTrajectory } from "../features/watermark/types";
 import type { DrawerKey, ToolKey } from "../types/workbench";
 
@@ -110,6 +110,7 @@ const aiGenerateCount = defineModel<number>("aiGenerateCount", { required: true 
 const canvasAspectRatio = defineModel<CanvasAspectRatio>("canvasAspectRatio", { required: true });
 const canvasBackgroundMode = defineModel<CanvasBackgroundMode>("canvasBackgroundMode", { required: true });
 const effectScale = defineModel<number>("effectScale", { required: true });
+const cropSettings = defineModel<CanvasCropSettings>("cropSettings", { required: true });
 const watermarkEnabled = defineModel<boolean>("watermarkEnabled", { required: true });
 const watermarkKind = defineModel<WatermarkKind>("watermarkKind", { required: true });
 const watermarkText = defineModel<string>("watermarkText", { required: true });
@@ -130,8 +131,22 @@ const previewCanvasRef = ref<HTMLElement | null>(null);
 const watermarkAssetLayerRef = ref<HTMLElement | null>(null);
 const textEditorRef = ref<HTMLElement | null>(null);
 const previewCanvasSize = ref({ width: 0, height: 0 });
-const cropRect = ref({ x: 18, y: 10, width: 64, height: 78 });
-const textPosition = ref({ x: 50, y: 50 });
+const cropRect = ref({
+  x: cropSettings.value.x,
+  y: cropSettings.value.y,
+  width: cropSettings.value.width,
+  height: cropSettings.value.height,
+});
+const textPosition = computed(() => {
+  const positions: Record<WatermarkPosition, { x: number; y: number }> = {
+    topLeft: { x: 14, y: 14 },
+    topRight: { x: 86, y: 14 },
+    bottomLeft: { x: 14, y: 86 },
+    bottomRight: { x: 86, y: 86 },
+    center: { x: 50, y: 50 },
+  };
+  return positions[watermarkPosition.value];
+});
 const pointerInteraction = ref<PointerInteraction | null>(null);
 const isPreviewPlaying = ref(false);
 let previewResizeObserver: ResizeObserver | null = null;
@@ -152,6 +167,26 @@ const fillOptions: Array<{ value: CanvasBackgroundMode; label: string }> = [
   { value: "black", label: "适应填充" },
   { value: "blur", label: "模糊填充" },
 ];
+
+watch(cropSettings, (value) => {
+  cropRect.value = { x: value.x, y: value.y, width: value.width, height: value.height };
+}, { deep: true });
+
+function syncCropSettings() {
+  cropSettings.value = {
+    enabled: true,
+    x: cropRect.value.x,
+    y: cropRect.value.y,
+    width: cropRect.value.width,
+    height: cropRect.value.height,
+  };
+}
+
+function nearestWatermarkPosition(x: number, y: number): WatermarkPosition {
+  if (y >= 34 && y <= 66) return "center";
+  if (y < 34) return x < 50 ? "topLeft" : "topRight";
+  return x < 50 ? "bottomLeft" : "bottomRight";
+}
 const positionOptions: Array<{ value: WatermarkPosition; label: string }> = [
   { value: "topLeft", label: "左上" },
   { value: "topRight", label: "右上" },
@@ -489,10 +524,10 @@ function handlePointerMove(event: PointerEvent) {
   }
 
   if (interaction.kind === "text-move") {
-    textPosition.value = {
-      x: clamp(interaction.startRect.x + deltaX, 8, 92),
-      y: clamp(interaction.startRect.y + deltaY, 10, 90),
-    };
+    watermarkPosition.value = nearestWatermarkPosition(
+      clamp(interaction.startRect.x + deltaX, 8, 92),
+      clamp(interaction.startRect.y + deltaY, 10, 90),
+    );
     return;
   }
 
@@ -538,6 +573,7 @@ function handlePointerMove(event: PointerEvent) {
       x: clamp(interaction.startRect.x + deltaX, 0, 100 - interaction.startRect.width),
       y: clamp(interaction.startRect.y + deltaY, 0, 100 - interaction.startRect.height),
     };
+    syncCropSettings();
     return;
   }
 
@@ -554,6 +590,7 @@ function handlePointerMove(event: PointerEvent) {
   if (handle.includes("s")) bottom = clamp(start.y + start.height + deltaY, top + 12, 100);
   cropRect.value = { x: left, y: top, width: right - left, height: bottom - top };
   effectScale.value = clamp(86 / cropRect.value.width, 1, 1.2);
+  syncCropSettings();
 }
 
 function stopPointerInteraction() {
@@ -667,7 +704,16 @@ function clearScripts() {
 
 function toggleCropEditor() {
   isCropEditorOpen.value = !isCropEditorOpen.value;
-  if (isCropEditorOpen.value) isTextEditorOpen.value = false;
+  if (isCropEditorOpen.value) {
+    isTextEditorOpen.value = false;
+    syncCropSettings();
+  }
+}
+
+function resetCropEditor() {
+  cropRect.value = { x: 0, y: 0, width: 100, height: 100 };
+  cropSettings.value = { enabled: false, x: 0, y: 0, width: 100, height: 100 };
+  effectScale.value = 1;
 }
 
 function createRemovalRegion(index: number): WatermarkRemovalRegion {
@@ -723,7 +769,7 @@ function previewPause() {
         <label for="preview-crop-scale">画面缩放</label>
         <input id="preview-crop-scale" v-model.number="effectScale" type="range" min="1" max="1.2" step="0.01" />
         <output>{{ effectScale.toFixed(2) }}×</output>
-        <button type="button" @click="effectScale = 1">重置</button>
+        <button type="button" @click="resetCropEditor">重置</button>
       </div>
       <div v-if="previewUrl" class="video-frame replica-stable-preview-frame" :class="{ 'video-frame--portrait': isPortraitPreview, 'is-text-editing': isTextEditorOpen, 'is-crop-editing': isCropEditorOpen }">
         <div ref="previewCanvasRef" class="video-frame__canvas" :class="{ 'video-frame__canvas--fit': canvasAspectRatio !== 'original', 'video-frame__canvas--blur': shouldShowBlurBackground }" :style="previewCanvasStyle">

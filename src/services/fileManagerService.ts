@@ -8,6 +8,10 @@ export function isExistingDirectory(path: string): Promise<boolean> {
   return invoke<boolean>("is_existing_directory", { path });
 }
 
+export function listFilesInFolder(folderPath: string): Promise<string[]> {
+  return invoke<string[]>("list_files_in_folder", { folderPath });
+}
+
 export function createAiRemixOutputDirectory(
   outputDirectory: string,
   label: string,

@@ -383,16 +383,34 @@
   line-height: 1.65;
 }
 
-.access-requirement-dialog button {
+.access-requirement-dialog__actions {
   grid-column: 1 / -1;
-  min-height: 38px;
   margin-top: 4px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 8px;
+}
+
+.access-requirement-dialog button {
+  min-height: 38px;
   border: 1px solid var(--smartcut-accent);
   border-radius: 6px;
   color: #071214;
   background: var(--smartcut-accent);
   font-weight: 750;
   cursor: pointer;
+}
+
+.access-requirement-dialog__secondary {
+  border-color: var(--smartcut-border-strong) !important;
+  color: var(--smartcut-text) !important;
+  background: transparent !important;
+}
+
+.access-requirement-dialog__secondary:hover,
+.access-requirement-dialog__secondary:focus-visible {
+  border-color: var(--smartcut-accent) !important;
+  background: var(--smartcut-accent-soft) !important;
 }
 
 .access-requirement-dialog button:hover,

@@ -5,13 +5,14 @@ import type { ImportedVideo } from "../../types/videoProbe";
 import type { TaskLogLevel, VideoProcessingState } from "../../types/workbench";
 import { isTaskCancelledError } from "../task-center";
 import type { TaskRunHandle } from "../task-center";
-import { exportCurrentVideo } from "./services/remixExportService";
+import { deleteSourceVideoFile, exportCoverImage, exportCurrentVideo } from "./services/remixExportService";
 
 interface UseBasicExportOptions {
   importedVideos: Readonly<Ref<ImportedVideo[]>>;
   selectedVideo: Readonly<Ref<ImportedVideo | null>>;
   outputDirectory: Readonly<Ref<string | null>>;
   remixExportSettings: Readonly<Ref<RemixExportSettings>>;
+  coverImagePath?: Readonly<Ref<string | null>>;
   validatePictureInPicture: () => string | null;
   validateBgm: () => string | null;
   validatePlaybackSpeed: () => string | null;
@@ -34,79 +35,51 @@ export function useBasicExport(options: UseBasicExportOptions) {
     exportError.value = null;
     exportResultPath.value = null;
     options.clearExportLogs();
+    const video = options.selectedVideo.value;
 
-    if (!options.selectedVideo.value) {
-      exportError.value = "请先选择一个要导出的视频。";
-      options.appendExportLog(`导出失败：${exportError.value}`, "error");
-      return;
-    }
-
-    if (!options.outputDirectory.value) {
-      exportError.value = "请先选择输出目录。";
-      options.appendExportLog(`导出失败：${exportError.value}`, "error");
+    if (!video) return fail("请先选择一个要导出的视频。", "导出失败");
+    if (!options.outputDirectory.value) return fail("请先选择输出目录。", "导出失败");
+    const validationError = validateSettings(options);
+    if (validationError) return fail(validationError, "导出失败");
+    if (!options.remixExportSettings.value.outputSettings.keepOriginal && !confirmSourceRemoval()) {
+      options.appendExportLog("已取消导出：未确认删除原文件。", "info");
       return;
     }
 
-    const watermarkError = options.validateWatermark();
-    if (watermarkError) {
-      exportError.value = watermarkError;
-      options.appendExportLog(`导出失败：${watermarkError}`, "error");
-      return;
-    }
-    const watermarkRemovalError = options.validateWatermarkRemoval();
-    if (watermarkRemovalError) {
-      exportError.value = watermarkRemovalError;
-      options.appendExportLog(`导出失败：${watermarkRemovalError}`, "error");
-      return;
-    }
-    const effectValidationError =
-      options.validatePictureInPicture() ??
-      options.validateBgm() ??
-      options.validatePlaybackSpeed();
-    if (effectValidationError) {
-      exportError.value = effectValidationError;
-      options.appendExportLog(`导出失败：${effectValidationError}`, "error");
-      return;
-    }
-
-    options.appendExportLog("开始导出。", "info");
-    options.appendExportLog("导出中。", "info");
     isExporting.value = true;
-
     try {
-      const result = await options.runTask("导出当前视频", (task) =>
-        exportCurrentVideo(
-          options.selectedVideo.value?.filePath as string,
-          options.outputDirectory.value as string,
-          options.selectedVideo.value?.durationSeconds ?? null,
-          options.remixExportSettings.value,
-          task.progress(0, 100, "正在导出当前视频"),
-        ),
-      );
-      exportResultPath.value = result.outputPath;
-      options.addExportResult("基础导出", result.outputPath);
-      options.appendExportLog(`导出成功：${result.outputPath}`, "success");
-      options.appendExportLog(
-        `输出设置：${result.outputResolution}，${result.outputFrameRate}，${result.outputQuality}，${result.outputEncoder}，约 ${result.outputVideoBitrateKbps} kbps。`,
-        "info",
-      );
-      if (options.remixExportSettings.value.watermarkSettings.enabled) {
-        options.appendExportLog(
-          options.remixExportSettings.value.watermarkSettings.kind === "text"
-            ? "已添加文字水印。"
-            : "已添加图片水印。",
-          "info",
-        );
+      const variantCount = normalizeVariantCount(options.remixExportSettings.value.outputSettings.variantCount);
+      const verifiedOutputPaths: string[] = [];
+      const result = await options.runTask("导出当前视频", async (task) => {
+        let lastResult: Awaited<ReturnType<typeof exportCurrentVideo>> | null = null;
+        for (let variantIndex = 0; variantIndex < variantCount; variantIndex += 1) {
+          task.throwIfCancelled();
+          lastResult = await exportCurrentVideo(
+            video.filePath,
+            options.outputDirectory.value as string,
+            video.durationSeconds,
+            buildJobSettings(options.remixExportSettings.value, {
+              video,
+              index: variantIndex,
+              variantIndex,
+              totalVariants: variantCount,
+            }),
+            task.progress((variantIndex / variantCount) * 100, ((variantIndex + 1) / variantCount) * 100, `正在导出版本 ${variantIndex + 1}/${variantCount}`),
+          );
+          exportResultPath.value = lastResult.outputPath;
+          verifiedOutputPaths.push(lastResult.outputPath);
+          options.addExportResult("基础导出", lastResult.outputPath);
+          options.appendExportLog(`导出成功：${lastResult.outputPath}`, "success");
+          await exportCoverForResult(options, lastResult.outputPath);
+        }
+        return lastResult;
+      });
+      if (result && !options.remixExportSettings.value.outputSettings.keepOriginal) {
+        await deleteSourceVideoFile(video.filePath, verifiedOutputPaths);
+        options.appendExportLog(`已按“不保留原文件”删除：${video.fileName}`, "info");
       }
     } catch (error) {
-      if (isTaskCancelledError(error)) {
-        exportError.value = "导出任务已取消，可以重新开始。";
-        options.appendExportLog(exportError.value, "info");
-        return;
-      }
-      exportError.value =
-        error instanceof Error ? error.message : String(error ?? "视频导出失败。");
-      options.appendExportLog(`导出失败：${exportError.value}`, "error");
+      handleExportError(error, exportError, options.appendExportLog, "导出");
     } finally {
       isExporting.value = false;
     }
@@ -116,122 +89,132 @@ export function useBasicExport(options: UseBasicExportOptions) {
     exportError.value = null;
     exportResultPath.value = null;
     options.clearExportLogs();
-
-    if (options.importedVideos.value.length === 0) {
-      exportError.value = "请先导入至少一个视频。";
-      options.appendExportLog(`批量处理失败：${exportError.value}`, "error");
-      return;
-    }
-
-    if (!options.outputDirectory.value) {
-      exportError.value = "请先选择输出目录。";
-      options.appendExportLog(`批量处理失败：${exportError.value}`, "error");
-      return;
-    }
-
-    const watermarkError = options.validateWatermark();
-    if (watermarkError) {
-      exportError.value = watermarkError;
-      options.appendExportLog(`批量处理失败：${watermarkError}`, "error");
-      return;
-    }
-    const watermarkRemovalError = options.validateWatermarkRemoval();
-    if (watermarkRemovalError) {
-      exportError.value = watermarkRemovalError;
-      options.appendExportLog(`批量处理失败：${watermarkRemovalError}`, "error");
-      return;
-    }
-    const effectValidationError =
-      options.validatePictureInPicture() ??
-      options.validateBgm() ??
-      options.validatePlaybackSpeed();
-    if (effectValidationError) {
-      exportError.value = effectValidationError;
-      options.appendExportLog(`批量处理失败：${effectValidationError}`, "error");
-      return;
-    }
-
     const videos = [...options.importedVideos.value];
-    videoProcessingStates.value = Object.fromEntries(
-      videos.map((video) => [
-        video.id,
-        { status: "pending", progress: 0, message: "等待处理" },
-      ]),
-    );
+
+    if (videos.length === 0) return fail("请先导入至少一个视频。", "批量处理失败");
+    if (!options.outputDirectory.value) return fail("请先选择输出目录。", "批量处理失败");
+    const validationError = validateSettings(options);
+    if (validationError) return fail(validationError, "批量处理失败");
+    if (!options.remixExportSettings.value.outputSettings.keepOriginal && !confirmSourceRemoval()) {
+      options.appendExportLog("已取消批量处理：未确认删除原文件。", "info");
+      return;
+    }
+
+    const jobs = buildExportJobs(videos, options.remixExportSettings.value);
+    const workerCount = resolveWorkerCount(options.remixExportSettings.value.outputSettings.threadMode, jobs.length);
+    const completedByVideo = new Map<string, number>();
+    const completedOutputPathsByVideo = new Map<string, string[]>();
+    const failedVideoIds = new Set<string>();
+    videoProcessingStates.value = Object.fromEntries(videos.map((video) => [video.id, { status: "pending", progress: 0, message: "等待处理" }]));
     activeProcessingVideoId.value = null;
     isExporting.value = true;
-    options.appendExportLog(`开始处理 ${videos.length} 个视频。`, "info");
+    options.appendExportLog(`开始处理 ${jobs.length} 个导出任务，使用 ${workerCount} 个处理线程。`, "info");
 
     try {
       await options.runTask("批量处理视频效果", async (task) => {
-        for (const [index, video] of videos.entries()) {
-          task.throwIfCancelled();
-          const startPercent = (index / videos.length) * 100;
-          const endPercent = ((index + 1) / videos.length) * 100;
-          activeProcessingVideoId.value = video.id;
-          videoProcessingStates.value = {
-            ...videoProcessingStates.value,
-            [video.id]: { status: "processing", progress: 0, message: "正在处理" },
-          };
-          options.appendExportLog(`正在处理第 ${index + 1}/${videos.length} 个视频：${video.fileName}`, "info");
-
-          try {
-            const result = await exportCurrentVideo(
-              video.filePath,
-              options.outputDirectory.value as string,
-              video.durationSeconds,
-              options.remixExportSettings.value,
-              task.progress(startPercent, endPercent, `正在处理 ${index + 1}/${videos.length}`),
-            );
-            const resolvedResult = await result;
-            videoProcessingStates.value = {
-              ...videoProcessingStates.value,
-              [video.id]: { status: "completed", progress: 100, message: "处理完成" },
-            };
-            options.addExportResult("基础导出", resolvedResult.outputPath);
-            options.appendExportLog(`处理完成：${resolvedResult.outputPath}`, "success");
-          } catch (error) {
-            if (isTaskCancelledError(error)) throw error;
-            const message = error instanceof Error ? error.message : String(error ?? "视频处理失败。");
-            videoProcessingStates.value = {
-              ...videoProcessingStates.value,
-              [video.id]: { status: "failed", progress: 0, message },
-            };
-            options.appendExportLog(`处理失败：${video.fileName}，${message}`, "error");
+        let nextJobIndex = 0;
+        let completedJobCount = 0;
+        const worker = async () => {
+          while (true) {
+            task.throwIfCancelled();
+            const job = jobs[nextJobIndex++];
+            if (!job) return;
+            activeProcessingVideoId.value = job.video.id;
+            const completedVariants = completedByVideo.get(job.video.id) ?? 0;
+            videoProcessingStates.value = { ...videoProcessingStates.value, [job.video.id]: { status: "processing", progress: Math.round((completedVariants / job.totalVariants) * 100), message: `正在处理第 ${job.variantIndex + 1}/${job.totalVariants} 个版本` } };
+            try {
+              const result = await exportCurrentVideo(job.video.filePath, options.outputDirectory.value as string, job.video.durationSeconds, buildJobSettings(options.remixExportSettings.value, job), workerCount === 1 ? task.progress((job.index / jobs.length) * 100, ((job.index + 1) / jobs.length) * 100, `正在处理 ${job.index + 1}/${jobs.length}`) : undefined);
+              completedByVideo.set(job.video.id, completedVariants + 1);
+              completedOutputPathsByVideo.set(job.video.id, [
+                ...(completedOutputPathsByVideo.get(job.video.id) ?? []),
+                result.outputPath,
+              ]);
+              completedJobCount += 1;
+              const done = completedVariants + 1 === job.totalVariants;
+              videoProcessingStates.value = { ...videoProcessingStates.value, [job.video.id]: { status: done ? "completed" : "processing", progress: Math.round(((completedVariants + 1) / job.totalVariants) * 100), message: done ? "处理完成" : `已完成 ${completedVariants + 1}/${job.totalVariants} 个版本` } };
+              options.addExportResult("基础导出", result.outputPath);
+              options.appendExportLog(`处理完成：${result.outputPath}`, "success");
+              await exportCoverForResult(options, result.outputPath);
+              if (workerCount > 1) await task.update((completedJobCount / jobs.length) * 100, `已完成 ${completedJobCount}/${jobs.length} 个导出任务`);
+            } catch (error) {
+              if (isTaskCancelledError(error)) throw error;
+              failedVideoIds.add(job.video.id);
+              const message = error instanceof Error ? error.message : String(error ?? "视频处理失败。");
+              videoProcessingStates.value = { ...videoProcessingStates.value, [job.video.id]: { status: "failed", progress: 0, message } };
+              options.appendExportLog(`处理失败：${job.video.fileName}，${message}`, "error");
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: workerCount }, () => worker()));
+        if (!options.remixExportSettings.value.outputSettings.keepOriginal) {
+          for (const video of videos) {
+            const expected = jobs.filter((job) => job.video.id === video.id).length;
+            if (!failedVideoIds.has(video.id) && completedByVideo.get(video.id) === expected) {
+              await deleteSourceVideoFile(
+                video.filePath,
+                completedOutputPathsByVideo.get(video.id) ?? [],
+              );
+              options.appendExportLog(`已按“不保留原文件”删除：${video.fileName}`, "info");
+            }
           }
         }
       });
     } catch (error) {
-      if (isTaskCancelledError(error)) {
-        exportError.value = "批量处理任务已取消，可以重新开始。";
-        options.appendExportLog(exportError.value, "info");
-        if (activeProcessingVideoId.value) {
-          videoProcessingStates.value = {
-            ...videoProcessingStates.value,
-            [activeProcessingVideoId.value]: {
-              status: "cancelled",
-              progress: videoProcessingStates.value[activeProcessingVideoId.value]?.progress ?? 0,
-              message: "已取消",
-            },
-          };
-        }
-      } else {
-        exportError.value = error instanceof Error ? error.message : String(error ?? "批量处理失败。");
-        options.appendExportLog(`批量处理失败：${exportError.value}`, "error");
-      }
+      handleExportError(error, exportError, options.appendExportLog, "批量处理");
+      if (isTaskCancelledError(error) && activeProcessingVideoId.value) videoProcessingStates.value = { ...videoProcessingStates.value, [activeProcessingVideoId.value]: { status: "cancelled", progress: videoProcessingStates.value[activeProcessingVideoId.value]?.progress ?? 0, message: "已取消" } };
     } finally {
       activeProcessingVideoId.value = null;
       isExporting.value = false;
     }
   }
 
-  return {
-    activeProcessingVideoId,
-    exportError,
-    exportImportedVideos,
-    exportResultPath,
-    exportSelectedVideo,
-    isExporting,
-    videoProcessingStates,
-  };
+  function fail(message: string, prefix: string) {
+    exportError.value = message;
+    options.appendExportLog(`${prefix}：${message}`, "error");
+  }
+
+  return { activeProcessingVideoId, exportError, exportImportedVideos, exportResultPath, exportSelectedVideo, isExporting, videoProcessingStates };
+}
+
+interface ExportJob { video: ImportedVideo; index: number; variantIndex: number; totalVariants: number }
+
+function buildExportJobs(videos: ImportedVideo[], settings: RemixExportSettings): ExportJob[] {
+  const totalVariants = normalizeVariantCount(settings.outputSettings.variantCount);
+  return videos.flatMap((video) => Array.from({ length: totalVariants }, (_, variantIndex) => ({ video, variantIndex, totalVariants }))).map((job, index) => ({ ...job, index }));
+}
+
+function buildJobSettings(settings: RemixExportSettings, job: ExportJob): RemixExportSettings {
+  const paddedIndex = String(job.index + 1).padStart(3, "0");
+  const sourceName = job.video.fileName.replace(/\.[^.]+$/, "").trim() || "视频";
+  const variantSuffix = job.totalVariants > 1 ? `_${String(job.variantIndex + 1).padStart(2, "0")}` : "";
+  const outputName = settings.outputSettings.namingMode === "serial" ? `处理_${paddedIndex}` : `${sourceName}_处理${variantSuffix}`;
+  return { ...settings, outputName };
+}
+
+function normalizeVariantCount(value: number) { return Number.isInteger(value) ? Math.max(1, Math.min(100, value)) : 1; }
+
+function resolveWorkerCount(mode: RemixExportSettings["outputSettings"]["threadMode"], jobCount: number) {
+  if (mode === "single") return 1;
+  const available = typeof navigator === "undefined" ? 2 : navigator.hardwareConcurrency || 2;
+  const capped = Math.max(1, Math.min(4, Math.floor(available)));
+  return Math.min(jobCount, mode === "multi" ? Math.max(2, capped) : capped);
+}
+
+function confirmSourceRemoval() { return typeof window === "undefined" || window.confirm("导出成功后将永久删除对应原视频。导出失败的文件不会删除，是否继续？"); }
+
+function validateSettings(options: UseBasicExportOptions) {
+  return options.validateWatermark() ?? options.validateWatermarkRemoval() ?? options.validatePictureInPicture() ?? options.validateBgm() ?? options.validatePlaybackSpeed();
+}
+
+function handleExportError(error: unknown, target: Ref<string | null>, appendLog: UseBasicExportOptions["appendExportLog"], label: string) {
+  if (isTaskCancelledError(error)) { target.value = `${label}任务已取消，可以重新开始。`; appendLog(target.value, "info"); return; }
+  target.value = error instanceof Error ? error.message : String(error ?? `${label}失败。`);
+  appendLog(`${label}失败：${target.value}`, "error");
+}
+
+async function exportCoverForResult(options: UseBasicExportOptions, videoOutputPath: string) {
+  const coverImagePath = options.coverImagePath?.value;
+  if (!coverImagePath) return;
+  const coverOutputPath = await exportCoverImage(coverImagePath, videoOutputPath);
+  options.appendExportLog(`已输出封面图片：${coverOutputPath}`, "success");
 }

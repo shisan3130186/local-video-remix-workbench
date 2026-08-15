@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import type { PipPosition } from "../../services/videoMixService";
 import { formatFileName, readChecked, readNumber, readSelectedValue } from "./inputHelpers";
 import ToolIcon from "../ToolIcon.vue";
@@ -7,6 +6,15 @@ import ToolIcon from "../ToolIcon.vue";
 const props = defineProps<{
   pipEnabled: boolean;
   pipOverlayFilePath: string | null;
+  pipMode: "main" | "external";
+  pipMainSizeMin: number;
+  pipMainSizeMax: number;
+  pipBlurMin: number;
+  pipBlurMax: number;
+  pipOffsetXMin: number;
+  pipOffsetXMax: number;
+  pipOffsetYMin: number;
+  pipOffsetYMax: number;
   pipPosition: PipPosition;
   pipSizeRatio: number;
   pipOpacity: number;
@@ -16,6 +24,15 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectPipOverlayFile: [];
   "update:pipEnabled": [value: boolean];
+  "update:pipMode": [value: "main" | "external"];
+  "update:pipMainSizeMin": [value: number];
+  "update:pipMainSizeMax": [value: number];
+  "update:pipBlurMin": [value: number];
+  "update:pipBlurMax": [value: number];
+  "update:pipOffsetXMin": [value: number];
+  "update:pipOffsetXMax": [value: number];
+  "update:pipOffsetYMin": [value: number];
+  "update:pipOffsetYMax": [value: number];
   "update:pipPosition": [value: PipPosition];
   "update:pipSizeRatio": [value: number];
   "update:pipOpacity": [value: number];
@@ -23,15 +40,6 @@ const emit = defineEmits<{
   reset: [];
 }>();
 
-const mode = ref<"main" | "external">("main");
-const mainSizeMin = ref(0.96);
-const mainSizeMax = ref(0.99);
-const blurMin = ref(40);
-const blurMax = ref(50);
-const offsetXMin = ref(0.5);
-const offsetXMax = ref(0.5);
-const offsetYMin = ref(0.5);
-const offsetYMax = ref(0.5);
 </script>
 
 <template>
@@ -53,25 +61,25 @@ const offsetYMax = ref(0.5);
 
     <div class="replica-effect-mode-row">
       <strong>画中画模式</strong>
-      <label class="replica-effect-radio"><input v-model="mode" value="main" type="radio" /><span>主视频模式</span></label>
-      <label class="replica-effect-radio"><input v-model="mode" value="external" type="radio" /><span>外部素材模式</span></label>
+      <label class="replica-effect-radio"><input :checked="props.pipMode === 'main'" value="main" type="radio" @change="emit('update:pipMode', 'main')" /><span>主视频模式</span></label>
+      <label class="replica-effect-radio"><input :checked="props.pipMode === 'external'" value="external" type="radio" @change="emit('update:pipMode', 'external')" /><span>外部素材模式</span></label>
     </div>
 
     <div class="replica-effect-row">
       <strong>主视频大小</strong>
-      <label class="replica-range-field"><input v-model.number="mainSizeMin" type="number" min="0.1" max="1" step="0.01" /></label><em>—</em><label class="replica-range-field"><input v-model.number="mainSizeMax" type="number" min="0.1" max="1" step="0.01" /></label>
+      <label class="replica-range-field"><input :value="props.pipMainSizeMin" type="number" min="0.1" max="1" step="0.01" @input="emit('update:pipMainSizeMin', readNumber($event))" /></label><em>—</em><label class="replica-range-field"><input :value="props.pipMainSizeMax" type="number" min="0.1" max="1" step="0.01" @input="emit('update:pipMainSizeMax', readNumber($event))" /></label>
     </div>
     <div class="replica-effect-row">
       <strong>虚化强度</strong>
-      <label class="replica-range-field"><input v-model.number="blurMin" type="number" min="0" max="100" /></label><em>—</em><label class="replica-range-field"><input v-model.number="blurMax" type="number" min="0" max="100" /></label>
+      <label class="replica-range-field"><input :value="props.pipBlurMin" type="number" min="0" max="100" @input="emit('update:pipBlurMin', readNumber($event))" /></label><em>—</em><label class="replica-range-field"><input :value="props.pipBlurMax" type="number" min="0" max="100" @input="emit('update:pipBlurMax', readNumber($event))" /></label>
     </div>
     <div class="replica-effect-row">
       <strong>左右偏移 X</strong>
-      <label class="replica-range-field"><input v-model.number="offsetXMin" type="number" min="0" max="1" step="0.01" /></label><em>—</em><label class="replica-range-field"><input v-model.number="offsetXMax" type="number" min="0" max="1" step="0.01" /></label>
+      <label class="replica-range-field"><input :value="props.pipOffsetXMin" type="number" min="0" max="1" step="0.01" @input="emit('update:pipOffsetXMin', readNumber($event))" /></label><em>—</em><label class="replica-range-field"><input :value="props.pipOffsetXMax" type="number" min="0" max="1" step="0.01" @input="emit('update:pipOffsetXMax', readNumber($event))" /></label>
     </div>
     <div class="replica-effect-row">
       <strong>上下偏移 Y</strong>
-      <label class="replica-range-field"><input v-model.number="offsetYMin" type="number" min="0" max="1" step="0.01" /></label><em>—</em><label class="replica-range-field"><input v-model.number="offsetYMax" type="number" min="0" max="1" step="0.01" /></label>
+      <label class="replica-range-field"><input :value="props.pipOffsetYMin" type="number" min="0" max="1" step="0.01" @input="emit('update:pipOffsetYMin', readNumber($event))" /></label><em>—</em><label class="replica-range-field"><input :value="props.pipOffsetYMax" type="number" min="0" max="1" step="0.01" @input="emit('update:pipOffsetYMax', readNumber($event))" /></label>
     </div>
 
     <div class="replica-effect-row replica-effect-row--legacy">

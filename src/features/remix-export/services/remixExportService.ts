@@ -43,6 +43,14 @@ export function exportCurrentVideo(
   });
 }
 
+export function deleteSourceVideoFile(inputFilePath: string, outputFilePaths: string[]): Promise<void> {
+  return invoke<void>("delete_source_video_file", { inputFilePath, outputFilePaths });
+}
+
+export function exportCoverImage(coverImagePath: string, videoOutputPath: string): Promise<string> {
+  return invoke<string>("export_cover_image", { coverImagePath, videoOutputPath });
+}
+
 export function pickRandomSegments(segmentPaths: string[], pickCount: number): string[] {
   if (!Number.isInteger(pickCount) || pickCount <= 0) {
     throw new Error("随机抽取数量必须大于 0。");

@@ -6,14 +6,15 @@ import type { AiRemixSegment } from "../features/ai-remix";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { DrawerKey, ToolKey } from "../types/workbench";
 import type { VideoProcessingState } from "../types/workbench";
-import type { OutputFrameRate, OutputQuality, OutputResolution, VideoEncoder } from "../types/outputSettings";
+import type { OutputFormat, OutputFrameRate, OutputNamingMode, OutputQuality, OutputResolution, OutputThreadMode, VideoEncoder } from "../types/outputSettings";
 import ToolIcon from "./ToolIcon.vue";
 import type { ToolIconName } from "./ToolIcon.vue";
 import BatchPreviewCanvas from "./BatchPreviewCanvas.vue";
 import StickerWatermarkPanel from "../features/video-effects/components/StickerWatermarkPanel.vue";
-import type { PipPosition, SubtitlePosition, SubtitleSize } from "../services/videoMixService";
+import type { CanvasCropSettings, PipPosition, SubtitlePosition, SubtitleSize } from "../services/videoMixService";
 import type { CanvasAspectRatio, CanvasBackgroundMode } from "../services/videoMixService";
 import type { WatermarkAssetType, WatermarkRemovalSettings, WatermarkSettings, WatermarkTrajectory } from "../features/watermark/types";
+import type { SceneSensitivity, SplitMode, SplitOutputGrouping } from "../features/materials/types";
 
 const props = defineProps<{
   view: "effects" | "extract";
@@ -36,6 +37,7 @@ const props = defineProps<{
   smartEffectPlan: SmartEffectPlan | null;
   isSmartConfiguring: boolean;
   smartConfigError: string | null;
+  enabledEffectKeys: ToolKey[];
   frameMaterialFilePath: string | null;
   fusionMaterialFilePath: string | null;
   pipEnabled: boolean;
@@ -72,6 +74,7 @@ const emit = defineEmits<{
   requestSmartConfig: [];
   openTool: [tool: ToolKey];
   openDrawer: [drawer: DrawerKey];
+  disableEffect: [tool: ToolKey];
   selectPipOverlayFile: [];
   selectWatermarkAsset: [];
   "update:pipEnabled": [value: boolean];
@@ -97,30 +100,42 @@ const emit = defineEmits<{
   "update:watermarkTrajectory": [value: WatermarkTrajectory];
 }>();
 
-const splitMode = ref<"disabled" | "scene" | "fixed">("scene");
-const segmentSeconds = ref(5);
-const removeIntroSeconds = ref(0);
-const removeOutroSeconds = ref(0);
-const confidenceScore = ref(0.7);
-const filterShortSeconds = ref(1.5);
-const outputGrouping = ref<"file" | "folder" | "none">("file");
-const variantCount = ref(10);
+const splitMode = defineModel<SplitMode>("splitMode", { required: true });
+const outputGrouping = defineModel<SplitOutputGrouping>("splitOutputGrouping", { required: true });
+const segmentSeconds = defineModel<number>("segmentDurationSeconds", { required: true });
+const sceneSensitivity = defineModel<SceneSensitivity>("sceneSensitivity", { required: true });
+const minimumSegmentSeconds = defineModel<number>("minimumSegmentSeconds", { required: true });
+const maximumSegmentSeconds = defineModel<number>("maximumSegmentSeconds", { required: true });
+const removeIntroSeconds = defineModel<number>("trimStartSeconds", { required: true });
+const removeOutroSeconds = defineModel<number>("trimEndSeconds", { required: true });
+const confidenceScore = defineModel<number>("sceneConfidenceScore", { required: true });
+const splitDisabled = ref(false);
 const settingsTab = ref<"effects" | "stickers">("effects");
 const configurationMode = ref<"manual" | "smart">("smart");
-const enabledEffectKeys = ref<ToolKey[]>([]);
 const smartMatchMode = defineModel<AiRemixMatchMode>("smartMatchMode", { required: true });
+const contentAnalysisMode = defineModel<AiRemixMatchMode>("contentAnalysisMode", { required: true });
+const extractShotType = defineModel<boolean>("extractShotType", { required: true });
+const extractPersonAction = defineModel<boolean>("extractPersonAction", { required: true });
+const extractSellingPoints = defineModel<boolean>("extractSellingPoints", { required: true });
+const extractUsableCopy = defineModel<boolean>("extractUsableCopy", { required: true });
 const outputResolution = defineModel<OutputResolution>("outputResolution", { required: true });
 const outputFrameRate = defineModel<OutputFrameRate>("outputFrameRate", { required: true });
 const outputQuality = defineModel<OutputQuality>("outputQuality", { required: true });
 const outputEncoder = defineModel<VideoEncoder>("outputEncoder", { required: true });
 const canvasAspectRatio = defineModel<CanvasAspectRatio>("canvasAspectRatio", { required: true });
 const canvasBackgroundMode = defineModel<CanvasBackgroundMode>("canvasBackgroundMode", { required: true });
+const effectScale = defineModel<number>("effectScale", { required: true });
+const cropSettings = defineModel<CanvasCropSettings>("cropSettings", { required: true });
+const watermarkText = defineModel<string>("watermarkText", { required: true });
+const watermarkKind = defineModel<WatermarkSettings["kind"]>("watermarkKind", { required: true });
+const watermarkPosition = defineModel<WatermarkSettings["position"]>("watermarkPosition", { required: true });
 const guideOpen = ref(typeof window === "undefined" || window.localStorage.getItem("video-tools-guide-dismissed") !== "1");
 const guideDontRemind = ref(false);
-const outputFormat = ref<"mp4" | "mov" | "webm">("mp4");
-const keepOriginal = ref<"keep" | "remove">("keep");
-const namingMode = ref<"serial" | "source">("serial");
-const threadMode = ref<"single" | "auto" | "multi">("single");
+const outputFormat = defineModel<OutputFormat>("outputFormat", { required: true });
+const keepOriginal = defineModel<boolean>("keepOriginal", { required: true });
+const namingMode = defineModel<OutputNamingMode>("namingMode", { required: true });
+const threadMode = defineModel<OutputThreadMode>("threadMode", { required: true });
+const variantCount = defineModel<number>("variantCount", { required: true });
 const guideSteps = [
   { title: "导入素材", text: "拖拽视频文件到软件，或点击左侧「导入视频」/「导入文件夹」按钮。选择文件夹后，软件会自动扫描其中的视频文件。" },
   { title: "配置效果 或 智能配置", text: "新手可直接点击右侧底部的「智能配置」，一般无需手动调整。也可以点击右侧效果卡片手动配置参数，右键效果卡片可快速开关。" },
@@ -161,17 +176,12 @@ const effectGroups: Array<{ title: string; key: ToolKey; note: string; icon: Too
 ];
 
 const resolvedEnabledEffectKeySet = computed(() => {
-  const keys = new Set(enabledEffectKeys.value);
-  if (props.pipOverlayFilePath) keys.add("pip");
-  if (props.fusionMaterialFilePath) keys.add("fusion");
-  if (props.watermarkSettings.enabled || props.watermarkEnabled || props.watermarkRemovalSettings.enabled) keys.add("watermark");
-  return keys;
+  return new Set(props.enabledEffectKeys);
 });
 
 watch(
   () => props.smartEffectPlan,
   (plan) => {
-    enabledEffectKeys.value = plan ? [...plan.enabledEffectKeys] : [];
     if (plan) configurationMode.value = "smart";
   },
   { immediate: true },
@@ -187,9 +197,6 @@ function configureSmartly() {
 }
 
 function openEffect(group: { key: ToolKey }) {
-  if (!enabledEffectKeys.value.includes(group.key) && !isSmartPending(group.key)) {
-    enabledEffectKeys.value = [...enabledEffectKeys.value, group.key];
-  }
   emit("openTool", group.key);
 }
 
@@ -201,14 +208,7 @@ function isSmartPending(key: ToolKey) {
 }
 
 function toggleEffect(group: { key: ToolKey }) {
-  if (enabledEffectKeys.value.includes(group.key)) {
-    enabledEffectKeys.value = enabledEffectKeys.value.filter((key) => key !== group.key);
-    return;
-  }
-
-  if (!isSmartPending(group.key)) {
-    enabledEffectKeys.value = [...enabledEffectKeys.value, group.key];
-  }
+  if (resolvedEnabledEffectKeySet.value.has(group.key)) emit("disableEffect", group.key);
 }
 
 function processingState(video: ImportedVideo): VideoProcessingState {
@@ -253,20 +253,28 @@ function processingLabel(video: ImportedVideo) {
       <BatchPreviewCanvas
         v-model:canvas-aspect-ratio="canvasAspectRatio"
         v-model:canvas-background-mode="canvasBackgroundMode"
+        v-model:effect-scale="effectScale"
+        v-model:crop-settings="cropSettings"
+        :watermark-enabled="props.watermarkEnabled"
+        v-model:watermark-text="watermarkText"
+        v-model:watermark-kind="watermarkKind"
+        v-model:watermark-position="watermarkPosition"
         :preview-url="previewUrl"
         :selected-video="selectedVideo"
+        @update:watermark-enabled="emit('update:watermarkTextEnabled', $event)"
         @open-guide="guideOpen = true"
       />
 
       <section v-if="view === 'effects'" class="replica-split-settings">
-        <header><strong>视频分割：</strong><div class="replica-split-modes"><button type="button" :class="{ 'is-active': splitMode === 'disabled' }" @click="splitMode = 'disabled'">不启用</button><button type="button" :class="{ 'is-active': splitMode === 'scene' }" @click="splitMode = 'scene'">AI智能分割</button><button type="button" :class="{ 'is-active': splitMode === 'fixed' }" @click="splitMode = 'fixed'">自定义间隔</button></div><span class="replica-split-output-label">分段输出：</span><div class="replica-split-output"><button type="button" :class="{ 'is-active': outputGrouping === 'file' }" @click="outputGrouping = 'file'">文件名分类</button><button type="button" :class="{ 'is-active': outputGrouping === 'folder' }" @click="outputGrouping = 'folder'">文件夹分类</button><button type="button" :class="{ 'is-active': outputGrouping === 'none' }" @click="outputGrouping = 'none'">不分类</button></div></header>
+        <header><strong>视频分割：</strong><div class="replica-split-modes"><button type="button" :class="{ 'is-active': splitDisabled }" @click="splitDisabled = true">不启用</button><button type="button" :class="{ 'is-active': !splitDisabled && splitMode === 'scene' }" @click="splitDisabled = false; splitMode = 'scene'">AI智能分割</button><button type="button" :class="{ 'is-active': !splitDisabled && splitMode === 'duration' }" @click="splitDisabled = false; splitMode = 'duration'">自定义间隔</button></div><span class="replica-split-output-label">分段输出：</span><div class="replica-split-output"><button type="button" :class="{ 'is-active': outputGrouping === 'file' }" @click="outputGrouping = 'file'">文件名分类</button><button type="button" :class="{ 'is-active': outputGrouping === 'folder' }" @click="outputGrouping = 'folder'">文件夹分类</button><button type="button" :class="{ 'is-active': outputGrouping === 'none' }" @click="outputGrouping = 'none'">不分类</button></div></header>
         <div class="replica-split-parameters">
           <label>去除片头：<input v-model.number="removeIntroSeconds" type="number" min="0" max="60" step="0.1" /> 秒</label>
           <label>去除片尾：<input v-model.number="removeOutroSeconds" type="number" min="0" max="60" step="0.1" /> 秒</label>
           <label>模型置信度：<input v-model.number="confidenceScore" type="number" min="0" max="1" step="0.05" /> 分</label>
-          <label>过滤小于：<input v-model.number="filterShortSeconds" type="number" min="0" max="30" step="0.5" /> 秒的片段</label>
-          <label v-if="splitMode === 'fixed'">间隔：<input v-model.number="segmentSeconds" type="number" min="1" max="120" /> 秒</label>
-          <button class="is-primary" type="button" :disabled="!selectedVideo || isProcessing || splitMode === 'disabled'" @click="emit('splitSelectedVideo')">{{ isProcessing ? '处理中...' : '开始分割' }}</button>
+          <label>过滤小于：<input v-model.number="minimumSegmentSeconds" type="number" min="0.5" max="30" step="0.5" /> 秒的片段</label>
+          <label v-if="splitMode === 'scene'">最长片段：<input v-model.number="maximumSegmentSeconds" type="number" min="2" max="60" step="0.5" /> 秒</label>
+          <label v-if="splitMode === 'duration'">间隔：<input v-model.number="segmentSeconds" type="number" min="1" max="120" /> 秒</label>
+          <button class="is-primary" type="button" :disabled="!selectedVideo || isProcessing || splitDisabled" @click="emit('splitSelectedVideo')">{{ isProcessing ? '处理中...' : '开始分割' }}</button>
         </div>
       </section>
 
@@ -331,12 +339,12 @@ function processingLabel(video: ImportedVideo) {
             @update:watermark-trajectory="emit('update:watermarkTrajectory', $event)"
           />
         </div>
-        <div class="replica-configuration-switch"><button type="button" :class="{ 'is-active': configurationMode === 'manual' }" @click="configurationMode = 'manual'; enabledEffectKeys = []">手动配置</button><button type="button" :class="{ 'is-active': configurationMode === 'smart', 'is-configured': Boolean(smartEffectPlan) }" @click="configureSmartly">{{ isSmartConfiguring ? '分析中…' : '智能配置' }}</button></div>
+        <div class="replica-configuration-switch"><button type="button" :class="{ 'is-active': configurationMode === 'manual' }" @click="configurationMode = 'manual'">手动配置</button><button type="button" :class="{ 'is-active': configurationMode === 'smart', 'is-configured': Boolean(smartEffectPlan) }" @click="configureSmartly">{{ isSmartConfiguring ? '分析中…' : '智能配置' }}</button></div>
       </template>
       <template v-else>
         <header><strong>内容提炼</strong><small>识别主题、动作、卖点和镜头类型</small></header>
-        <section class="replica-setting-block"><strong>分析模式</strong><label class="replica-radio-row"><input checked type="radio" name="extract-mode" />本地快速模型</label><label class="replica-radio-row"><input type="radio" name="extract-mode" />云端精确模型</label></section>
-        <section class="replica-setting-block"><strong>提炼维度</strong><label class="replica-checkbox-row"><input checked type="checkbox" />镜头类型</label><label class="replica-checkbox-row"><input checked type="checkbox" />人物动作</label><label class="replica-checkbox-row"><input checked type="checkbox" />产品卖点</label><label class="replica-checkbox-row"><input checked type="checkbox" />可用文案</label></section>
+        <section class="replica-setting-block"><strong>分析模式</strong><label class="replica-radio-row"><input v-model="contentAnalysisMode" type="radio" name="extract-mode" value="local" />本地快速模型</label><label class="replica-radio-row"><input v-model="contentAnalysisMode" type="radio" name="extract-mode" value="cloud" />云端精确模型</label></section>
+        <section class="replica-setting-block"><strong>提炼维度</strong><label class="replica-checkbox-row"><input v-model="extractShotType" type="checkbox" />镜头类型</label><label class="replica-checkbox-row"><input v-model="extractPersonAction" type="checkbox" />人物动作</label><label class="replica-checkbox-row"><input v-model="extractSellingPoints" type="checkbox" />产品卖点</label><label class="replica-checkbox-row"><input v-model="extractUsableCopy" type="checkbox" />可用文案</label></section>
         <p class="replica-progress-text">已完成 {{ analyzedSegmentCount }}/{{ splitSegmentPaths.length }} 个片段的内容提炼</p>
         <button class="replica-analyze-button" type="button" :disabled="splitSegmentPaths.length === 0 || isProcessing" @click="emit('analyzeContent')">{{ isProcessing ? '正在分析...' : '开始内容提炼' }}</button>
         <button class="replica-analyze-button is-primary" type="button" :disabled="!allSegmentsAnalyzed || isProcessing" @click="emit('generateCategorizedSegments')">按提炼结果生成精华成片</button>
@@ -348,11 +356,11 @@ function processingLabel(video: ImportedVideo) {
       <label>分辨率<select v-model="outputResolution"><option value="followCanvas">跟随画布</option><option value="hd720">720P</option><option value="fullHd1080">1080P</option></select></label>
       <label>帧率<select v-model="outputFrameRate"><option value="source">原帧率</option><option value="fps24">24fps</option><option value="fps25">25fps</option><option value="fps30">30fps</option><option value="fps50">50fps</option><option value="fps60">60fps</option></select></label>
       <label>格式<select v-model="outputFormat"><option value="mp4">MP4</option><option value="mov">MOV</option><option value="webm">WEBM</option></select></label>
-      <label>原文件<select v-model="keepOriginal"><option value="keep">保留</option><option value="remove">不保留</option></select></label>
+      <label>原文件<select v-model="keepOriginal"><option :value="true">保留</option><option :value="false">不保留</option></select></label>
       <label>命名<select v-model="namingMode"><option value="serial">前缀序号</option><option value="source">原文件名_处理</option></select></label>
       <label>线程<select v-model="threadMode"><option value="single">1线程</option><option value="auto">自动</option><option value="multi">多线程</option></select></label>
       <label>裂变<input v-model.number="variantCount" type="number" min="1" max="100" /></label>
-      <div class="replica-tools-output-summary"><span>素材 {{ importedVideos.length }}</span><span>完成 {{ Object.values(videoProcessingStates).filter((state) => state.status === 'completed').length }}</span><span v-if="isProcessing">总进度 {{ Math.round(processingProgress) }}%</span></div><button type="button" :disabled="!importedVideoCount || !outputDirectory || isProcessing || resolvedEnabledEffectKeySet.size === 0" @click="emit('startProcessing')">{{ isProcessing ? '处理中...' : '开始处理' }}</button>
+      <div class="replica-tools-output-summary"><span>素材 {{ importedVideos.length }}</span><span>完成 {{ Object.values(videoProcessingStates).filter((state) => state.status === 'completed').length }}</span><span v-if="isProcessing">总进度 {{ Math.round(processingProgress) }}%</span></div><button type="button" :disabled="!importedVideoCount || !outputDirectory || isProcessing" @click="emit('startProcessing')">{{ isProcessing ? '处理中...' : '开始处理' }}</button>
     </footer>
 
     <div v-if="guideOpen" class="replica-tools-guide-backdrop" role="presentation" @click.self="closeGuide">

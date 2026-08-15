@@ -115,8 +115,9 @@ function buildLocalDescription(video: ImportedVideo) {
 }
 
 function selectSupportedEffects(_video: ImportedVideo, _description: string): ToolKey[] {
-  // 只有已接入真实导出链路的效果才能标记为“已启用”，避免界面与成片结果不一致。
-  return ["effects", "speed", "zoom"];
+  return selectSafeEffects(_video, _description).filter((key) =>
+    ["effects", "speed", "zoom", "rotate", "frame", "entrance"].includes(key),
+  );
 }
 
 function selectSafeEffects(video: ImportedVideo, description: string): ToolKey[] {

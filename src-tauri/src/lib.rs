@@ -62,6 +62,7 @@ use script_library::{
     save_script_library_entry as store_script_library_entry, SaveScriptLibraryEntryInput,
     SaveScriptLibraryEntryResult, ScriptLibraryEntry,
 };
+use std::fs;
 use std::path::Path;
 use std::process::Command;
 use task_runtime::{
@@ -80,7 +81,7 @@ use video_engine::image_video::{
 };
 use video_engine::import::list_supported_videos_in_folder;
 use video_engine::mix::{
-    concat_video_segments, export_single_video, MixVideoResult, RemixSettings,
+    concat_video_segments, export_single_video, MixVideoResult, RemixSegmentInput, RemixSettings,
 };
 use video_engine::narrated_mix::{
     concat_narrated_segments as create_narrated_video, NarratedAudioSettings, NarratedSegmentInput,
@@ -90,9 +91,7 @@ use video_engine::probe::{
     check_environment, probe_video_metadata, FfmpegEnvironmentResult, VideoMetadata,
 };
 use video_engine::render::RenderVideoResult;
-use video_engine::split::{
-    split_video_by_duration, split_video_by_scene, SceneSensitivity, SplitVideoResult,
-};
+use video_engine::split::{split_video_by_duration, split_video_by_scene, SplitVideoResult};
 use video_engine::subtitle::NarratedSubtitleSettings;
 use video_engine::thumbnail::{generate_video_thumbnail, ThumbnailFitMode, VideoThumbnailResult};
 
@@ -259,18 +258,85 @@ fn export_current_video(
 }
 
 #[tauri::command]
+fn delete_source_video_file(
+    input_file_path: String,
+    output_file_paths: Vec<String>,
+) -> Result<(), String> {
+    let path = Path::new(&input_file_path);
+    if !path.is_file() {
+        return Err("The source video file no longer exists.".to_string());
+    }
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if !matches!(extension.as_str(), "mp4" | "mov" | "avi" | "mkv" | "webm") {
+        return Err("Only imported video files can be removed after export.".to_string());
+    }
+    if output_file_paths.is_empty() {
+        return Err(
+            "No verified export result was provided; source deletion was refused.".to_string(),
+        );
+    }
+    let source_path = path
+        .canonicalize()
+        .map_err(|error| format!("Unable to verify source video path: {error}"))?;
+    for output_file_path in output_file_paths {
+        let output_path = Path::new(&output_file_path);
+        if !output_path.is_file() {
+            return Err(format!(
+                "A required export result no longer exists: {output_file_path}"
+            ));
+        }
+        let verified_output_path = output_path
+            .canonicalize()
+            .map_err(|error| format!("Unable to verify export result path: {error}"))?;
+        if verified_output_path == source_path {
+            return Err(
+                "The export result points to the source video; deletion was refused.".to_string(),
+            );
+        }
+    }
+    fs::remove_file(path).map_err(|error| format!("Unable to remove source video: {error}"))
+}
+
+#[tauri::command]
+fn export_cover_image(
+    cover_image_path: String,
+    video_output_path: String,
+) -> Result<String, String> {
+    let source = Path::new(&cover_image_path);
+    let video = Path::new(&video_output_path);
+    if !source.is_file() || !video.is_file() {
+        return Err("Cover source or rendered video does not exist.".to_string());
+    }
+    let extension = source
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("jpg");
+    let stem = video
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Unable to build cover output name.".to_string())?;
+    let target = video.with_file_name(format!("{stem}_cover.{extension}"));
+    fs::copy(source, &target).map_err(|error| format!("Unable to export cover image: {error}"))?;
+    Ok(target.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 fn split_current_video(
     input_file_path: String,
     output_directory: String,
-    segment_duration_seconds: f64,
     input_duration_seconds: Option<f64>,
+    settings: video_engine::split::DurationSplitSettings,
     task_context: Option<TaskProgressContext>,
 ) -> Result<SplitVideoResult, String> {
     split_video_by_duration(
         input_file_path,
         output_directory,
-        segment_duration_seconds,
         input_duration_seconds,
+        settings,
         task_context,
     )
 }
@@ -279,19 +345,15 @@ fn split_current_video(
 fn split_video_by_scenes(
     input_file_path: String,
     output_directory: String,
-    sensitivity: SceneSensitivity,
-    minimum_segment_seconds: f64,
-    maximum_segment_seconds: f64,
     input_duration_seconds: Option<f64>,
+    settings: video_engine::split::SceneSplitSettings,
     task_context: Option<TaskProgressContext>,
 ) -> Result<SplitVideoResult, String> {
     split_video_by_scene(
         input_file_path,
         output_directory,
-        sensitivity,
-        minimum_segment_seconds,
-        maximum_segment_seconds,
         input_duration_seconds,
+        settings,
         task_context,
     )
 }
@@ -516,11 +578,18 @@ fn cleanup_tts_session(session_id: String) -> Result<(), String> {
 #[tauri::command]
 fn concat_selected_segments(
     segment_paths: Vec<String>,
+    segment_inputs: Option<Vec<RemixSegmentInput>>,
     output_directory: String,
     settings: RemixSettings,
     task_context: Option<TaskProgressContext>,
 ) -> Result<MixVideoResult, String> {
-    concat_video_segments(segment_paths, output_directory, settings, task_context)
+    concat_video_segments(
+        segment_paths,
+        output_directory,
+        settings,
+        task_context,
+        segment_inputs,
+    )
 }
 
 #[tauri::command]
@@ -564,6 +633,8 @@ pub fn run() {
             delete_api_credential,
             change_account_password,
             delete_project_snapshot,
+            delete_source_video_file,
+            export_cover_image,
             delete_script_library_entry,
             extract_ai_remix_segment_content,
             export_current_video,

@@ -20,6 +20,7 @@ import type {
   MaterialFolderSettings,
   SceneSensitivity,
   SplitMode,
+  SplitOutputGrouping,
 } from "./types";
 
 interface UseMaterialsOptions {
@@ -37,9 +38,13 @@ export function useMaterials(options: UseMaterialsOptions) {
   const importError = ref<string | null>(null);
   const segmentDurationSeconds = ref(5);
   const splitMode = ref<SplitMode>("scene");
+  const splitOutputGrouping = ref<SplitOutputGrouping>("file");
   const sceneSensitivity = ref<SceneSensitivity>("balanced");
   const minimumSegmentSeconds = ref(2);
   const maximumSegmentSeconds = ref(10);
+  const trimStartSeconds = ref(0);
+  const trimEndSeconds = ref(0);
+  const sceneConfidenceScore = ref(0.7);
   const isSplitting = ref(false);
   const splitError = ref<string | null>(null);
   const splitOutputDirectory = ref<string | null>(null);
@@ -179,6 +184,10 @@ export function useMaterials(options: UseMaterialsOptions) {
         ...folder.settings,
         ...patch,
       };
+      nextSettings.materialCount = Math.min(
+        999,
+        Math.max(1, Math.floor(Number(nextSettings.materialCount) || 1)),
+      );
       nextSettings.variantCount = Math.min(
         10,
         Math.max(1, Math.floor(Number(nextSettings.variantCount) || 1)),
@@ -251,6 +260,11 @@ export function useMaterials(options: UseMaterialsOptions) {
         return;
       }
     }
+    if (!Number.isFinite(trimStartSeconds.value) || trimStartSeconds.value < 0 || !Number.isFinite(trimEndSeconds.value) || trimEndSeconds.value < 0) {
+      splitError.value = "片头和片尾裁切时长不能小于 0。";
+      options.appendSplitLog(`切片失败：${splitError.value}`, "error");
+      return;
+    }
 
     options.appendSplitLog(
       `${splitMode.value === "scene" ? "开始智能切片" : "开始固定时长切片"}，共 ${importedVideos.value.length} 个视频。`,
@@ -266,10 +280,13 @@ export function useMaterials(options: UseMaterialsOptions) {
           splitMode: splitMode.value,
           segmentDurationSeconds: segmentDurationSeconds.value,
           smartSplitSettings: {
-            sensitivity: sceneSensitivity.value,
+            sensitivity: confidenceToSceneSensitivity(sceneConfidenceScore.value),
             minimumSegmentSeconds: minimumSegmentSeconds.value,
             maximumSegmentSeconds: maximumSegmentSeconds.value,
           },
+          trimStartSeconds: trimStartSeconds.value,
+          trimEndSeconds: trimEndSeconds.value,
+          outputGrouping: splitOutputGrouping.value,
           appendLog: options.appendSplitLog,
           task,
         });
@@ -347,6 +364,13 @@ export function useMaterials(options: UseMaterialsOptions) {
         (video) => video.filePath === snapshot.selectedVideoPath,
       ) ?? snapshot.importedVideos[0] ?? null;
     segmentDurationSeconds.value = snapshot.segmentDurationSeconds;
+    splitMode.value = snapshot.splitMode ?? "scene";
+    splitOutputGrouping.value = snapshot.splitOutputGrouping ?? "file";
+    trimStartSeconds.value = snapshot.trimStartSeconds ?? 0;
+    trimEndSeconds.value = snapshot.trimEndSeconds ?? 0;
+    sceneConfidenceScore.value = snapshot.sceneConfidenceScore ?? 0.7;
+    minimumSegmentSeconds.value = snapshot.minimumSegmentSeconds ?? 2;
+    maximumSegmentSeconds.value = snapshot.maximumSegmentSeconds ?? 10;
     splitOutputDirectory.value = snapshot.splitOutputDirectory;
     splitSegmentPaths.value = snapshot.splitSegmentPaths;
     splitSegmentCount.value = snapshot.splitSegmentPaths.length || null;
@@ -402,11 +426,14 @@ export function useMaterials(options: UseMaterialsOptions) {
     materialFolders,
     mergeSegmentThumbnailPaths,
     minimumSegmentSeconds,
+    sceneConfidenceScore,
     restoreMaterials,
     removeMaterialFolder,
     segmentCategories,
     segmentDurationSeconds,
     sceneSensitivity,
+    trimEndSeconds,
+    trimStartSeconds,
     segmentThumbnailPaths,
     segmentThumbnailUrls,
     selectSegment,
@@ -419,9 +446,16 @@ export function useMaterials(options: UseMaterialsOptions) {
     splitSegmentCount,
     splitSegmentPaths,
     splitMode,
+    splitOutputGrouping,
     updateMaterialFolderSettings,
     updateSegmentCategory,
   };
+}
+
+function confidenceToSceneSensitivity(value: number): SceneSensitivity {
+  if (!Number.isFinite(value) || value >= 0.75) return "stable";
+  if (value <= 0.4) return "sensitive";
+  return "balanced";
 }
 
 function createMaterialFolderId(folderPath: string) {

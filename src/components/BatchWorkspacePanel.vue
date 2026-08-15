@@ -3,8 +3,8 @@ import { computed, ref, watch } from "vue";
 import type { ImportedVideo } from "../types/videoProbe";
 import type { FfmpegEnvironmentResult } from "../types/videoProbe";
 import type { DrawerKey, ToolKey, WorkspaceMode } from "../types/workbench";
-import type { CanvasAspectRatio, CanvasBackgroundMode, DynamicZoomMode } from "../services/videoMixService";
-import type { WatermarkAssetType, WatermarkTrajectory } from "../features/watermark/types";
+import type { CanvasAspectRatio, CanvasBackgroundMode, CanvasCropSettings, DynamicZoomMode } from "../services/videoMixService";
+import type { WatermarkAssetType, WatermarkSettings, WatermarkTrajectory } from "../features/watermark/types";
 import type { FixedMaterialKind, MaterialFolder, MaterialFolderSettings, MaterialFolderVideoMode } from "../features/materials/types";
 import MaterialFolderSettingsPanel from "../features/materials/components/MaterialFolderSettingsPanel.vue";
 import BatchPreviewCanvas from "./BatchPreviewCanvas.vue";
@@ -56,6 +56,7 @@ const emit = defineEmits<{
   selectAudioSource: [];
   recognizeAudio: [];
   useRecognizedAudio: [];
+  rewriteBatchScript: [];
   openTool: [tool: BatchToolKey];
   openDrawer: [drawer: DrawerKey];
   toggleAdvancedMode: [enabled: boolean];
@@ -78,6 +79,9 @@ const speechSpeed = defineModel<number>("speechSpeed", { required: true });
 const subtitleEnabled = defineModel<boolean>("subtitleEnabled", { required: true });
 const subtitlePosition = defineModel<string>("subtitlePosition", { required: true });
 const subtitleSize = defineModel<string>("subtitleSize", { required: true });
+const subtitleFontFamily = defineModel<string>("subtitleFontFamily", { required: true });
+const subtitleTextColor = defineModel<string>("subtitleTextColor", { required: true });
+const subtitleOpacity = defineModel<number>("subtitleOpacity", { required: true });
 const watermarkRemovalEnabled = defineModel<boolean>("watermarkRemovalEnabled", { required: true });
 const watermarkRemovalRegionCount = defineModel<number>("watermarkRemovalRegionCount", { required: true });
 const watermarkEnabled = defineModel<boolean>("watermarkEnabled", { required: true });
@@ -98,13 +102,17 @@ const zoomMinDurationSeconds = defineModel<number>("zoomMinDurationSeconds", { r
 const zoomMaxDurationSeconds = defineModel<number>("zoomMaxDurationSeconds", { required: true });
 const canvasAspectRatio = defineModel<CanvasAspectRatio>("canvasAspectRatio", { required: true });
 const canvasBackgroundMode = defineModel<CanvasBackgroundMode>("canvasBackgroundMode", { required: true });
+const effectScale = defineModel<number>("effectScale", { required: true });
+const cropSettings = defineModel<CanvasCropSettings>("cropSettings", { required: true });
+const watermarkText = defineModel<string>("watermarkText", { required: true });
+const watermarkKind = defineModel<WatermarkSettings["kind"]>("watermarkKind", { required: true });
+const watermarkPosition = defineModel<WatermarkSettings["position"]>("watermarkPosition", { required: true });
 
 const activeTab = ref<"basic" | "visual">("basic");
 const expandedFolderIds = ref<string[]>([]);
 const settingsFolderId = ref<string | null>(null);
 const guideOpen = ref(true);
 const taskOpen = ref(false);
-const scriptCount = ref(1);
 const categoryMode = ref<MaterialFolderVideoMode>("custom");
 
 const folderVideos = (folder: MaterialFolder) => props.importedVideos.filter((video) => folder.videoPaths.includes(video.filePath));
@@ -112,6 +120,7 @@ const selectedResolution = computed(() => props.selectedVideo ? props.formatReso
 const taskReady = computed(() => props.materialFolders.length > 0 && Boolean(props.selectedVideo));
 const categoryModeLabel = computed(() => ({ custom: "自定义", script: "文案模式", audio: "音频模式" })[categoryMode.value]);
 const categorySequenceLabel = computed(() => props.materialFolders.map((folder) => folder.folderName).join(" → ") || "未导入分类文件夹");
+const scriptCount = computed(() => Math.max(1, script.value.split(/\n\s*\n/).map((entry) => entry.trim()).filter(Boolean).length));
 
 watch(() => props.kind, () => {
   guideOpen.value = true;
@@ -146,6 +155,10 @@ function setCategoryMode(mode: MaterialFolderVideoMode) {
     emit("updateMaterialFolderSettings", folder.id, { videoMode: mode });
   });
 }
+
+function addScriptEntry() {
+  script.value = script.value.trimEnd() ? `${script.value.trimEnd()}\n\n` : "";
+}
 </script>
 
 <template>
@@ -173,12 +186,11 @@ function setCategoryMode(mode: MaterialFolderVideoMode) {
     </aside>
 
     <main class="replica-batch-center replica-batch-center--remix">
-      <BatchPreviewCanvas v-model:canvas-aspect-ratio="canvasAspectRatio" v-model:canvas-background-mode="canvasBackgroundMode" :preview-url="sourcePreviewUrl" :selected-video="selectedVideo" @open-guide="guideOpen = true" />
+      <BatchPreviewCanvas v-model:canvas-aspect-ratio="canvasAspectRatio" v-model:canvas-background-mode="canvasBackgroundMode" v-model:effect-scale="effectScale" v-model:crop-settings="cropSettings" v-model:watermark-enabled="watermarkEnabled" v-model:watermark-text="watermarkText" v-model:watermark-kind="watermarkKind" v-model:watermark-position="watermarkPosition" :preview-url="sourcePreviewUrl" :selected-video="selectedVideo" @open-guide="guideOpen = true" />
       <section class="replica-batch-content replica-batch-content--script">
-        <header><div><strong>视频文案</strong><small>文案模式下，每条文案生成一个视频</small></div><span>{{ scriptCount }} 条文案</span></header>
-        <div class="replica-script-tabs"><button type="button" class="is-active">文案 1</button><button type="button" @click="scriptCount += 1">＋ 添加文案</button><button type="button" :disabled="!script.trim()" @click="script = `${script}\n\n`">批量粘贴</button></div>
-        <textarea v-model="script" maxlength="4000" placeholder="请粘贴视频文案；每条文案将按文件夹设置生成对应视频"></textarea>
-        <div class="replica-batch-script-footer"><span>支持多条文案 · 可在右侧设置语音与字幕</span><button type="button" :disabled="!script.trim()" @click="script = script.trim()">AI 改写</button></div>
+        <header><div><strong>混剪输入</strong><small>自定义按文件夹规则选材；文案和音频模式使用当前文案/识别结果建立成片任务</small></div><span>已接入</span></header>
+        <div class="replica-mode-switch" role="group" aria-label="混剪模式"><button type="button" :class="{ 'is-active': materialFolders.every((folder) => folder.settings.videoMode === 'custom') }" @click="materialFolders.forEach((folder) => emit('updateMaterialFolderSettings', folder.id, { videoMode: 'custom' }))">自定义</button><button type="button" :class="{ 'is-active': materialFolders.some((folder) => folder.settings.videoMode === 'script') }" @click="materialFolders.forEach((folder) => emit('updateMaterialFolderSettings', folder.id, { videoMode: 'script' }))">文案模式</button><button type="button" :class="{ 'is-active': materialFolders.some((folder) => folder.settings.videoMode === 'audio') }" @click="materialFolders.forEach((folder) => emit('updateMaterialFolderSettings', folder.id, { videoMode: 'audio' }))">音频模式</button></div>
+        <textarea v-if="materialFolders.some((folder) => folder.settings.videoMode !== 'custom')" v-model="script" maxlength="4000" :placeholder="materialFolders.some((folder) => folder.settings.videoMode === 'audio') ? '选择并识别配音后，识别结果会放在这里用于生成字幕和镜头匹配' : '输入文案后，按文件夹顺序匹配素材并生成成片'" />
       </section>
     </main>
 
@@ -200,6 +212,9 @@ function setCategoryMode(mode: MaterialFolderVideoMode) {
         v-model:subtitle-enabled="subtitleEnabled"
         v-model:subtitle-position="subtitlePosition"
         v-model:subtitle-size="subtitleSize"
+        v-model:subtitle-font-family="subtitleFontFamily"
+        v-model:subtitle-text-color="subtitleTextColor"
+        v-model:subtitle-opacity="subtitleOpacity"
         v-model:watermark-removal-enabled="watermarkRemovalEnabled"
         v-model:watermark-removal-region-count="watermarkRemovalRegionCount"
         v-model:watermark-enabled="watermarkEnabled"
@@ -228,7 +243,7 @@ function setCategoryMode(mode: MaterialFolderVideoMode) {
     </aside>
 
     <div v-if="taskOpen" class="replica-batch-task-backdrop" @click.self="taskOpen = false">
-      <section class="replica-batch-task-dialog" role="dialog" aria-modal="true" aria-label="确认提交混剪任务"><header><strong>创建混剪任务</strong><button type="button" @click="taskOpen = false">×</button></header><div class="replica-batch-task-summary"><p><span>素材文件夹</span><b>{{ materialFolders.length }} 个</b></p><p><span>当前文案</span><b>{{ script.trim() ? '已填写' : '未填写（按自定义模式执行）' }}</b></p><p><span>视频预览</span><b>{{ selectedResolution }}</b></p></div><footer><button type="button" @click="taskOpen = false">返回调整</button><button class="is-primary" type="button" @click="submitTask">提交任务</button></footer></section>
+      <section class="replica-batch-task-dialog" role="dialog" aria-modal="true" aria-label="确认提交混剪任务"><header><strong>创建混剪任务</strong><button type="button" @click="taskOpen = false">×</button></header><div class="replica-batch-task-summary"><p><span>素材文件夹</span><b>{{ materialFolders.length }} 个</b></p><p><span>执行模式</span><b>自定义素材规则</b></p><p><span>视频预览</span><b>{{ selectedResolution }}</b></p></div><footer><button type="button" @click="taskOpen = false">返回调整</button><button class="is-primary" type="button" @click="submitTask">提交任务</button></footer></section>
     </div>
 
     <div v-if="guideOpen" class="replica-batch-guide-backdrop" @click.self="guideOpen = false">
@@ -269,7 +284,7 @@ function setCategoryMode(mode: MaterialFolderVideoMode) {
     </aside>
 
     <main class="replica-batch-center replica-batch-center--category">
-      <BatchPreviewCanvas v-model:canvas-aspect-ratio="canvasAspectRatio" v-model:canvas-background-mode="canvasBackgroundMode" :preview-url="sourcePreviewUrl" :selected-video="selectedVideo" @open-guide="guideOpen = true" />
+       <BatchPreviewCanvas v-model:canvas-aspect-ratio="canvasAspectRatio" v-model:canvas-background-mode="canvasBackgroundMode" v-model:effect-scale="effectScale" v-model:crop-settings="cropSettings" v-model:watermark-enabled="watermarkEnabled" v-model:watermark-text="watermarkText" v-model:watermark-kind="watermarkKind" v-model:watermark-position="watermarkPosition" :preview-url="sourcePreviewUrl" :selected-video="selectedVideo" @open-guide="guideOpen = true" />
       <section class="replica-batch-content replica-batch-content--category">
         <header><div><strong>分类素材</strong><small>按左侧文件夹顺序抽取、拼接并生成视频</small></div><span>{{ materialFolders.length }} 个分类</span></header>
         <div v-if="materialFolders.length === 0" class="replica-category-empty"><strong>请先导入分类文件夹</strong><small>每个文件夹代表一个视频分类，文件夹顺序就是最终拼接顺序</small><button type="button" @click="emit('importVideoFolder')">导入文件夹</button></div>
@@ -284,9 +299,9 @@ function setCategoryMode(mode: MaterialFolderVideoMode) {
             <div v-for="folder in materialFolders" :key="folder.id" class="replica-category-rule-row"><span>{{ folder.folderName }}</span><small>{{ folder.settings.clipMinSeconds || 0 }}-{{ folder.settings.clipMaxSeconds || '不限' }} 秒 · {{ folder.settings.materialCount }} 个 · {{ folder.settings.extractionOrder === 'ordered' ? '顺序抽取' : '随机抽取' }}</small></div>
           </div>
           <div v-else class="replica-category-script-area">
-            <div class="replica-script-tabs"><button type="button" class="is-active">{{ categoryMode === 'audio' ? '配音音频' : '视频文案' }}</button><button v-if="categoryMode === 'script'" type="button" @click="scriptCount += 1">＋ 添加文案</button><button v-if="categoryMode === 'script'" type="button" :disabled="!script.trim()" @click="script = `${script}\n\n`">批量粘贴</button></div>
+            <div class="replica-script-tabs"><button type="button" class="is-active">{{ categoryMode === 'audio' ? '配音音频' : '视频文案' }}</button><button v-if="categoryMode === 'script'" type="button" @click="addScriptEntry">＋ 添加文案</button><button v-if="categoryMode === 'script'" type="button" :disabled="!script.trim()" @click="addScriptEntry">批量粘贴</button></div>
             <textarea v-model="script" maxlength="4000" :placeholder="categoryMode === 'audio' ? '请添加已有配音音频，系统会自动识别语音并生成字幕' : '请粘贴视频文案；每条文案将按分类顺序生成对应视频'"></textarea>
-            <div class="replica-batch-script-footer"><span>{{ categoryMode === 'audio' ? '音频模式将自动识别语音并生成字幕' : `支持多条文案 · 当前 ${scriptCount} 条` }}</span><div><button v-if="categoryMode === 'audio'" type="button" @click="emit('selectAudioSource')">选择音频</button><button v-if="categoryMode === 'audio'" type="button" @click="emit('recognizeAudio')">识别字幕</button><button v-if="categoryMode === 'audio'" type="button" :disabled="!script.trim()" @click="emit('useRecognizedAudio')">使用识别结果</button><button v-else type="button" :disabled="!script.trim()" @click="script = script.trim()">AI 改写</button></div></div>
+            <div class="replica-batch-script-footer"><span>{{ categoryMode === 'audio' ? '音频模式将自动识别语音并生成字幕' : `支持多条文案 · 当前 ${scriptCount} 条` }}</span><div><button v-if="categoryMode === 'audio'" type="button" @click="emit('selectAudioSource')">选择音频</button><button v-if="categoryMode === 'audio'" type="button" @click="emit('recognizeAudio')">识别字幕</button><button v-if="categoryMode === 'audio'" type="button" :disabled="!script.trim()" @click="emit('useRecognizedAudio')">使用识别结果</button><button v-else type="button" :disabled="!script.trim()" @click="emit('rewriteBatchScript')">AI 改写</button></div></div>
           </div>
         </template>
         <p v-if="splitError || mixError || batchMixError" class="workflow-error" role="alert">{{ splitError || mixError || batchMixError }}</p>
@@ -311,6 +326,9 @@ function setCategoryMode(mode: MaterialFolderVideoMode) {
         v-model:subtitle-enabled="subtitleEnabled"
         v-model:subtitle-position="subtitlePosition"
         v-model:subtitle-size="subtitleSize"
+        v-model:subtitle-font-family="subtitleFontFamily"
+        v-model:subtitle-text-color="subtitleTextColor"
+        v-model:subtitle-opacity="subtitleOpacity"
         v-model:watermark-removal-enabled="watermarkRemovalEnabled"
         v-model:watermark-removal-region-count="watermarkRemovalRegionCount"
         v-model:watermark-enabled="watermarkEnabled"

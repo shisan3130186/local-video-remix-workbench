@@ -1,4 +1,5 @@
 export type SplitMode = "scene" | "duration";
+export type SplitOutputGrouping = "file" | "folder" | "none";
 
 export type SceneSensitivity = "stable" | "balanced" | "sensitive";
 
@@ -41,7 +42,7 @@ export interface MaterialFolder {
 }
 
 export const DEFAULT_MATERIAL_FOLDER_SETTINGS: MaterialFolderSettings = {
-  videoMode: "script",
+  videoMode: "custom",
   extractionMode: "auto",
   materialCountMode: "auto",
   clipMinSeconds: 0,

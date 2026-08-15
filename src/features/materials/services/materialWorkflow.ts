@@ -1,7 +1,7 @@
 import { readVideoMetadata } from "../../../services/videoProbeService";
 import type { ImportedVideo } from "../../../types/videoProbe";
 import type { TaskRunHandle } from "../../task-center";
-import type { SmartSplitSettings, SplitMode } from "../types";
+import type { SmartSplitSettings, SplitMode, SplitOutputGrouping } from "../types";
 import { splitCurrentVideo, splitVideoByScenes } from "./materialService";
 
 interface SplitImportedVideosOptions {
@@ -10,6 +10,9 @@ interface SplitImportedVideosOptions {
   splitMode: SplitMode;
   segmentDurationSeconds: number;
   smartSplitSettings: SmartSplitSettings;
+  trimStartSeconds: number;
+  trimEndSeconds: number;
+  outputGrouping: SplitOutputGrouping;
   appendLog: (message: string, level: "info" | "success" | "error") => void;
   task: TaskRunHandle;
 }
@@ -39,6 +42,9 @@ export async function splitImportedVideos({
   splitMode,
   segmentDurationSeconds,
   smartSplitSettings,
+  trimStartSeconds,
+  trimEndSeconds,
+  outputGrouping,
   appendLog,
   task,
 }: SplitImportedVideosOptions): Promise<SplitImportedVideosResult> {
@@ -65,6 +71,9 @@ export async function splitImportedVideos({
               smartSplitSettings.minimumSegmentSeconds,
               smartSplitSettings.maximumSegmentSeconds,
               video.durationSeconds,
+              trimStartSeconds,
+              trimEndSeconds,
+              outputGrouping,
               progress,
             )
           : await splitCurrentVideo(
@@ -72,6 +81,9 @@ export async function splitImportedVideos({
               outputDirectory,
               segmentDurationSeconds,
               video.durationSeconds,
+              trimStartSeconds,
+              trimEndSeconds,
+              outputGrouping,
               progress,
             );
       segmentPaths.push(...result.segmentPaths);

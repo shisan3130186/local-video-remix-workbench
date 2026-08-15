@@ -1,8 +1,10 @@
-export type OutputFormat = "mp4";
+export type OutputFormat = "mp4" | "mov" | "webm";
 export type OutputResolution = "followCanvas" | "hd720" | "fullHd1080";
 export type OutputFrameRate = "source" | "fps24" | "fps25" | "fps30" | "fps50" | "fps60";
 export type OutputQuality = "compact" | "standard" | "high";
 export type VideoEncoder = "auto" | "cpu" | "nvidia" | "intel" | "amd";
+export type OutputNamingMode = "serial" | "source";
+export type OutputThreadMode = "single" | "auto" | "multi";
 
 export interface OutputSettings {
   format: OutputFormat;
@@ -10,6 +12,10 @@ export interface OutputSettings {
   frameRate: OutputFrameRate;
   quality: OutputQuality;
   encoder: VideoEncoder;
+  keepOriginal: boolean;
+  namingMode: OutputNamingMode;
+  threadMode: OutputThreadMode;
+  variantCount: number;
 }
 
 export interface EncoderCapability {
@@ -31,4 +37,8 @@ export const DEFAULT_OUTPUT_SETTINGS: OutputSettings = {
   frameRate: "source",
   quality: "standard",
   encoder: "auto",
+  keepOriginal: true,
+  namingMode: "serial",
+  threadMode: "single",
+  variantCount: 1,
 };

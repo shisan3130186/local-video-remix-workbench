@@ -7,6 +7,18 @@ use std::sync::{Mutex, OnceLock};
 #[serde(rename_all = "camelCase")]
 pub enum OutputFormat {
     Mp4,
+    Mov,
+    Webm,
+}
+
+impl OutputFormat {
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Mp4 => "mp4",
+            Self::Mov => "mov",
+            Self::Webm => "webm",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -186,6 +198,10 @@ pub fn append_final_output_args(
     settings: OutputSettings,
     canvas_aspect_ratio: CanvasAspectRatio,
 ) -> Result<AppliedOutputSettings, String> {
+    if settings.format == OutputFormat::Webm {
+        return append_webm_output_args(ffmpeg_args, settings, canvas_aspect_ratio);
+    }
+
     let capabilities = detect_video_encoder_capabilities(false);
     let encoder = resolve_encoder(settings.encoder, &capabilities)?;
     let bitrate_kbps = target_bitrate_kbps(settings.quality, settings.resolution);
@@ -218,6 +234,47 @@ pub fn append_final_output_args(
 
     Ok(AppliedOutputSettings {
         encoder_label: encoder.label().to_string(),
+        resolution_label: resolution_label(settings.resolution, canvas_aspect_ratio),
+        frame_rate_label: settings.frame_rate.label().to_string(),
+        quality_label: settings.quality.label().to_string(),
+        video_bitrate_kbps: bitrate_kbps,
+    })
+}
+
+fn append_webm_output_args(
+    ffmpeg_args: &mut Vec<String>,
+    settings: OutputSettings,
+    canvas_aspect_ratio: CanvasAspectRatio,
+) -> Result<AppliedOutputSettings, String> {
+    let bitrate_kbps = target_bitrate_kbps(settings.quality, settings.resolution);
+    ffmpeg_args.extend([
+        "-c:v".to_string(),
+        "libvpx-vp9".to_string(),
+        "-row-mt".to_string(),
+        "1".to_string(),
+        "-cpu-used".to_string(),
+        "4".to_string(),
+        "-b:v".to_string(),
+        format!("{bitrate_kbps}k"),
+        "-crf".to_string(),
+        "31".to_string(),
+        "-pix_fmt".to_string(),
+        "yuv420p".to_string(),
+    ]);
+
+    if let Some(frame_rate) = settings.frame_rate.value() {
+        ffmpeg_args.extend(["-r".to_string(), frame_rate.to_string()]);
+    }
+
+    ffmpeg_args.extend([
+        "-c:a".to_string(),
+        "libopus".to_string(),
+        "-b:a".to_string(),
+        "160k".to_string(),
+    ]);
+
+    Ok(AppliedOutputSettings {
+        encoder_label: "VP9 / Opus (WEBM)".to_string(),
         resolution_label: resolution_label(settings.resolution, canvas_aspect_ratio),
         frame_rate_label: settings.frame_rate.label().to_string(),
         quality_label: settings.quality.label().to_string(),
@@ -476,6 +533,13 @@ mod tests {
         assert_eq!(settings.frame_rate, OutputFrameRate::Source);
         assert_eq!(settings.quality, OutputQuality::Standard);
         assert_eq!(settings.encoder, VideoEncoder::Auto);
+    }
+
+    #[test]
+    fn output_formats_have_their_expected_extensions() {
+        assert_eq!(OutputFormat::Mp4.extension(), "mp4");
+        assert_eq!(OutputFormat::Mov.extension(), "mov");
+        assert_eq!(OutputFormat::Webm.extension(), "webm");
     }
 
     #[test]

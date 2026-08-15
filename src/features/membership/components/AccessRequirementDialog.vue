@@ -22,7 +22,10 @@ const missingItems = computed(() => {
   if (props.missingTtsService) items.push("TTS 服务");
   return items;
 });
-const promptText = computed(() => `暂无使用权限，请先在右上角个人中心完成${missingItems.value.join("、")}配置。`);
+const promptText = computed(() => {
+  const requirements = missingItems.value.join("、");
+  return `当前工作台可以继续浏览和配置；开始智能分析、混剪或导出前，需要完成${requirements}。`;
+});
 
 watch(() => props.visible, async (visible) => {
   if (!visible) return;
@@ -47,10 +50,13 @@ watch(() => props.visible, async (visible) => {
     >
       <div class="access-requirement-dialog__icon" aria-hidden="true">!</div>
       <div>
-        <h2 id="access-requirement-title">没有权限</h2>
+        <h2 id="access-requirement-title">可以先浏览，使用时需要授权</h2>
         <p id="access-requirement-description">{{ promptText }}</p>
       </div>
-      <button ref="confirmButton" type="button" @click="emit('confirm')">确定</button>
+      <footer class="access-requirement-dialog__actions">
+        <button type="button" class="access-requirement-dialog__secondary" @click="emit('close')">继续查看</button>
+        <button ref="confirmButton" type="button" @click="emit('confirm')">去开通 / 配置</button>
+      </footer>
     </section>
   </div>
 </template>

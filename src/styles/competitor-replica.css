@@ -56,6 +56,20 @@
   box-shadow: none;
 }
 
+.workspace-access-hint {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(232, 180, 84, 0.28);
+  border-radius: 4px;
+  color: #dcb66b;
+  background: rgba(232, 180, 84, 0.08);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .workbench,
 .workbench--advanced,
 .workbench--ai,
@@ -716,6 +730,9 @@ body {
 .replica-progress-text { color: var(--glass-text-soft); font-size: 9px; }
 .replica-tools-output-bar { display: flex; grid-column: 1 / -1; grid-row: 2; align-items: center; gap: 8px; min-width: 0; border: 1px solid var(--replica-line); border-radius: 6px; padding: 7px 9px; background: var(--replica-panel); }
 .replica-tools-output-bar label { display: flex; align-items: center; gap: 5px; color: #989da0; font-size: 8px; white-space: nowrap; }
+.replica-tools-output-bar label.is-unavailable { opacity: .58; cursor: help; }
+.replica-tools-output-bar label.is-unavailable strong { color: inherit; font-size: inherit; font-weight: 500; }
+.replica-effect-list button.is-unavailable { cursor: not-allowed; opacity: .52; }
 .replica-tools-output-bar > span { color: #8d9296; font-size: 8px; white-space: nowrap; }
 .replica-tools-output-bar select,
 .replica-tools-output-bar input { width: 88px; min-height: 27px; border: 1px solid #363a3d; border-radius: 4px; color: #cdd0d2; background: #191b1d; font-size: 8px; }

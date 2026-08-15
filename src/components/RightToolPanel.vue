@@ -55,11 +55,12 @@ const zoomMinDurationSeconds = defineModel<number>("zoomMinDurationSeconds", { r
 const zoomMaxDurationSeconds = defineModel<number>("zoomMaxDurationSeconds", { required: true });
 
 const activeTab = ref<"basic" | "visual">("basic");
-const subtitlePreset = ref(7);
-const subtitleFont = ref("MiSans");
-const subtitleOpacity = ref(100);
 const subtitleStyleExpanded = ref(true);
 const subtitleColors = ["#f3f3f3", "#f4d22f", "#50d7b0", "#f08c57", "#76a9ff", "#ef6f91", "#111317", "#ffffff", "#2cc7b1", "#f6b83f", "#db4267", "#9be3d2"];
+const subtitleFontFamily = defineModel<string>("subtitleFontFamily", { required: true });
+const subtitleTextColor = defineModel<string>("subtitleTextColor", { required: true });
+const subtitleOpacity = defineModel<number>("subtitleOpacity", { required: true });
+const subtitlePreset = computed(() => subtitleColors.findIndex((color) => color.toLowerCase() === subtitleTextColor.value.toLowerCase()));
 const bgmFileName = computed(() => props.bgmAudioFilePath?.split(/[\\/]/).pop() ?? "未选择");
 const selectedVoice = computed(() => findTtsVoice(ttsSpeaker.value));
 const selectedVoiceName = computed(() => selectedVoice.value?.name ?? "小问 2.0");
@@ -147,12 +148,12 @@ watch(() => selectedVoice.value?.id ?? ttsSpeaker.value, () => {
       <section class="replica-setting-block replica-subtitle-block">
         <header><strong>文本/字幕样式</strong><button type="button" @click="subtitleStyleExpanded = !subtitleStyleExpanded">{{ subtitleStyleExpanded ? '收起' : '字幕样式' }}</button></header>
         <div v-show="subtitleStyleExpanded" class="replica-subtitle-controls">
-          <label class="replica-select-row"><span>选择字体</span><select v-model="subtitleFont"><option>MiSans</option><option>Noto Sans SC</option><option>Noto Serif SC</option><option>仿宋</option><option>宋体</option><option>微软雅黑</option><option>楷体</option><option>等线</option><option>黑体</option></select></label>
+          <label class="replica-select-row"><span>选择字体</span><select v-model="subtitleFontFamily"><option value="Microsoft YaHei">微软雅黑</option><option value="SimSun">宋体</option><option value="SimHei">黑体</option><option value="KaiTi">楷体</option><option value="FangSong">仿宋</option><option value="DengXian">等线</option></select></label>
           <label class="replica-select-row"><span>字号大小</span><select v-model="subtitleSize"><option value="small">小号</option><option value="medium">中号</option><option value="large">大号</option></select></label>
           <label class="replica-select-row"><span>字幕位置</span><select v-model="subtitlePosition"><option value="top">顶部</option><option value="middle">居中</option><option value="bottom">底部</option></select></label>
-          <label class="replica-range-row"><span>字体透明</span><input v-model.number="subtitleOpacity" type="range" min="10" max="100" /><output>{{ subtitleOpacity }}%</output></label>
+          <label class="replica-range-row"><span>字体透明</span><input :value="Math.round(subtitleOpacity * 100)" type="range" min="10" max="100" @input="subtitleOpacity = Number(($event.target as HTMLInputElement).value) / 100" /><output>{{ Math.round(subtitleOpacity * 100) }}%</output></label>
           <div class="replica-style-swatches" aria-label="字幕颜色预设">
-            <button v-for="(color, index) in subtitleColors" :key="color + index" type="button" :class="{ 'is-active': subtitlePreset === index }" :style="{ color }" :aria-label="`选择字幕颜色 ${index + 1}`" @click="subtitlePreset = index">A</button>
+            <button v-for="(color, index) in subtitleColors" :key="color + index" type="button" :class="{ 'is-active': subtitlePreset === index }" :style="{ color }" :aria-label="`选择字幕颜色 ${index + 1}`" @click="subtitleTextColor = color">A</button>
           </div>
           <label class="replica-checkbox-row"><input v-model="subtitleEnabled" type="checkbox" />生成字幕</label>
         </div>

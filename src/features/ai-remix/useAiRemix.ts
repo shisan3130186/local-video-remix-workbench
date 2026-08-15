@@ -44,6 +44,16 @@ interface UseAiRemixOptions {
   runTask: <T>(label: string, runner: (task: TaskRunHandle) => Promise<T>) => Promise<T>;
 }
 
+interface ContentAnalysisOptions {
+  mode: AiRemixMatchMode;
+  dimensions: {
+    shotType: boolean;
+    personAction: boolean;
+    sellingPoints: boolean;
+    usableCopy: boolean;
+  };
+}
+
 export function useAiRemix(options: UseAiRemixOptions) {
   const aiScript = ref("");
   const aiPreparedSegments = ref<AiRemixSegment[]>([]);
@@ -158,7 +168,10 @@ export function useAiRemix(options: UseAiRemixOptions) {
     );
   }
 
-  async function analyzePreparedSegmentContent() {
+  async function analyzePreparedSegmentContent(configuration: ContentAnalysisOptions = {
+    mode: "cloud",
+    dimensions: { shotType: true, personAction: true, sellingPoints: true, usableCopy: true },
+  }) {
     aiContentAnalysisError.value = null;
     aiContentAnalysisProgressText.value = null;
     if (aiPreparedSegments.value.length === 0) {
@@ -168,6 +181,18 @@ export function useAiRemix(options: UseAiRemixOptions) {
 
     isAnalyzingAiContent.value = true;
     try {
+      if (!Object.values(configuration.dimensions).some(Boolean)) {
+        throw new Error("请至少选择一个内容提炼维度。");
+      }
+      if (configuration.mode === "local") {
+        aiContentAnalysisProgressText.value = "正在使用本地规则提炼文件名与片段时长";
+        aiPreparedSegments.value = aiPreparedSegments.value.map((segment) => ({
+          ...segment,
+          contentAnalysis: buildLocalContentAnalysis(segment, configuration.dimensions),
+        }));
+        options.appendAiRemixLog("本地内容提炼完成：已按所选维度从素材文件名和时长生成可编辑结果。", "success");
+        return;
+      }
       await ensureAiSegmentDescriptions((message) => {
         aiContentAnalysisProgressText.value = message;
       });
@@ -186,7 +211,10 @@ export function useAiRemix(options: UseAiRemixOptions) {
           aiContentAnalysisProgressText.value = message;
         },
       });
-      aiPreparedSegments.value = result.segments;
+      aiPreparedSegments.value = result.segments.map((segment) => ({
+        ...segment,
+        contentAnalysis: selectContentAnalysisDimensions(segment.contentAnalysis, configuration.dimensions),
+      }));
       result.categoriesBySegmentId.forEach((category, segmentId) => {
         const segment = aiPreparedSegments.value.find((item) => item.segmentId === segmentId);
         if (segment) options.onSegmentCategorySuggested(segment.path, category);
@@ -569,6 +597,32 @@ export function useAiRemix(options: UseAiRemixOptions) {
     restoreAiPreparedSegments,
     restoreAiRemixState,
     updateAiSegmentContentAnalysis,
+  };
+}
+
+function buildLocalContentAnalysis(
+  segment: AiRemixSegment,
+  dimensions: ContentAnalysisOptions["dimensions"],
+): AiRemixContentAnalysis {
+  const fileName = segment.path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, "") ?? segment.segmentId;
+  return {
+    theme: dimensions.usableCopy ? fileName : "",
+    sellingPoints: dimensions.sellingPoints ? [fileName] : [],
+    action: dimensions.personAction ? `时长 ${segment.durationSeconds.toFixed(1)} 秒的素材片段` : "",
+    tags: dimensions.shotType ? [segment.durationSeconds <= 3 ? "短镜头" : "常规镜头"] : [],
+  };
+}
+
+function selectContentAnalysisDimensions(
+  value: AiRemixContentAnalysis | null,
+  dimensions: ContentAnalysisOptions["dimensions"],
+): AiRemixContentAnalysis | null {
+  if (!value) return null;
+  return {
+    theme: dimensions.usableCopy ? value.theme : "",
+    sellingPoints: dimensions.sellingPoints ? value.sellingPoints : [],
+    action: dimensions.personAction ? value.action : "",
+    tags: dimensions.shotType ? value.tags : [],
   };
 }
 

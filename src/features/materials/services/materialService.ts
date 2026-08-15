@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { TaskProgressContext } from "../../task-center";
-import type { SceneSensitivity } from "../types";
+import type { SceneSensitivity, SplitOutputGrouping } from "../types";
 
 export interface SplitVideoResult {
   outputDirectory: string;
@@ -20,13 +20,20 @@ export function splitCurrentVideo(
   outputDirectory: string,
   segmentDurationSeconds: number,
   inputDurationSeconds: number | null,
+  trimStartSeconds: number,
+  trimEndSeconds: number,
+  outputGrouping: SplitOutputGrouping,
   taskContext?: TaskProgressContext,
 ): Promise<SplitVideoResult> {
   return invoke<SplitVideoResult>("split_current_video", {
     inputFilePath,
     outputDirectory,
-    segmentDurationSeconds,
     inputDurationSeconds,
+    settings: {
+      segmentDurationSeconds,
+      trim: { startSeconds: trimStartSeconds, endSeconds: trimEndSeconds },
+      outputGrouping,
+    },
     taskContext: taskContext ?? null,
   });
 }
@@ -38,15 +45,22 @@ export function splitVideoByScenes(
   minimumSegmentSeconds: number,
   maximumSegmentSeconds: number,
   inputDurationSeconds: number | null,
+  trimStartSeconds: number,
+  trimEndSeconds: number,
+  outputGrouping: SplitOutputGrouping,
   taskContext?: TaskProgressContext,
 ): Promise<SplitVideoResult> {
   return invoke<SplitVideoResult>("split_video_by_scenes", {
     inputFilePath,
     outputDirectory,
-    sensitivity,
-    minimumSegmentSeconds,
-    maximumSegmentSeconds,
     inputDurationSeconds,
+    settings: {
+      sensitivity,
+      minimumSegmentSeconds,
+      maximumSegmentSeconds,
+      trim: { startSeconds: trimStartSeconds, endSeconds: trimEndSeconds },
+      outputGrouping,
+    },
     taskContext: taskContext ?? null,
   });
 }

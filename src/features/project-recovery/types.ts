@@ -19,6 +19,13 @@ export interface ProjectMaterialsSnapshot {
   materialFolders?: MaterialFolder[];
   selectedVideoPath: string | null;
   segmentDurationSeconds: number;
+  splitMode?: "scene" | "duration";
+  splitOutputGrouping?: "file" | "folder" | "none";
+  trimStartSeconds?: number;
+  trimEndSeconds?: number;
+  sceneConfidenceScore?: number;
+  minimumSegmentSeconds?: number;
+  maximumSegmentSeconds?: number;
   splitOutputDirectory: string | null;
   splitSegmentPaths: string[];
   segmentCategories: Record<string, SegmentCategory | "">;
