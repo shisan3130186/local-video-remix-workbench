@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>智剪 SmartCut · 发布前全局人工验收</title>
+  <style>
+    :root {
+      --page: #f1f3f5;
+      --rail: #252a2d;
+      --rail-soft: #30373a;
+      --panel: #ffffff;
+      --panel-soft: #f7f8f9;
+      --panel-muted: #edf0f2;
+      --line: #d8dde0;
+      --line-strong: #bac3c8;
+      --ink: #1c2529;
+      --ink-soft: #58656b;
+      --muted: #7d898e;
+      --accent: #b87639;
+      --accent-soft: #f4e8dc;
+      --pass: #317a5c;
+      --pass-soft: #e5f1eb;
+      --fail: #b14b45;
+      --fail-soft: #f8e9e7;
+      --pending: #8d6b27;
+      --pending-soft: #f8f0dc;
+      --shadow: 0 12px 30px rgba(34, 45, 49, .08);
+    }
+    [data-theme="dark"] {
+      --page: #15191b;
+      --rail: #1e2427;
+      --rail-soft: #2a3235;
+      --panel: #202629;
+      --panel-soft: #252d30;
+      --panel-muted: #2b3437;
+      --line: #364145;
+      --line-strong: #4b575b;
+      --ink: #e7ecee;
+      --ink-soft: #b4c0c4;
+      --muted: #8c999e;
+      --accent: #dda36b;
+      --accent-soft: #3a2d23;
+      --pass: #82c6a4;
+      --pass-soft: #203a2e;
+      --fail: #f08b83;
+      --fail-soft: #402927;
+      --pending: #e3bc67;
+      --pending-soft: #3a311d;
+      --shadow: 0 12px 30px rgba(0, 0, 0, .22);
+    }
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--page); }
+    body { margin: 0; color: var(--ink); background: var(--page); font: 13px/1.55 "Segoe UI", "Microsoft YaHei", sans-serif; }
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    .app { display: grid; min-height: 100vh; grid-template-columns: 286px minmax(0, 1fr); }
+    .rail { position: sticky; top: 0; display: flex; height: 100vh; flex-direction: column; padding: 24px 18px 18px; color: #eef3f4; background: var(--rail); }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 26px; border-bottom: 1px solid rgba(255,255,255,.12); }
+    .brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid rgba(255,255,255,.22); border-radius: 8px; color: #f4c38f; font-weight: 800; }
+    .brand strong { display: block; font-size: 14px; letter-spacing: .02em; }
+    .brand small { display: block; margin-top: 2px; color: #aeb9bc; font-size: 11px; }
+    .rail__summary { padding: 22px 8px 16px; }
+    .rail__summary h2 { margin: 0; font-size: 22px; line-height: 1.2; }
+    .rail__summary p { margin: 8px 0 0; color: #acb6b9; font-size: 11px; }
+    .progress-ring { display: grid; width: 142px; height: 142px; margin: 16px auto 20px; place-items: center; border: 11px solid var(--rail-soft); border-top-color: #d6985f; border-right-color: #d6985f; border-radius: 50%; transform: rotate(-35deg); }
+    .progress-ring__inner { display: grid; width: 104px; height: 104px; place-items: center; border-radius: 50%; color: #fff; background: var(--rail); transform: rotate(35deg); text-align: center; }
+    .progress-ring__inner strong { display: block; font-size: 24px; line-height: 1; }
+    .progress-ring__inner small { display: block; margin-top: 5px; color: #aeb9bc; font-size: 10px; }
+    .rail-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+    .rail-stat { padding: 8px 4px; border: 1px solid rgba(255,255,255,.1); border-radius: 6px; background: rgba(255,255,255,.04); text-align: center; }
+    .rail-stat strong { display: block; color: #fff; font-size: 16px; }
+    .rail-stat span { color: #9eaaad; font-size: 10px; }
+    .rail-nav { display: grid; gap: 5px; margin-top: 5px; }
+    .rail-nav button { display: flex; align-items: center; justify-content: space-between; padding: 9px 10px; border: 1px solid transparent; border-radius: 6px; color: #c6d0d2; background: transparent; text-align: left; }
+    .rail-nav button:hover, .rail-nav button.is-active { border-color: rgba(255,255,255,.16); color: #fff; background: var(--rail-soft); }
+    .rail-nav button span:last-child { color: #9eaaad; font-size: 11px; }
+    .rail__footer { margin-top: auto; padding: 14px 8px 0; border-top: 1px solid rgba(255,255,255,.12); color: #9eaaad; font-size: 10px; }
+    .workspace { min-width: 0; padding: 28px clamp(18px, 3.8vw, 58px) 58px; }
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; max-width: 1220px; margin: 0 auto 25px; }
+    .eyebrow { margin: 0 0 6px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(23px, 3vw, 34px); letter-spacing: -.03em; line-height: 1.15; }
+    .lede { max-width: 700px; margin: 9px 0 0; color: var(--ink-soft); }
+    .topbar__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+    .button { min-height: 34px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink-soft); background: var(--panel); font-size: 11px; }
+    .button:hover { border-color: var(--accent); color: var(--accent); }
+    .button--primary { border-color: var(--accent); color: #fff; background: var(--accent); }
+    .button--quiet { border-color: transparent; background: transparent; }
+    .button--danger { border-color: var(--fail); color: var(--fail); background: transparent; }
+    .controlbar { position: sticky; top: 12px; z-index: 5; display: flex; align-items: center; gap: 10px; max-width: 1220px; margin: 0 auto 16px; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow); backdrop-filter: blur(12px); }
+    .search { flex: 1; min-width: 180px; min-height: 34px; padding: 0 11px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: var(--panel-soft); outline: none; }
+    .search:focus, input:focus, textarea:focus { border-color: var(--accent); outline: 2px solid color-mix(in srgb, var(--accent) 24%, transparent); outline-offset: 1px; }
+    .filters { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-soft); }
+    .filter { min-height: 27px; padding: 0 9px; border: 0; border-radius: 4px; color: var(--muted); background: transparent; font-size: 11px; }
+    .filter.is-active { color: var(--ink); background: var(--panel); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .meta-panel, .gate-panel { max-width: 1220px; margin: 0 auto 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: var(--shadow); }
+    .meta-panel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 14px; }
+    .field { display: grid; gap: 5px; min-width: 0; }
+    .field label, .field > span { color: var(--muted); font-size: 10px; font-weight: 700; }
+    .field input, .field textarea { width: 100%; min-height: 32px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); background: var(--panel-soft); outline: none; }
+    .field textarea { min-height: 52px; resize: vertical; }
+    .meta-panel .field:last-child { grid-column: 1 / -1; }
+    .gate-panel { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 18px; padding: 15px 17px; }
+    .gate-panel h2 { margin: 0; font-size: 14px; }
+    .gate-panel p { margin: 4px 0 0; color: var(--ink-soft); font-size: 11px; }
+    .gate-status { min-width: 155px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--pending); background: var(--pending-soft); text-align: center; }
+    .gate-status strong { display: block; font-size: 13px; }
+    .gate-status small { display: block; margin-top: 2px; font-size: 10px; }
+    .gate-status.is-ready { border-color: var(--pass); color: var(--pass); background: var(--pass-soft); }
+    .gate-status.is-blocked { border-color: var(--fail); color: var(--fail); background: var(--fail-soft); }
+    .sections { display: grid; gap: 14px; max-width: 1220px; margin: 0 auto; }
+    .section { overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: var(--shadow); scroll-margin-top: 78px; }
+    .section__head { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 15px 17px; border-bottom: 1px solid var(--line); }
+    .section__head h2 { margin: 0; font-size: 15px; }
+    .section__head p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+    .section__count { flex: none; padding: 5px 8px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink-soft); background: var(--panel-soft); font-size: 11px; }
+    .tests { display: grid; }
+    .test { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 11px; align-items: start; padding: 14px 17px; border-bottom: 1px solid var(--line); transition: background 130ms ease; }
+    .test:last-child { border-bottom: 0; }
+    .test:hover { background: var(--panel-soft); }
+    .test.is-passed { background: color-mix(in srgb, var(--pass-soft) 52%, var(--panel)); }
+    .test.is-failed { background: color-mix(in srgb, var(--fail-soft) 62%, var(--panel)); }
+    .test.is-hidden { display: none; }
+    .test__check { display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid var(--line-strong); border-radius: 6px; color: transparent; background: var(--panel); }
+    .test__check.is-checked { border-color: var(--pass); color: #fff; background: var(--pass); }
+    .test__check span { font-size: 15px; line-height: 1; }
+    .test__main { min-width: 0; }
+    .test__title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+    .test__id { color: var(--accent); font: 700 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .test__title strong { font-size: 12px; }
+    .test__expect { margin: 4px 0 0; color: var(--ink-soft); font-size: 11px; }
+    .test__details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+    .test__details label { display: grid; gap: 4px; color: var(--muted); font-size: 10px; }
+    .test__details textarea, .test__details input { width: 100%; min-height: 30px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); background: var(--panel); outline: none; }
+    .test__details textarea { grid-column: 1 / -1; min-height: 56px; resize: vertical; }
+    .test__actions { display: flex; align-items: center; gap: 5px; }
+    .status-button { min-height: 27px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); background: transparent; font-size: 10px; white-space: nowrap; }
+    .status-button:hover { border-color: var(--fail); color: var(--fail); }
+    .status-button.is-failed { border-color: var(--fail); color: var(--fail); background: var(--fail-soft); }
+    .note-toggle { padding: 0 5px; border: 0; color: var(--muted); background: transparent; font-size: 10px; }
+    .note-toggle:hover { color: var(--accent); }
+    .empty { padding: 28px 17px; color: var(--muted); text-align: center; }
+    .footer { max-width: 1220px; margin: 20px auto 0; color: var(--muted); font-size: 10px; text-align: center; }
+    .toast { position: fixed; right: 20px; bottom: 20px; z-index: 20; max-width: 320px; padding: 11px 14px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink); background: var(--panel); box-shadow: var(--shadow); opacity: 0; transform: translateY(7px); pointer-events: none; transition: opacity 160ms ease, transform 160ms ease; }
+    .toast.is-visible { opacity: 1; transform: translateY(0); }
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .rail { position: static; height: auto; padding: 16px; }
+      .brand { padding-bottom: 13px; }
+      .rail__summary { display: grid; grid-template-columns: 1fr 160px; align-items: center; gap: 14px; padding: 16px 0 8px; }
+      .progress-ring { grid-column: 2; grid-row: 1 / 3; margin: 0 auto; }
+      .rail-nav { display: flex; overflow-x: auto; margin-top: 9px; }
+      .rail-nav button { min-width: max-content; }
+      .rail__footer { display: none; }
+      .workspace { padding-top: 20px; }
+    }
+    @media (max-width: 680px) {
+      .topbar, .controlbar, .gate-panel { display: block; }
+      .topbar__actions { justify-content: flex-start; margin-top: 14px; }
+      .controlbar > * { width: 100%; margin-bottom: 8px; }
+      .controlbar > *:last-child { margin-bottom: 0; }
+      .filters { display: grid; grid-template-columns: repeat(4, 1fr); }
+      .meta-panel { grid-template-columns: 1fr 1fr; }
+      .gate-status { margin-top: 12px; }
+      .test { grid-template-columns: 30px minmax(0, 1fr); }
+      .test__actions { grid-column: 2; justify-content: flex-start; }
+      .test__details { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="rail">
+      <div class="brand"><span class="brand-mark">智</span><div><strong>智剪 SmartCut</strong><small>发布前全局人工验收</small></div></div>
+      <div class="rail__summary">
+        <div><h2 id="railHeadline">准备开始</h2><p id="railHint">逐项检查，问题会自动集中到失败列表。</p></div>
+        <div class="progress-ring" id="progressRing"><div class="progress-ring__inner"><div><strong id="progressPercent">0%</strong><small>验收完成</small></div></div></div>
+        <div class="rail-stats"><div class="rail-stat"><strong id="passedCount">0</strong><span>通过</span></div><div class="rail-stat"><strong id="failedCount">0</strong><span>失败</span></div><div class="rail-stat"><strong id="pendingCount">0</strong><span>待验收</span></div></div>
+      </div>
+      <nav class="rail-nav" id="sectionNav" aria-label="验收功能分组"></nav>
+      <div class="rail__footer">状态自动保存在本机浏览器。导出报告后再发送给开发者。</div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div><p class="eyebrow">Release gate / v0.5.0</p><h1>发布前全局人工验收</h1><p class="lede">每一项完成后打勾；发现问题就标红并留下复现步骤。全部测完后导出报告，问题会按编号一目了然。</p></div>
+        <div class="topbar__actions"><button class="button" id="themeButton" type="button">切换深色</button><button class="button" id="importButton" type="button">导入报告</button><button class="button button--primary" id="exportButton" type="button">导出 HTML 报告</button></div>
+      </header>
+
+      <section class="controlbar" aria-label="验收控制栏">
+        <input class="search" id="searchInput" type="search" placeholder="搜索编号、功能或操作…" aria-label="搜索验收项目" />
+        <div class="filters" role="group" aria-label="筛选验收状态"><button class="filter is-active" data-filter="all" type="button">全部</button><button class="filter" data-filter="pending" type="button">待验收</button><button class="filter" data-filter="failed" type="button">失败</button><button class="filter" data-filter="passed" type="button">已通过</button></div>
+        <button class="button button--quiet" id="resetButton" type="button">重置本轮</button>
+        <input id="importInput" type="file" accept=".html,.json,application/json,text/html" hidden />
+      </section>
+
+      <section class="meta-panel" aria-label="测试信息">
+        <div class="field"><label for="metaTester">测试人</label><input id="metaTester" data-meta="tester" placeholder="填写姓名" /></div>
+        <div class="field"><label for="metaVersion">测试版本 / Git</label><input id="metaVersion" data-meta="version" value="f29d8e9" /></div>
+        <div class="field"><label for="metaAccount">账号状态</label><input id="metaAccount" data-meta="account" placeholder="已激活 / 未激活" /></div>
+        <div class="field"><label for="metaMachine">窗口与设备</label><input id="metaMachine" data-meta="machine" placeholder="例如：1440×900 · Windows 11" /></div>
+        <div class="field"><label for="metaResultDir">测试结果目录</label><input id="metaResultDir" data-meta="resultDir" value="E:\Workspace\测试结果库\Project_03_本地短视频批量混剪工作台\2026-08-17_发布前全局验收" /></div>
+        <div class="field"><label for="metaRemark">总备注</label><textarea id="metaRemark" data-meta="remark" placeholder="记录整体体验、环境差异或需要集中说明的内容"></textarea></div>
+      </section>
+
+      <section class="gate-panel" aria-live="polite"><div><h2>发布门槛</h2><p id="gateCopy">所有 P0/P1 问题为零，且关键功能都必须有真实可播放的输出文件。</p></div><div class="gate-status" id="gateStatus"><strong id="gateTitle">进行中</strong><small id="gateDetail">还有项目待验收</small></div></section>
+      <div class="sections" id="sections"></div>
+      <p class="footer">建议每个失败项都附一张截图和一个可复现的输入文件。导出报告会包含当前所有勾选、失败说明和测试元信息。</p>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    window.__INITIAL_TEST_STATE__ = null;
+    // 升级存储键，避免开发验证产生的本地演示记录影响正式验收。
+    const STORAGE_KEY = "smartcut-global-acceptance-v2";
+    const groups = [
+      { id: "general", title: "通用检查", short: "通用", desc: "启动、入口、主题、尺寸和统一任务状态", tests: [
+        ["G-01", "启动软件并停留首页 30 秒", "不闪退、不出现黑色终端窗口、不持续报错。"],
+        ["G-02", "依次打开首页所有可用入口，再返回首页", "页面可进入和返回；首页三列布局不乱。"],
+        ["G-03", "切换五种主题并打开设置、教程、诊断、个人中心", "页面、表单、下拉框、按钮和文字均可读；视频画布可保持黑色。"],
+        ["G-04", "在 1440×900 和 1280×720 查看各工作区空状态", "预览位置可见、文字不重叠、底部任务区可操作。"],
+        ["G-05", "运行任务并分别执行取消、失败重试、打开结果、打开目录、清理临时文件", "状态与实际动作一致；取消不报成失败；失败不清空输入。"]
+      ]},
+      { id: "account", title: "账号、权限与配置", short: "账号", desc: "登录、会员门禁、API/TTS/ASR 和项目恢复", tests: [
+        ["A-01", "注册、登录、退出、重新登录", "账号状态正确；退出后不再显示会员功能已可执行。"],
+        ["A-02", "未激活账号进入各功能页并点击一次真实处理", "可以浏览和配置；执行前有清楚授权提示；不创建伪任务。"],
+        ["A-03", "激活账号后重试相同处理", "真实任务可以开始，权限提示消失。"],
+        ["A-04", "分别保存 AI/TTS/ASR 设置并重新打开", "只显示是否已配置，不明文回显密钥；错误密钥有可理解提示。"],
+        ["A-05", "测试项目恢复、新建空白项目、放弃恢复", "行为符合按钮文案，不自动载入不应载入的旧素材。"]
+      ]},
+      { id: "ai", title: "AI 智能混剪", short: "AI 混剪", desc: "导入、理解、匹配、配音、字幕、裁剪和批量结果", tests: [
+        ["AI-01", "导入横屏和竖屏素材，切换原比例、9:16、16:9、1:1 与填充方式", "原视频完整预览；播放器外壳不被挤压。"],
+        ["AI-02", "分别测试本地匹配、云端匹配、短文案和长文案", "分镜、素材匹配、候选画面和任务状态真实更新。"],
+        ["AI-03", "开启/关闭配音、原声、字幕，修改音色和字幕样式后各导出", "至少两条结果可对比，声音和字幕参数真实生效。"],
+        ["AI-04", "在裁剪和添加文本模式下拖动、缩放并关闭工具", "视频本体不意外缩放；文字位置进入导出结果。"],
+        ["AI-05", "让一个任务失败或取消，再执行重试", "失败条目可重试；已成功条目不重复生成。"]
+      ]},
+      { id: "effects", title: "视频效果处理", short: "视频效果", desc: "画面、音频、画中画、入场效果和输出规格", tests: [
+        ["VE-01", "导入横竖屏视频，查看预览、封面、输出规格和基础参数", "预览和参数均可见，竖屏画面完整。"],
+        ["VE-02", "分别导出镜像/旋转、变速、HSL、动态缩放、比例、裁剪、文本", "每项结果画面都发生对应变化，不只是界面高亮。"],
+        ["VE-03", "测试 BGM 关闭/开启、音量、淡入淡出、循环/不循环", "成片声音与设置一致。"],
+        ["VE-04", "测试主视频/外部素材画中画的大小、位置、透明度", "真实叠加到成片，位置和透明度正确。"],
+        ["VE-05", "测试入场效果、帧操作、像素融合、封面和批量输出", "每项均有真实结果，任务进度和结果目录正确。"]
+      ]},
+      { id: "watermark", title: "水印与去水印", short: "水印", desc: "添加水印、自动检测、手动微调和四种去除方式", tests: [
+        ["WM-01", "添加文字、图片、图片/视频贴画，调整位置、大小、透明度和轨迹后导出", "水印/贴画真实出现在结果中。"],
+        ["WM-02", "对有水印素材执行自动检测并拖动候选框微调", "候选框出现、可拖动，最终区域进入真实处理。"],
+        ["WM-03", "分别导出融合修复、区域模糊、马赛克、色块遮盖", "四种结果画面有明确差异。"],
+        ["WM-04", "对无水印素材执行自动检测", "无越界框、无崩溃、无假成功。"]
+      ]},
+      { id: "remix", title: "普通混剪与分类混剪", short: "普通/分类", desc: "随机抽取、分类规则、重复规则和批量结果", tests: [
+        ["MX-01", "普通混剪导入多条视频，测试随机抽取、重复规则、批量数量、字幕、BGM、画中画", "批量结果数量和内容符合设置，文件可播放。"],
+        ["MX-02", "分类混剪设置多个文件夹、分类顺序和每类抽取规则", "每条成片按照分类顺序选取片段。"],
+        ["MX-03", "测试单条失败、取消、重试、打开目录和重新导入后的状态清理", "失败可恢复；不会遗留错误状态或误删源文件。"]
+      ]},
+      { id: "commerce", title: "信息流带货成片", short: "信息流带货", desc: "商品字段、信息流模板、三版本结果和主题适配", tests: [
+        ["CM-01", "珍珠雾白 → 夜航墨色 → 珍珠雾白，检查信息流工作区所有控件", "页面、面板、表单、按钮跟随主题；只有视频画布保持黑色。"],
+        ["CM-02", "填写商品名称、目标用户、痛点、卖点、结尾引导，导入至少三条视频并切片分类", "字段和分类进入真实成片流程。"],
+        ["CM-03", "分别选择问题→解决方案、结果先行、人物口播，各导出三条成片", "三条镜头顺序不同、比例 9:16、商品文案进入字幕。"],
+        ["CM-04", "关闭字幕导出，再开启字幕导出", "关闭时没有烧录字幕，开启后字幕恢复。"],
+        ["CM-05", "制造一个版本失败，点击重试失败版本并查看结果卡", "只重试失败版本；结果卡可预览真实视频并打开目录。"]
+      ]},
+      { id: "tools", title: "效率工具与辅助功能", short: "效率工具", desc: "文案、内容提炼、改名、字幕、大字报、图片转视频", tests: [
+        ["ET-01", "文案改写输入单条/多条文案，切换语气、长度和提示词", "条数正确，复制/保存可用，失败不丢原文。"],
+        ["ET-02", "视频内容提炼完成切片、分析、分类和精华成片", "分析结果可见，分类可改，精华成片真实导出。"],
+        ["ET-03", "批量改名测试前缀、后缀、序号、预览和冲突文件", "不覆盖已有文件，冲突有明确提示。"],
+        ["ET-04", "字幕识别带人声视频，修改字幕后导出", "文本、时间轴和最终烧录字幕一致。"],
+        ["ET-05", "大字报输入文字并调整样式后导出", "图片或视频存在，文字和样式正确。"],
+        ["ET-06", "图片转视频设置比例、时长、动效和配乐", "视频可播放，比例与时长符合设置。"],
+        ["ET-07", "打开诊断、任务日志并复制或导出信息", "不显示密钥、密码、卡密或完整会话。"]
+      ]},
+      { id: "stability", title: "发布前稳定性回归", short: "稳定性", desc: "连续任务、断网、异常输入和结果归档", tests: [
+        ["ST-01", "连续完成三类任务后退出软件并重新启动", "不误报成功，项目状态和结果仍正确。"],
+        ["ST-02", "连续导入/导出 10 次，观察内存、卡顿和结果目录", "不崩溃、不产生重复或空文件。"],
+        ["ST-03", "断网触发 AI/TTS/ASR，恢复网络后重试", "错误可理解，素材/文案保留，可继续重试。"],
+        ["ST-04", "使用不支持格式、空文件、超短视频、超长文件名、无权限目录", "每种情况都有明确失败信息，不崩溃。"],
+        ["ST-05", "检查测试结果目录和导出报告", "每项有截图、输入、输出和结论；无密钥、账号信息或大体积素材。"]
+      ]}
+    ];
+
+    const clone = value => JSON.parse(JSON.stringify(value));
+    const defaultState = () => ({ meta: { tester: "", version: "f29d8e9", account: "", machine: "", resultDir: "E:\\Workspace\\测试结果库\\Project_03_本地短视频批量混剪工作台\\2026-08-17_发布前全局验收", remark: "" }, statuses: {}, notes: {}, theme: "light", updatedAt: "" });
+    let state = readState();
+    let activeFilter = "all";
+    let query = "";
+    let expanded = new Set();
+
+    function readState() {
+      try {
+        const imported = window.__INITIAL_TEST_STATE__ || JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+        return imported ? Object.assign(defaultState(), imported, { meta: Object.assign(defaultState().meta, imported.meta || {}) }) : defaultState();
+      } catch { return defaultState(); }
+    }
+    function allTests() { return groups.flatMap(group => group.tests.map(test => ({ id: test[0], title: test[1], expect: test[2], group: group.id }))); }
+    function statusOf(id) { return state.statuses[id] || "pending"; }
+    function counts() { const values = allTests().map(item => statusOf(item.id)); return { total: values.length, passed: values.filter(v => v === "passed").length, failed: values.filter(v => v === "failed").length, pending: values.filter(v => v === "pending").length }; }
+    function persist() { state.updatedAt = new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); render(); }
+    function toast(message) { const node = document.getElementById("toast"); node.textContent = message; node.classList.add("is-visible"); clearTimeout(window.__toastTimer); window.__toastTimer = setTimeout(() => node.classList.remove("is-visible"), 2400); }
+    function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char])); }
+    function matches(item) { const text = `${item.id} ${item.title} ${item.expect}`.toLowerCase(); return (activeFilter === "all" || statusOf(item.id) === activeFilter) && (!query || text.includes(query)); }
+    function progressPercent() { const count = counts(); return count.total ? Math.round(count.passed / count.total * 100) : 0; }
+
+    function render() {
+      document.documentElement.dataset.theme = state.theme || "light";
+      const count = counts();
+      const percent = progressPercent();
+      document.getElementById("progressPercent").textContent = `${percent}%`;
+      document.getElementById("passedCount").textContent = count.passed;
+      document.getElementById("failedCount").textContent = count.failed;
+      document.getElementById("pendingCount").textContent = count.pending;
+      document.getElementById("progressRing").style.background = `conic-gradient(#d6985f ${percent * 3.6}deg, var(--rail-soft) 0)`;
+      document.getElementById("railHeadline").textContent = count.failed ? `${count.failed} 项需处理` : count.pending ? "继续验收" : "全部完成";
+      document.getElementById("railHint").textContent = count.failed ? "先处理失败项，再决定是否打包。" : count.pending ? "逐项检查，问题会集中显示。" : "所有项目已记录，可以准备发布。";
+      document.getElementById("themeButton").textContent = state.theme === "dark" ? "切换浅色" : "切换深色";
+      const gate = document.getElementById("gateStatus");
+      gate.className = `gate-status ${count.failed ? "is-blocked" : !count.pending ? "is-ready" : ""}`;
+      document.getElementById("gateTitle").textContent = count.failed ? "暂不发布" : !count.pending ? "可以进入打包" : "进行中";
+      document.getElementById("gateDetail").textContent = count.failed ? `${count.failed} 项失败，需修复` : !count.pending ? "P0/P1 清零且全部完成" : `还剩 ${count.pending} 项待验收`;
+      document.querySelectorAll("[data-meta]").forEach(input => { input.value = state.meta[input.dataset.meta] || ""; });
+      renderNav(); renderSections();
+    }
+    function renderNav() {
+      const nav = document.getElementById("sectionNav");
+      nav.innerHTML = groups.map(group => {
+        const values = group.tests.map(test => statusOf(test[0]));
+        const passed = values.filter(v => v === "passed").length;
+        const failed = values.filter(v => v === "failed").length;
+        return `<button type="button" data-scroll="${group.id}" class="${failed ? "has-failed" : ""}"><span>${escapeHtml(group.short)}</span><span>${passed}/${values.length}${failed ? ` · ${failed} 失败` : ""}</span></button>`;
+      }).join("");
+      nav.querySelectorAll("[data-scroll]").forEach(button => button.addEventListener("click", () => document.getElementById(`group-${button.dataset.scroll}`).scrollIntoView({ behavior: "smooth", block: "start" })));
+    }
+    function renderSections() {
+      const root = document.getElementById("sections");
+      root.innerHTML = groups.map(group => {
+        const values = group.tests.map(test => statusOf(test[0]));
+        const passed = values.filter(v => v === "passed").length;
+        const visible = group.tests.filter(test => matches({ id: test[0], title: test[1], expect: test[2] }));
+        return `<section class="section" id="group-${group.id}"><header class="section__head"><div><h2>${escapeHtml(group.title)}</h2><p>${escapeHtml(group.desc)}</p></div><span class="section__count">${passed}/${group.tests.length} 通过</span></header><div class="tests">${visible.length ? visible.map(testMarkup).join("") : `<div class="empty">当前筛选下没有项目。</div>`}</div></section>`;
+      }).join("");
+      root.querySelectorAll("[data-action]").forEach(node => node.addEventListener("click", handleAction));
+      root.querySelectorAll("[data-field]").forEach(node => node.addEventListener("input", handleField));
+    }
+    function testMarkup(test) {
+      const id = test[0]; const status = statusOf(id); const note = state.notes[id] || {}; const showDetails = expanded.has(id) || status === "failed" || note.issue || note.screenshot || note.output;
+      return `<article class="test ${status === "passed" ? "is-passed" : status === "failed" ? "is-failed" : ""}" data-test="${id}"><button type="button" class="test__check ${status === "passed" ? "is-checked" : ""}" data-action="toggle-pass" data-id="${id}" aria-label="${status === "passed" ? "取消通过" : "标记通过"}"><span>${status === "passed" ? "✓" : ""}</span></button><div class="test__main"><div class="test__title"><span class="test__id">${id}</span><strong>${escapeHtml(test[1])}</strong></div><p class="test__expect">预期：${escapeHtml(test[2])}</p>${showDetails ? `<div class="test__details"><label>问题 / 实际结果<textarea data-field="issue" data-id="${id}" placeholder="通过可留空；失败请写清楚看到了什么">${escapeHtml(note.issue)}</textarea></label><label>截图路径<input data-field="screenshot" data-id="${id}" value="${escapeHtml(note.screenshot)}" placeholder="E:\\Workspace\\测试结果库\\..." /></label><label>输出文件路径<input data-field="output" data-id="${id}" value="${escapeHtml(note.output)}" placeholder="真实导出文件路径" /></label></div>` : ""}</div><div class="test__actions"><button type="button" class="status-button ${status === "failed" ? "is-failed" : ""}" data-action="toggle-fail" data-id="${id}">${status === "failed" ? "已标记失败" : "标记失败"}</button><button type="button" class="note-toggle" data-action="toggle-details" data-id="${id}">${showDetails ? "收起" : "记录"}</button></div></article>`;
+    }
+    function handleAction(event) {
+      const id = event.currentTarget.dataset.id; const action = event.currentTarget.dataset.action; const current = statusOf(id);
+      if (action === "toggle-pass") state.statuses[id] = current === "passed" ? "pending" : "passed";
+      if (action === "toggle-fail") state.statuses[id] = current === "failed" ? "pending" : "failed";
+      if (action === "toggle-details") { if (expanded.has(id)) expanded.delete(id); else expanded.add(id); }
+      persist();
+    }
+    function handleField(event) { const id = event.currentTarget.dataset.id; const key = event.currentTarget.dataset.field; state.notes[id] = Object.assign({}, state.notes[id], { [key]: event.currentTarget.value }); state.updatedAt = new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function bindStatic() {
+      document.querySelectorAll("[data-meta]").forEach(input => input.addEventListener("input", event => { state.meta[event.currentTarget.dataset.meta] = event.currentTarget.value; state.updatedAt = new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }));
+      document.querySelectorAll(".filter").forEach(button => button.addEventListener("click", () => { activeFilter = button.dataset.filter; document.querySelectorAll(".filter").forEach(item => item.classList.toggle("is-active", item === button)); renderSections(); }));
+      document.getElementById("searchInput").addEventListener("input", event => { query = event.currentTarget.value.trim().toLowerCase(); renderSections(); });
+      document.getElementById("themeButton").addEventListener("click", () => { state.theme = state.theme === "dark" ? "light" : "dark"; persist(); });
+      document.getElementById("resetButton").addEventListener("click", () => { if (!confirm("确认清空本轮所有勾选和问题记录吗？")) return; state = defaultState(); expanded.clear(); persist(); toast("本轮验收已重置"); });
+      document.getElementById("exportButton").addEventListener("click", exportReport);
+      document.getElementById("importButton").addEventListener("click", () => document.getElementById("importInput").click());
+      document.getElementById("importInput").addEventListener("change", importReport);
+    }
+    function exportReport() {
+      state.updatedAt = new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      const source = document.documentElement.outerHTML.replace("window.__INITIAL_TEST_STATE__ = null;", `window.__INITIAL_TEST_STATE__ = ${JSON.stringify(state).replace(/</g, "\\u003c")};`);
+      const blob = new Blob([`<!doctype html>\n${source}`], { type: "text/html;charset=utf-8" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `SmartCut_全局验收报告_${new Date().toISOString().slice(0, 10)}.html`; link.click(); URL.revokeObjectURL(url); toast("已导出带状态的 HTML 报告，可直接发回验收结果");
+    }
+    function importReport(event) {
+      const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const text = String(reader.result); const match = text.match(/window\\.__INITIAL_TEST_STATE__ = (\\{[\\s\\S]*?\\});/); const parsed = file.name.endsWith(".json") ? JSON.parse(text) : JSON.parse(match[1]); state = Object.assign(defaultState(), parsed, { meta: Object.assign(defaultState().meta, parsed.meta || {}) }); persist(); toast("报告已导入"); } catch { toast("导入失败：请选择本工具导出的 HTML 或 JSON"); } }; reader.readAsText(file); event.target.value = "";
+    }
+    bindStatic(); render();
+  </script>
+</body>
+</html>
