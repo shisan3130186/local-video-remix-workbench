@@ -376,6 +376,14 @@ fn generate_thumbnail(
 }
 
 #[tauri::command]
+fn detect_watermark_regions(
+    input_file_path: String,
+    max_regions: u32,
+) -> Result<video_engine::watermark_detection::WatermarkDetectionResult, String> {
+    video_engine::watermark_detection::detect_watermark_regions(input_file_path, max_regions)
+}
+
+#[tauri::command]
 async fn analyze_ai_remix_segments(
     segments: Vec<AiRemixVisualSegmentInput>,
 ) -> Result<AiRemixSegmentAnalysisResult, String> {
@@ -634,6 +642,7 @@ pub fn run() {
             change_account_password,
             delete_project_snapshot,
             delete_source_video_file,
+            detect_watermark_regions,
             export_cover_image,
             delete_script_library_entry,
             extract_ai_remix_segment_content,

@@ -29,6 +29,7 @@ const creationModules: Array<{
   description: string;
   action?: () => void;
   available: boolean;
+  statusLabel?: string;
 }> = [
   {
     title: "AI 智能混剪",
@@ -59,6 +60,14 @@ const creationModules: Array<{
     available: true,
   },
   {
+    title: "信息流带货成片",
+    tags: ["带货模板", "商品文案", "自动分镜", "批量成片"],
+    description: "填写商品信息，按信息流结构编排镜头并生成多条带货成片。",
+    action: () => emit("openFeature", "commerceRemix"),
+    available: true,
+    statusLabel: "功能可用",
+  },
+  {
     title: "文案改写",
     tags: ["AI改写", "文案优化", "批量改写"],
     description: "粘贴一条或多条文案，按指定语气、长度和提示词生成差异化版本。",
@@ -80,6 +89,7 @@ const utilityModules: Array<{
   description: string;
   action?: () => void;
   available: boolean;
+  statusLabel?: string;
 }> = [
   {
     title: "文件批量改名",
@@ -127,7 +137,7 @@ const utilityModules: Array<{
             :aria-current="activeSection === 'creation' ? 'page' : undefined"
             @click="emit('update:activeSection', 'creation')"
           >
-            创作中心 <span>6</span>
+            创作中心 <span>7</span>
           </button>
           <button
             type="button"
@@ -151,7 +161,7 @@ const utilityModules: Array<{
         >
           <span class="replica-module-card__title-row">
             <strong>{{ module.title }}</strong>
-            <em :class="{ 'is-available': module.available, 'is-pending': !module.available }">{{ module.available ? "功能可用" : "即将接入" }}</em>
+            <em :class="{ 'is-available': module.available, 'is-pending': !module.available }">{{ module.statusLabel ?? (module.available ? "功能可用" : "即将接入") }}</em>
           </span>
           <span class="replica-module-card__tags">
             <small v-for="tag in module.tags" :key="tag">{{ tag }}</small>

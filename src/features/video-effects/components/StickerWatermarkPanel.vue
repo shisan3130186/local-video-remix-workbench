@@ -52,6 +52,7 @@ const emit = defineEmits<{
   "update:watermarkOpacityAsset": [value: number];
   "update:watermarkImageSizeRatio": [value: number];
   "update:watermarkTrajectory": [value: WatermarkTrajectory];
+  autoDetectWatermark: [];
 }>();
 
 const watermarkColors = ["#ffffff", "#f4d22f", "#50d7b0", "#f08c57", "#76a9ff", "#ef6f91", "#111317", "#2cc7b1"];
@@ -86,6 +87,9 @@ function checked(event: Event) {
 </script>
 
 <template>
+  <button class="watermark-auto-detect" type="button" :disabled="props.disabled" @click="emit('autoDetectWatermark')">
+    自动检测常见水印区域
+  </button>
   <div class="replica-sticker-watermark-panel" aria-label="贴画与水印设置">
     <section class="replica-inline-effect-card">
       <header class="replica-inline-effect-card__header">
@@ -157,8 +161,7 @@ function checked(event: Event) {
           <span></span>
         </label>
       </header>
-      <div class="replica-inline-label">位置</div>
-      <div class="replica-inline-segmented replica-inline-segmented--two"><button class="is-active" type="button" disabled>手动框选</button><button type="button" disabled>自动检测</button></div>
+      <div class="replica-inline-label">区域来源：自动检测后可在预览画布中手动微调</div>
       <label class="replica-inline-number-row"><span>区域数</span><input :value="props.watermarkRemovalSettings.regionCount" type="number" min="1" max="8" :disabled="props.disabled || !props.watermarkRemovalSettings.enabled" @input="emit('update:watermarkRemovalRegionCount', numberValue($event, 1, 8))" /></label>
       <small class="replica-inline-help">启用后在预览画面中拖动红色框，区域数量与这里保持一致。</small>
       <div class="replica-inline-divider"></div>

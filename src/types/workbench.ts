@@ -42,7 +42,8 @@ export type FeatureKey =
   | "fileRenamer"
   | "subtitleEditor"
   | "posterMaker"
-  | "imageToVideo";
+  | "imageToVideo"
+  | "commerceRemix";
 
 export interface ModuleCard {
   title: string;

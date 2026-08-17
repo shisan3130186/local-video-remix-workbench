@@ -276,6 +276,7 @@ const replicaParameterTools: ToolKey[] = ["audio", "bgm", "cover", "frame", "ent
           @update:removal-tracking-region-width-ratio="emit('update:watermarkRemovalTrackingRegionWidthRatio', $event)"
           @update:removal-tracking-region-height-ratio="emit('update:watermarkRemovalTrackingRegionHeightRatio', $event)"
           @update:removal-tracking-keyframes="emit('update:watermarkRemovalTrackingKeyframes', $event)"
+          @auto-detect-watermark="emit('autoDetectWatermark')"
         />
 
         <CoverSettingsPanel

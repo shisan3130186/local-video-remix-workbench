@@ -182,6 +182,7 @@ export type ToolSettingModalEmits = {
   saveAsrToLibrary: [];
   saveAndUseAsrScript: [];
   selectWatermarkImage: [];
+  autoDetectWatermark: [];
   detectEncoders: [];
   "update:segmentDurationSeconds": [value: number];
   "update:splitMode": [value: SplitMode];

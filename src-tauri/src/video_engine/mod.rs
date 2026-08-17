@@ -12,4 +12,5 @@ pub mod subtitle;
 pub mod thumbnail;
 pub mod tool_paths;
 pub mod watermark;
+pub mod watermark_detection;
 pub mod watermark_removal;

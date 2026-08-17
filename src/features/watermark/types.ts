@@ -43,6 +43,12 @@ export interface WatermarkRemovalRegion {
   heightRatio: number;
 }
 
+export interface WatermarkDetectionResult {
+  regions: WatermarkRemovalRegion[];
+  confidence: number;
+  message: string;
+}
+
 export interface WatermarkRemovalSettings {
   enabled: boolean;
   selectionMode: "manual";

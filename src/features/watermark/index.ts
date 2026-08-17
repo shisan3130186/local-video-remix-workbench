@@ -10,4 +10,5 @@ export type {
   WatermarkRemovalSize,
   WatermarkTrackingKeyframe,
   WatermarkSettings,
+  WatermarkDetectionResult,
 } from "./types";

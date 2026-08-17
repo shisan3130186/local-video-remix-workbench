@@ -23,6 +23,7 @@ const emit = defineEmits<{
   toggleAdvancedMode: [enabled: boolean];
   selectBgmAudioFile: [];
   selectWatermarkAsset: [];
+  autoDetectWatermark: [];
 }>();
 
 const originalVolume = defineModel<number>("originalVolume", { required: true });
@@ -199,6 +200,7 @@ watch(() => selectedVoice.value?.id ?? ttsSpeaker.value, () => {
         @update:zoom-min-duration-seconds="zoomMinDurationSeconds = $event"
         @update:zoom-max-duration-seconds="zoomMaxDurationSeconds = $event"
         @select-watermark-asset="emit('selectWatermarkAsset')"
+        @auto-detect="emit('autoDetectWatermark')"
       />
     </div>
 

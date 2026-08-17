@@ -37,6 +37,7 @@ const emit = defineEmits<{
   "update:trackingRegionWidthRatio": [value: number];
   "update:trackingRegionHeightRatio": [value: number];
   "update:trackingKeyframes": [value: WatermarkTrackingKeyframe[]];
+  autoDetect: [];
 }>();
 
 const modes: Array<{ key: WatermarkRemovalMode; label: string; note: string }> = [
@@ -98,6 +99,10 @@ function positionDisabled(position: WatermarkPosition) {
 </script>
 
 <template>
+  <button class="watermark-auto-detect" type="button" :disabled="disabled || !previewUrl" @click="emit('autoDetect')">
+    自动检测常见水印区域
+  </button>
+  <p class="watermark-removal-note">分析三帧画面的静态标记，生成可继续拖动调整的处理区域。</p>
   <section class="watermark-removal-panel" aria-label="处理原水印设置">
     <label class="option-toggle">
       <input :checked="enabled" type="checkbox" :disabled="disabled" @change="emit('update:enabled', checked($event))" />

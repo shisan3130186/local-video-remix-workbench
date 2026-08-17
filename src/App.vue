@@ -7,6 +7,7 @@ import ExportResultDrawer from "./components/ExportResultDrawer.vue";
 import TaskQueuePanel from "./components/TaskQueuePanel.vue";
 import AiSourceSidebar from "./components/AiSourceSidebar.vue";
 import BatchWorkspacePanel from "./components/BatchWorkspacePanel.vue";
+import CommerceRemixWorkbench from "./components/CommerceRemixWorkbench.vue";
 import HomePage from "./components/HomePage.vue";
 import PreviewPanel from "./components/PreviewPanel.vue";
 import RightToolPanel from "./components/RightToolPanel.vue";
@@ -38,6 +39,8 @@ import type { MaterialLibraryState } from "./features/material-library";
 import { useMaterials } from "./features/materials";
 import type { FixedMaterialKind } from "./features/materials/types";
 import type { MaterialFolderSettings } from "./features/materials/types";
+import { loadImportedVideos, splitImportedVideos } from "./features/materials/services/materialWorkflow";
+import { prepareAiRemixSegments } from "./features/ai-remix/services/aiRemixWorkflow";
 import { AccessRequirementDialog, MembershipDialog, useMembership } from "./features/membership";
 import { PosterMakerWorkbench } from "./features/poster-maker";
 import {
@@ -58,7 +61,9 @@ import { SubtitleEditorWorkbench } from "./features/subtitle-editor";
 import type { ScriptLibraryEntry } from "./features/script-library";
 import { ThemeSettingsDialog, useTheme } from "./features/theme";
 import { useTts } from "./features/tts";
-import { useTaskCenter } from "./features/task-center";
+import type { WatermarkDetectionResult } from "./features/watermark";
+import { detectWatermarkRegions } from "./features/watermark/services/watermarkDetectionService";
+import { isTaskCancelledError, useTaskCenter } from "./features/task-center";
 import { buildSmartEffectPlan } from "./features/video-effects/smartConfig";
 import type { SmartEffectPlan } from "./features/video-effects/smartConfig";
 import {
@@ -70,7 +75,10 @@ import type { DiagnosticInfo } from "./features/user-test-package";
 import type {
   CanvasAspectRatio,
   CanvasBackgroundMode,
+  RemixExportSettings,
+  SegmentCategory,
 } from "./services/videoMixService";
+import { concatSelectedSegments } from "./services/videoMixService";
 import {
   createAiRemixOutputDirectory,
   exportJianyingDraftPackage,
@@ -110,6 +118,18 @@ const previewBackgroundVideoRef = ref<HTMLVideoElement | null>(null);
 const isWorkspaceVisible = ref(false);
 const workspaceMode = ref<WorkspaceMode>("ai");
 const activeFeature = ref<FeatureKey | null>(null);
+const commerceError = ref<string | null>(null);
+const commerceResults = ref<Array<{ path: string; label: string }>>([]);
+const commerceFailures = ref<Array<{ label: string; segmentPaths: string[] }>>([]);
+const commerceImportedVideos = ref<ImportedVideo[]>([]);
+const commerceSplitSegmentPaths = ref<string[]>([]);
+const commercePreparedSegments = ref<import("./features/ai-remix/types").AiRemixSegment[]>([]);
+const commerceSegmentCategories = ref<Record<string, SegmentCategory | "">>({});
+const commerceOutputDirectory = ref<string | null>(null);
+const commerceSplitError = ref<string | null>(null);
+const isCommerceImporting = ref(false);
+const isCommerceSplitting = ref(false);
+const isCommerceGenerating = ref(false);
 const activeTool = ref<ToolKey | null>(null);
 const frameMaterialFilePath = ref<string | null>(null);
 const fusionMaterialFilePath = ref<string | null>(null);
@@ -884,6 +904,7 @@ const workspaceModeCopy = computed(() => {
   if (activeFeature.value === "subtitleEditor") return { title: "字幕识别", subtitle: "语音识别、逐句编辑与字幕导出" };
   if (activeFeature.value === "posterMaker") return { title: "大字报设计", subtitle: "营销文字排版与PNG素材导出" };
   if (activeFeature.value === "imageToVideo") return { title: "图片转视频", subtitle: "批量生成可直接混剪的视频素材" };
+  if (activeFeature.value === "commerceRemix") return { title: "信息流带货成片", subtitle: "商品信息驱动的结构化批量成片" };
   if (workspaceMode.value === "batch") {
     return { title: "批量混剪", subtitle: "多素材规则组合与批量生成" };
   }
@@ -983,6 +1004,159 @@ async function generateBatchMixes() {
 async function retryFailedBatchMixes(...args: Parameters<typeof retryFailedBatchMixesInternal>) {
   if (!ensureFeatureAccess()) return;
   return retryFailedBatchMixesInternal(...args);
+}
+
+interface CommerceGenerationPayload {
+  variants: Array<{ label: string; segmentPaths: string[] }>;
+  subtitle: string;
+  subtitleEnabled: boolean;
+}
+
+function buildCommerceExportSettings(
+  outputName: string,
+  subtitle: string,
+  subtitleEnabled: boolean,
+): RemixExportSettings {
+  const inherited = remixExportSettings.value;
+  return {
+    ...inherited,
+    applyHorizontalMirror: false,
+    playbackSpeed: 1,
+    playbackSpeedSettings: {
+      mode: "global",
+      min: 1,
+      max: 1,
+      segmentMinSeconds: 2,
+      segmentMaxSeconds: 4,
+    },
+    canvasAspectRatio: "portrait916",
+    canvasBackgroundMode: "black",
+    smoothRemixEnabled: false,
+    videoEffectSettings: {
+      ...inherited.videoEffectSettings,
+      verticalMirror: false,
+      rotation: "none",
+      hslEnabled: false,
+      hue: 0,
+      brightness: 0,
+      contrast: 1,
+      saturation: 1,
+      scale: 1,
+      crop: { enabled: false, x: 0, y: 0, width: 100, height: 100 },
+      zoomEnabled: false,
+      cropBlackBars: false,
+      randomRotationMinDegrees: 0,
+      randomRotationMaxDegrees: 0,
+      sharpness: 0,
+      noiseReduction: 0,
+      temperature: 6500,
+      visualStyle: "none",
+      glowEnabled: false,
+      grainEnabled: false,
+      vignetteEnabled: false,
+    },
+    pictureInPictureSettings: { ...inherited.pictureInPictureSettings, enabled: false, overlayFilePath: null },
+    bgmSettings: { ...inherited.bgmSettings, enabled: false, audioFilePath: null },
+    watermarkSettings: { ...inherited.watermarkSettings, enabled: false },
+    watermarkRemovalSettings: {
+      ...inherited.watermarkRemovalSettings,
+      enabled: false,
+      trackingEnabled: false,
+      manualRegions: [],
+    },
+    subtitleSettings: {
+      ...inherited.subtitleSettings,
+      enabled: subtitleEnabled,
+      text: subtitleEnabled ? subtitle.slice(0, 240) : "",
+      position: "bottom",
+      size: "medium",
+    },
+    outputSettings: {
+      ...inherited.outputSettings,
+      format: "mp4",
+      resolution: "followCanvas",
+      keepOriginal: true,
+      namingMode: "serial",
+      variantCount: 1,
+    },
+    outputName,
+    entranceEffect: "none",
+    frameOperationSettings: { ...inherited.frameOperationSettings, enabled: false, materialFilePath: null },
+    fusionSettings: { ...inherited.fusionSettings, enabled: false, materialFilePath: null },
+  };
+}
+
+async function runCommerceGeneration(payload: CommerceGenerationPayload, resetResults: boolean) {
+  if (!commerceOutputDirectory.value) {
+    commerceError.value = "请先选择输出目录。";
+    return;
+  }
+
+  const jobs = payload.variants.filter((variant) => variant.segmentPaths.length >= 2);
+  if (jobs.length === 0) {
+    commerceError.value = "至少需要 2 个已切片镜头才能生成成片。";
+    return;
+  }
+
+  if (resetResults) {
+    commerceResults.value = [];
+    commerceFailures.value = [];
+  }
+
+  const outputDirectory = commerceOutputDirectory.value;
+  isCommerceGenerating.value = true;
+  try {
+    await runTask("信息流带货成片", async (task) => {
+      for (const [index, job] of jobs.entries()) {
+        task.throwIfCancelled();
+        try {
+          const result = await concatSelectedSegments(
+            job.segmentPaths,
+            outputDirectory,
+            buildCommerceExportSettings(`信息流带货_${job.label}`, payload.subtitle, payload.subtitleEnabled),
+            task.progress(
+              (index / jobs.length) * 100,
+              ((index + 1) / jobs.length) * 100,
+              `正在生成信息流带货成片 ${job.label}（${index + 1}/${jobs.length}）`,
+            ),
+          );
+          commerceResults.value.push({ path: result.outputPath, label: `版本 ${job.label}` });
+          addExportResult("批量生成", result.outputPath);
+        } catch (error) {
+          if (isTaskCancelledError(error)) throw error;
+          const message = error instanceof Error ? error.message : String(error ?? "导出失败。");
+          commerceFailures.value.push({ label: job.label, segmentPaths: job.segmentPaths });
+          commerceError.value = `${commerceError.value ? `${commerceError.value}\n` : ""}版本 ${job.label} 失败：${message}`;
+        }
+        await task.update(
+          ((index + 1) / jobs.length) * 100,
+          `已处理信息流带货成片 ${index + 1}/${jobs.length}`,
+        );
+      }
+    });
+  } catch (error) {
+    if (isTaskCancelledError(error)) {
+      commerceError.value = "信息流带货成片已取消，已完成的版本会保留。";
+    } else {
+      commerceError.value = error instanceof Error ? error.message : String(error ?? "信息流带货成片失败。");
+    }
+  } finally {
+    isCommerceGenerating.value = false;
+  }
+}
+
+async function generateCommerceRemix(payload: CommerceGenerationPayload) {
+  commerceError.value = null;
+  if (!ensureFeatureAccess()) return;
+  await runCommerceGeneration(payload, true);
+}
+
+async function retryFailedCommerceRemix(payload: Omit<CommerceGenerationPayload, "variants">) {
+  commerceError.value = null;
+  if (!ensureFeatureAccess()) return;
+  const variants = commerceFailures.value.map(({ label, segmentPaths }) => ({ label, segmentPaths }));
+  commerceFailures.value = [];
+  await runCommerceGeneration({ ...payload, variants }, false);
 }
 
 async function exportImportedVideos() {
@@ -1596,6 +1770,122 @@ async function splitSelectedVideo() {
   resetRandomPickState();
   resetAiRemixState(false);
   await splitAllMaterials(prepareSegmentAssets);
+}
+
+async function importCommerceVideos() {
+  commerceError.value = null;
+  isCommerceImporting.value = true;
+  try {
+    const selected = await open({
+      multiple: true,
+      filters: [{ name: "视频文件", extensions: ["mp4", "mov", "avi", "mkv"] }],
+    });
+    if (!selected) return;
+    const paths = Array.isArray(selected) ? selected : [selected];
+    commerceImportedVideos.value = await loadImportedVideos(paths);
+    commerceSplitSegmentPaths.value = [];
+    commercePreparedSegments.value = [];
+    commerceSegmentCategories.value = {};
+    commerceResults.value = [];
+    commerceFailures.value = [];
+    commerceSplitError.value = null;
+  } catch (error) {
+    commerceError.value = error instanceof Error ? error.message : String(error ?? "视频导入失败。");
+  } finally {
+    isCommerceImporting.value = false;
+  }
+}
+
+async function selectCommerceOutputDirectory() {
+  commerceError.value = null;
+  try {
+    const selected = await open({ directory: true, multiple: false });
+    if (!selected || Array.isArray(selected)) return;
+    commerceOutputDirectory.value = selected;
+  } catch (error) {
+    commerceError.value = error instanceof Error ? error.message : String(error ?? "输出目录选择失败。");
+  }
+}
+
+function updateCommerceSegmentCategory(path: string, category: SegmentCategory | "") {
+  commerceSegmentCategories.value = { ...commerceSegmentCategories.value, [path]: category };
+}
+
+async function splitCommerceMaterials() {
+  commerceError.value = null;
+  commerceSplitError.value = null;
+  commerceResults.value = [];
+  commerceFailures.value = [];
+  if (!ensureFeatureAccess()) return;
+  if (!commerceOutputDirectory.value) {
+    commerceError.value = "请先选择输出目录。";
+    return;
+  }
+  if (commerceImportedVideos.value.length === 0) {
+    commerceError.value = "请先导入至少两条视频素材。";
+    return;
+  }
+
+  isCommerceSplitting.value = true;
+  commerceSplitSegmentPaths.value = [];
+  commercePreparedSegments.value = [];
+  commerceSegmentCategories.value = {};
+  const outputDirectory = commerceOutputDirectory.value;
+  try {
+    await runTask("信息流带货切片", async (task) => {
+      const splitResult = await splitImportedVideos({
+        videos: commerceImportedVideos.value,
+        outputDirectory,
+        splitMode: "scene",
+        segmentDurationSeconds: 4,
+        smartSplitSettings: {
+          sensitivity: "balanced",
+          minimumSegmentSeconds: 1.5,
+          maximumSegmentSeconds: 6,
+        },
+        trimStartSeconds: 0,
+        trimEndSeconds: 0,
+        outputGrouping: "folder",
+        appendLog: appendSplitLog,
+        task,
+      });
+      task.throwIfCancelled();
+      if (splitResult.segmentPaths.length < 3) {
+        throw new Error("成功生成的片段不足 3 个，无法生成 3 条不同的信息流成片。请补充素材或调整素材内容。");
+      }
+
+      const preparation = await prepareAiRemixSegments({
+        segmentPaths: splitResult.segmentPaths,
+        outputDirectory,
+        onSegmentError(message) {
+          appendSplitLog(message, "error");
+        },
+        task,
+      });
+      const preparedPaths = new Set(preparation.preparedSegments.map((segment) => segment.path));
+      const usablePaths = splitResult.segmentPaths.filter((path) => preparedPaths.has(path));
+      if (usablePaths.length < 3) {
+        throw new Error("可用片段不足 3 个，无法生成 3 条不同的信息流成片。请查看任务日志。");
+      }
+      const initialFlow: SegmentCategory[] = ["hook", "product", "usage", "result", "ending"];
+      commerceSplitSegmentPaths.value = usablePaths;
+      commercePreparedSegments.value = preparation.preparedSegments.filter((segment) => preparedPaths.has(segment.path));
+      commerceSegmentCategories.value = Object.fromEntries(
+        usablePaths.map((path, index) => [path, initialFlow[index % initialFlow.length]]),
+      );
+      if (splitResult.failedVideoNames.length > 0 || preparation.preparationErrors.length > 0) {
+        commerceSplitError.value = "部分素材或预览准备失败，已保留可用镜头；请检查分类后再生成。";
+      }
+    });
+  } catch (error) {
+    if (isTaskCancelledError(error)) {
+      commerceSplitError.value = "信息流切片已取消，可以重新开始。";
+    } else {
+      commerceSplitError.value = error instanceof Error ? error.message : String(error ?? "信息流切片失败。");
+    }
+  } finally {
+    isCommerceSplitting.value = false;
+  }
 }
 
 async function ensureSplitOutputDirectory() {
@@ -2303,6 +2593,29 @@ function formatFileName(filePath: string) {
   return filePath.split(/[\\/]/).pop() ?? filePath;
 }
 
+async function autoDetectWatermark() {
+  const inputFilePath = selectedVideo.value?.filePath;
+  if (!inputFilePath) {
+    appendMixLog("请先选择一条视频，再进行自动水印检测。", "error");
+    return;
+  }
+  try {
+    const result: WatermarkDetectionResult = await detectWatermarkRegions(
+      inputFilePath,
+      Math.max(1, Math.min(8, watermarkRemovalRegionCount.value)),
+    );
+    watermarkRemovalManualRegions.value = result.regions;
+    watermarkRemovalRegionCount.value = result.regions.length;
+    watermarkRemovalEnabled.value = true;
+    appendMixLog(
+      `${result.message} 置信度 ${Math.round(result.confidence * 100)}%。请在预览中继续微调红框。`,
+      "success",
+    );
+  } catch (error) {
+    appendMixLog(toErrorMessage(error, "自动水印检测失败，请改用手动框选。"), "error");
+  }
+}
+
 function toErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
   const message = String(error ?? "").trim();
@@ -2477,6 +2790,29 @@ onMounted(() => {
     />
     <PosterMakerWorkbench v-else-if="activeFeature === 'posterMaker'" />
     <ImageToVideoWorkbench v-else-if="activeFeature === 'imageToVideo'" />
+    <CommerceRemixWorkbench
+      v-else-if="activeFeature === 'commerceRemix'"
+      :imported-videos="commerceImportedVideos"
+      :split-segment-paths="commerceSplitSegmentPaths"
+      :ai-prepared-segments="commercePreparedSegments"
+      :segment-categories="commerceSegmentCategories"
+      :category-options="segmentCategoryOptions"
+      :output-directory="commerceOutputDirectory"
+      :is-importing="isCommerceImporting"
+      :is-splitting="isCommerceSplitting"
+      :is-generating="isCommerceGenerating"
+      :split-error="commerceSplitError"
+      :commerce-error="commerceError"
+      :commerce-results="commerceResults"
+      :commerce-failures="commerceFailures"
+      @import-videos="importCommerceVideos"
+      @select-output-directory="selectCommerceOutputDirectory"
+      @split-materials="splitCommerceMaterials"
+      @update-category="updateCommerceSegmentCategory"
+      @generate="generateCommerceRemix"
+      @retry-failures="retryFailedCommerceRemix"
+      @open-result="openPath"
+    />
 
     <section
       v-else
@@ -2699,6 +3035,7 @@ onMounted(() => {
         @toggle-advanced-mode="isAdvancedMode = $event"
         @select-bgm-audio-file="selectBgmAudioFile"
         @select-watermark-asset="selectWatermarkImageFile"
+        @auto-detect-watermark="autoDetectWatermark"
         @select-audio-source="selectAsrSourceFile"
         @recognize-audio="recognizeAsr"
         @use-recognized-audio="useAudioAsRemixScript"
@@ -2798,6 +3135,7 @@ onMounted(() => {
         @disable-effect="resetToolSettings"
         @select-pip-overlay-file="selectPipOverlayFile"
         @select-watermark-asset="selectWatermarkImageFile"
+        @auto-detect-watermark="autoDetectWatermark"
         @update:pip-enabled="pipEnabled = $event"
         @update:pip-position="pipPosition = $event"
         @update:pip-size-ratio="pipSizeRatio = $event"
@@ -3045,6 +3383,7 @@ onMounted(() => {
       @save-asr-to-library="saveCurrentAsrToLibrary(false)"
       @save-and-use-asr-script="saveCurrentAsrToLibrary(true)"
       @select-watermark-image="selectWatermarkImageFile"
+      @auto-detect-watermark="autoDetectWatermark"
       @api-config-changed="refreshSpeechConfiguration"
       @detect-encoders="detectEncoders"
       @update:segment-duration-seconds="segmentDurationSeconds = $event"

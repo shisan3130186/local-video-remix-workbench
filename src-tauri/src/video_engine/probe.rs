@@ -153,6 +153,14 @@ pub(crate) fn probe_video_dimensions(file_path: &str) -> Result<(u32, u32), Stri
         .ok_or_else(|| "无法读取视频画面尺寸。".to_string())
 }
 
+pub(crate) fn probe_video_duration_seconds(file_path: &str) -> Result<f64, String> {
+    let metadata = probe_video_metadata(file_path.to_string())?;
+    metadata
+        .duration_seconds
+        .filter(|duration| duration.is_finite() && *duration > 0.0)
+        .ok_or_else(|| "无法读取视频时长，无法进行自动检测。".to_string())
+}
+
 fn probe_tool(binary_name: &str, program: &Path) -> ToolProbeResult {
     let path = program.to_string_lossy().to_string();
     let bundled = is_bundled_program(program);

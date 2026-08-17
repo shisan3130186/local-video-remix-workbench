@@ -98,6 +98,7 @@ const emit = defineEmits<{
   "update:watermarkOpacityAsset": [value: number];
   "update:watermarkImageSizeRatio": [value: number];
   "update:watermarkTrajectory": [value: WatermarkTrajectory];
+  autoDetectWatermark: [];
 }>();
 
 const splitMode = defineModel<SplitMode>("splitMode", { required: true });
@@ -337,6 +338,7 @@ function processingLabel(video: ImportedVideo) {
             @update:watermark-opacity-asset="emit('update:watermarkOpacityAsset', $event)"
             @update:watermark-image-size-ratio="emit('update:watermarkImageSizeRatio', $event)"
             @update:watermark-trajectory="emit('update:watermarkTrajectory', $event)"
+            @auto-detect-watermark="emit('autoDetectWatermark')"
           />
         </div>
         <div class="replica-configuration-switch"><button type="button" :class="{ 'is-active': configurationMode === 'manual' }" @click="configurationMode = 'manual'">手动配置</button><button type="button" :class="{ 'is-active': configurationMode === 'smart', 'is-configured': Boolean(smartEffectPlan) }" @click="configureSmartly">{{ isSmartConfiguring ? '分析中…' : '智能配置' }}</button></div>

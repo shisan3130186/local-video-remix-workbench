@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SmartCut · 信息流带货成片工作台草图</title>
+  <style>
+    :root {
+      --paper: #f4f1ea;
+      --surface: #fbfaf7;
+      --surface-2: #f0ede5;
+      --ink: #252525;
+      --muted: #7b7971;
+      --line: #dedbd3;
+      --accent: #c65339;
+      --accent-dark: #963a2b;
+      --teal: #2f706d;
+      --teal-soft: #dcebe7;
+      --gold: #b38435;
+      --shadow: 0 18px 48px rgba(43, 39, 31, .08);
+      --radius: 16px;
+      --display: Georgia, "Songti SC", "Noto Serif CJK SC", serif;
+      --body: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); }
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 232px 1fr; }
+    .sidebar { padding: 24px 18px; background: #ebe7de; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+    .brand { display: flex; align-items: baseline; gap: 9px; padding: 0 8px 28px; }
+    .brand strong { font: 700 24px var(--display); letter-spacing: -.03em; }
+    .brand span { color: var(--accent); font-size: 11px; letter-spacing: .13em; text-transform: uppercase; }
+    .side-label { padding: 0 8px 8px; color: var(--muted); font-size: 11px; letter-spacing: .14em; }
+    .task { border: 1px solid rgba(125,117,104,.2); background: rgba(255,255,255,.44); padding: 13px 12px; border-radius: 12px; margin-bottom: 8px; text-align: left; color: var(--ink); }
+    .task.active { background: var(--surface); border-color: var(--accent); box-shadow: 0 5px 0 rgba(198,83,57,.10); }
+    .task b { display: block; font-size: 12px; margin-bottom: 5px; }
+    .task small { display: block; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .side-bottom { margin-top: auto; border-top: 1px solid var(--line); padding: 16px 8px 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .main { min-width: 0; display: flex; flex-direction: column; }
+    .topbar { height: 74px; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--line); background: rgba(251,250,247,.76); }
+    .top-title { display: flex; align-items: center; gap: 12px; }
+    .top-title h1 { font: 700 19px var(--display); margin: 0; }
+    .crumb { font-size: 11px; color: var(--muted); }
+    .save-state { font-size: 11px; color: var(--teal); }
+    .steps { display: flex; align-items: center; gap: 8px; padding: 20px 32px 0; }
+    .step { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--muted); padding: 0; }
+    .step .num { width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; font-size: 11px; }
+    .step .label { font-size: 12px; }
+    .step.active { color: var(--ink); }
+    .step.active .num { background: var(--ink); border-color: var(--ink); color: white; }
+    .step.done .num { color: var(--teal); border-color: var(--teal); }
+    .step-line { width: 44px; height: 1px; background: var(--line); }
+    .workspace { padding: 18px 32px 30px; max-width: 1440px; width: 100%; margin: 0 auto; }
+    .screen { display: none; animation: arrive .24s ease-out; }
+    .screen.active { display: block; }
+    @keyframes arrive { from { opacity: .3; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .intro { display: flex; align-items: end; justify-content: space-between; margin: 20px 0 16px; }
+    .intro h2 { margin: 0 0 6px; font: 700 28px var(--display); letter-spacing: -.04em; }
+    .intro p { margin: 0; color: var(--muted); font-size: 12px; }
+    .helper { color: var(--muted); font-size: 11px; text-align: right; line-height: 1.55; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 16px; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 18px 12px; border-bottom: 1px solid var(--line); }
+    .panel-head h3 { margin: 0; font-size: 13px; }
+    .panel-head small { color: var(--muted); font-size: 11px; }
+    .panel-body { padding: 18px; }
+    .field { display: grid; gap: 7px; margin-bottom: 14px; }
+    .field label { font-size: 11px; color: var(--muted); }
+    input, textarea { width: 100%; border: 1px solid var(--line); background: #fffefa; color: var(--ink); border-radius: 9px; padding: 10px 11px; outline: none; }
+    input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(198,83,57,.10); }
+    textarea { min-height: 75px; resize: vertical; line-height: 1.55; }
+    .template-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+    .template { text-align: left; border: 1px solid var(--line); background: #fffefa; border-radius: 10px; padding: 12px; min-height: 105px; }
+    .template:hover { border-color: var(--accent); }
+    .template.selected { border: 1.5px solid var(--accent); background: #fff4ee; }
+    .template b { display: block; font-size: 12px; margin-bottom: 9px; }
+    .template small { color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .template .flow { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 10px; }
+    .template .flow i { font-style: normal; color: var(--accent-dark); font-size: 9px; padding: 3px 5px; background: #f8ddd1; border-radius: 4px; }
+    .stage { min-height: 470px; display: flex; flex-direction: column; }
+    .stage-copy { padding: 17px 18px 0; }
+    .stage-copy strong { font: 700 20px var(--display); display: block; margin-bottom: 5px; }
+    .stage-copy p { margin: 0; color: var(--muted); font-size: 11px; }
+    .phone { margin: 18px auto 0; width: 184px; height: 326px; border-radius: 21px; background: #1f201e; padding: 7px; box-shadow: 0 20px 38px rgba(30,28,24,.25); }
+    .phone-inner { height: 100%; border-radius: 15px; overflow: hidden; position: relative; background: #c5b9a5; }
+    .phone-inner video { width: 100%; height: 100%; object-fit: cover; display: block; opacity: .86; }
+    .phone-inner:after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,10,10,.05), rgba(10,10,10,.76)); pointer-events: none; }
+    .phone-caption { position: absolute; z-index: 2; left: 14px; right: 12px; bottom: 38px; color: white; font-size: 12px; font-weight: 700; line-height: 1.4; }
+    .phone-buy { position: absolute; z-index: 2; bottom: 14px; left: 14px; right: 14px; height: 24px; border-radius: 99px; display: grid; place-items: center; background: #f5a33c; color: #351e0a; font-size: 10px; font-weight: 700; }
+    .stage-meta { margin: auto 18px 18px; display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+    .actions { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
+    .btn { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 8px; padding: 9px 14px; font-size: 12px; }
+    .btn:hover { border-color: var(--accent); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+    .btn.primary:hover { background: var(--accent-dark); }
+    .asset-list { display: grid; gap: 9px; }
+    .asset { display: grid; grid-template-columns: 64px minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 9px; border: 1px solid var(--line); border-radius: 11px; background: #fffefa; }
+    .thumb { height: 52px; border-radius: 7px; overflow: hidden; background: #c4b5a2; }
+    .thumb video { width: 100%; height: 100%; object-fit: cover; }
+    .asset b { font-size: 11px; display: block; margin-bottom: 4px; }
+    .asset small { color: var(--muted); font-size: 10px; }
+    .tag { display: inline-flex; align-items: center; gap: 3px; border-radius: 99px; padding: 4px 7px; background: var(--teal-soft); color: var(--teal); font-size: 10px; white-space: nowrap; }
+    .tag.warn { background: #f8e8cd; color: #916322; }
+    .category-row { display: grid; grid-template-columns: 106px 1fr; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }
+    .category-row:last-child { border-bottom: 0; }
+    .category-row b { font-size: 12px; }
+    .category-row small { color: var(--muted); display: block; font-size: 10px; margin-top: 3px; }
+    .category-row input { padding: 7px 9px; }
+    .notice { padding: 10px 12px; background: #f7eddd; color: #865b2c; border-radius: 9px; font-size: 11px; line-height: 1.5; margin-bottom: 14px; }
+    .storyboard { display: grid; grid-template-columns: minmax(0, 1fr) 285px; gap: 16px; }
+    .timeline { display: grid; gap: 8px; }
+    .shot { display: grid; grid-template-columns: 30px 90px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 10px; background: #fffefa; border: 1px solid var(--line); border-radius: 10px; }
+    .shot .order { color: var(--muted); font: 14px var(--display); text-align: center; }
+    .shot .mini { height: 50px; border-radius: 6px; overflow: hidden; background: #c9b8a1; }
+    .shot .mini video { width: 100%; height: 100%; object-fit: cover; }
+    .shot b { font-size: 11px; display: block; margin-bottom: 4px; }
+    .shot small { color: var(--muted); font-size: 10px; }
+    .shot-actions { display: flex; gap: 4px; }
+    .shot-actions button { border: 0; color: var(--muted); background: transparent; font-size: 12px; padding: 5px; }
+    .shot-actions button:hover { color: var(--accent); }
+    .preview-wide { min-height: 442px; }
+    .wide-video { margin: 18px; height: 295px; border-radius: 12px; overflow: hidden; background: #232421; position: relative; }
+    .wide-video video { width: 100%; height: 100%; object-fit: cover; opacity: .84; }
+    .safe-box { position: absolute; inset: 23px 30px; border: 1px dashed rgba(255,255,255,.7); border-radius: 7px; }
+    .safe-copy { position: absolute; left: 34px; bottom: 38px; max-width: 55%; color: white; font-weight: 700; line-height: 1.45; }
+    .safe-cta { position: absolute; right: 26px; bottom: 24px; color: #23170d; background: #f2aa48; border-radius: 99px; padding: 7px 11px; font-size: 10px; font-weight: 700; }
+    .strip { padding: 0 18px 17px; display: flex; gap: 6px; }
+    .strip span { height: 5px; flex: 1; border-radius: 99px; background: #d8d4cb; }
+    .strip span.on { background: var(--accent); }
+    .results { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
+    .result { border: 1px solid var(--line); background: var(--surface); border-radius: 13px; overflow: hidden; box-shadow: var(--shadow); }
+    .result-cover { height: 246px; position: relative; background: #aaa08f; }
+    .result-cover video { width: 100%; height: 100%; object-fit: cover; opacity: .84; }
+    .result-cover .result-badge { position: absolute; left: 10px; top: 10px; color: white; background: rgba(28,27,24,.72); padding: 5px 7px; border-radius: 5px; font-size: 10px; }
+    .result-body { padding: 12px; }
+    .result-body b { font-size: 12px; display: block; margin-bottom: 5px; }
+    .result-body small { color: var(--muted); font-size: 10px; }
+    .result-body .btn { width: 100%; margin-top: 10px; }
+    .progress { height: 7px; border-radius: 99px; background: #e4e0d7; overflow: hidden; margin: 14px 0 7px; }
+    .progress i { display: block; height: 100%; width: 72%; background: var(--teal); border-radius: inherit; }
+    .status-line { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+    @media (max-width: 1050px) { .shell { grid-template-columns: 190px 1fr; } .workspace, .topbar { padding-left: 20px; padding-right: 20px; } .grid, .storyboard { grid-template-columns: 1fr; } .stage { min-height: 390px; } .stage .phone { display: none; } }
+    @media (max-width: 720px) { .shell { display: block; } .sidebar { display: none; } .topbar { height: 64px; } .steps { overflow-x: auto; padding-left: 18px; } .step-line { width: 18px; } .workspace { padding: 12px 16px 24px; } .template-grid, .results { grid-template-columns: 1fr; } .intro { display: block; } .helper { text-align: left; margin-top: 10px; } }
+  </style>
+</head>
+<body>
+  <!-- 设计假设：这是 SmartCut 桌面端的新“信息流带货成片”入口。视频和商品图使用本地真实测试素材；商品字段为原型演示数据，实际产品中由用户填写。 -->
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><strong>SmartCut</strong><span>studio</span></div>
+      <div class="side-label">当前任务</div>
+      <button class="task active"><b>玻璃清洁喷雾 · 信息流成片</b><small>3 个素材文件夹 · 生成 3 条版本</small></button>
+      <button class="task"><b>夏季防晒衣 · 普通混剪</b><small>昨天 · 6 条已导出</small></button>
+      <button class="task"><b>厨房收纳 · 草稿</b><small>未完成商品信息</small></button>
+      <div class="side-bottom">素材不会被覆盖。每次生成都会进入独立任务目录，方便回看和重试。</div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div class="top-title"><span class="crumb">工作台 /</span><h1>信息流带货成片</h1></div>
+        <span class="save-state">● 已自动保存</span>
+      </header>
+      <nav class="steps" aria-label="成片步骤">
+        <button class="step active" data-screen="brief"><span class="num">1</span><span class="label">商品信息</span></button><span class="step-line"></span>
+        <button class="step" data-screen="assets"><span class="num">2</span><span class="label">素材归类</span></button><span class="step-line"></span>
+        <button class="step" data-screen="storyboard"><span class="num">3</span><span class="label">自动分镜</span></button><span class="step-line"></span>
+        <button class="step" data-screen="results"><span class="num">4</span><span class="label">批量成片</span></button>
+      </nav>
+      <section class="workspace">
+        <section class="screen active" id="brief">
+          <div class="intro"><div><h2>先说清楚要卖什么</h2><p>只填写影响成片的关键信息，复杂剪辑设置放到后面。</p></div><div class="helper">预计 3 分钟完成一次配置<br>可随时返回修改</div></div>
+          <div class="grid">
+            <div class="panel"><div class="panel-head"><h3>商品与目标</h3><small>1 / 4</small></div><div class="panel-body">
+              <div class="field"><label>商品名称</label><input value="玻璃清洁喷雾" /></div>
+              <div class="field"><label>给谁看</label><input value="家里有玻璃水渍、想快速清洁的家庭用户" /></div>
+              <div class="field"><label>用户痛点</label><textarea>玻璃上的水渍和手印很难擦干净，普通抹布擦完还会留下痕迹。</textarea></div>
+              <div class="field"><label>必须讲清楚的卖点</label><textarea>喷一下就能软化水渍；擦完不容易留痕；适合窗户、镜子和淋浴房。</textarea></div>
+              <div class="field"><label>结尾引导</label><input value="现在下单，家里的玻璃马上亮起来" /></div>
+            </div></div>
+            <div class="panel stage"><div class="stage-copy"><strong>信息流结构预览</strong><p>你选择的结构会决定镜头顺序，不会随机拼接。</p></div><div class="phone"><div class="phone-inner"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/竖屏预览测试.mp4"></video><div class="phone-caption">玻璃水渍总擦不干净？喷一下，擦完不留痕。</div><div class="phone-buy">查看商品 · 立即购买</div></div></div><div class="stage-meta"><span>9:16 竖屏</span><span>预计 24 秒</span><span>字幕 + 配音</span></div></div>
+          </div>
+          <div class="panel" style="margin-top:16px"><div class="panel-head"><h3>选择带货结构</h3><small>点击卡片即可预览</small></div><div class="panel-body"><div class="template-grid">
+            <button class="template selected"><b>问题 → 解决方案</b><small>最适合日用品和功能型商品</small><span class="flow"><i>痛点</i><i>产品</i><i>演示</i><i>效果</i><i>引导</i></span></button>
+            <button class="template"><b>结果先行</b><small>先展示变化，再解释为什么有效</small><span class="flow"><i>结果</i><i>原因</i><i>卖点</i><i>对比</i><i>引导</i></span></button>
+            <button class="template"><b>人物口播</b><small>更适合达人出镜和直播切片</small><span class="flow"><i>口播</i><i>特写</i><i>使用</i><i>反馈</i><i>引导</i></span></button>
+          </div></div></div>
+          <div class="actions"><span class="helper">下一步会自动分析素材，不会修改原视频</span><button class="btn primary" data-next="assets">继续：整理素材 →</button></div>
+        </section>
+
+        <section class="screen" id="assets">
+          <div class="intro"><div><h2>让系统知道每段素材在做什么</h2><p>自动识别只是起点，你可以用最少的操作修正分类。</p></div><div class="helper">已识别 12 个片段<br><span class="tag">匹配置信度 89%</span></div></div>
+          <div class="grid">
+            <div class="panel"><div class="panel-head"><h3>素材片段</h3><button class="btn" id="addAsset">导入更多</button></div><div class="panel-body"><div class="asset-list">
+              <div class="asset"><div class="thumb"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/竖屏预览测试.mp4"></video></div><div><b>喷头靠近玻璃 · 03.2 秒</b><small>识别到：产品 / 使用动作</small></div><span class="tag">产品</span></div>
+              <div class="asset"><div class="thumb"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/水印测试源视频.mp4"></video></div><div><b>擦拭前后对比 · 04.8 秒</b><small>识别到：效果 / 前后对比</small></div><span class="tag">效果</span></div>
+              <div class="asset"><div class="thumb"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/竖屏预览测试.mp4"></video></div><div><b>手持产品出镜 · 02.6 秒</b><small>识别到：人物 / 产品展示</small></div><span class="tag warn">待确认</span></div>
+              <div class="asset"><div class="thumb"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/水印测试源视频.mp4"></video></div><div><b>镜面清洁完成 · 03.9 秒</b><small>识别到：结果 / 细节特写</small></div><span class="tag">结果</span></div>
+            </div></div></div>
+            <div class="panel"><div class="panel-head"><h3>信息流镜头分类</h3><small>拖动可调整优先级</small></div><div class="panel-body"><div class="notice">系统会优先用“钩子”和“效果”镜头保证前3秒停留，素材不足时会提示你补充。</div>
+              <div class="category-row"><div><b>开头钩子</b><small>先抓住注意力</small></div><input value="结果对比 / 水渍特写" /></div>
+              <div class="category-row"><div><b>产品展示</b><small>让用户看清商品</small></div><input value="喷头、瓶身、手持出镜" /></div>
+              <div class="category-row"><div><b>使用演示</b><small>说明怎么用</small></div><input value="喷洒 + 擦拭动作" /></div>
+              <div class="category-row"><div><b>效果证明</b><small>展示变化</small></div><input value="擦前 / 擦后对比" /></div>
+              <div class="category-row"><div><b>结尾引导</b><small>承接购买动作</small></div><input value="产品特写 + 下单字幕" /></div>
+            </div></div>
+          </div>
+          <div class="actions"><button class="btn" data-prev="brief">← 返回商品信息</button><button class="btn primary" data-next="storyboard">生成自动分镜 →</button></div>
+        </section>
+
+        <section class="screen" id="storyboard">
+          <div class="intro"><div><h2>先看懂，再生成</h2><p>每一行就是成片中的一个镜头；字幕、配音和画面对应关系在这里一次确认。</p></div><div class="helper"><span class="tag">顺序已按模板生成</span><br>可拖动或用箭头微调</div></div>
+          <div class="storyboard"><div class="panel"><div class="panel-head"><h3>自动分镜 · 问题 → 解决方案</h3><small>5 个镜头 · 24 秒</small></div><div class="panel-body"><div class="timeline" id="timeline">
+            <div class="shot"><span class="order">01</span><div class="mini"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/水印测试源视频.mp4"></video></div><div><b>“玻璃水渍总擦不干净？”</b><small>开头钩子 · 03.2 秒 · 字幕居中</small></div><div class="shot-actions"><button data-up title="上移">↑</button><button data-down title="下移">↓</button></div></div>
+            <div class="shot"><span class="order">02</span><div class="mini"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/竖屏预览测试.mp4"></video></div><div><b>“这瓶喷雾，先把水渍软化。”</b><small>产品展示 · 04.1 秒 · 原声保留 20%</small></div><div class="shot-actions"><button data-up title="上移">↑</button><button data-down title="下移">↓</button></div></div>
+            <div class="shot"><span class="order">03</span><div class="mini"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/竖屏预览测试.mp4"></video></div><div><b>“喷一下，顺手擦过就行。”</b><small>使用演示 · 05.8 秒 · 配音进行中</small></div><div class="shot-actions"><button data-up title="上移">↑</button><button data-down title="下移">↓</button></div></div>
+            <div class="shot"><span class="order">04</span><div class="mini"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/水印测试源视频.mp4"></video></div><div><b>“擦完更透亮，也不容易留痕。”</b><small>效果证明 · 06.2 秒 · 前后对比</small></div><div class="shot-actions"><button data-up title="上移">↑</button><button data-down title="下移">↓</button></div></div>
+            <div class="shot"><span class="order">05</span><div class="mini"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/竖屏预览测试.mp4"></video></div><div><b>“现在下单，家里的玻璃马上亮起来。”</b><small>结尾引导 · 04.7 秒 · 购买按钮</small></div><div class="shot-actions"><button data-up title="上移">↑</button><button data-down title="下移">↓</button></div></div>
+          </div></div></div>
+          <div class="panel preview-wide"><div class="panel-head"><h3>当前成片预览</h3><button class="btn" id="toggleCaption">隐藏字幕</button></div><div class="wide-video"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/竖屏预览测试.mp4"></video><div class="safe-box"></div><div class="safe-copy" id="previewCaption">玻璃水渍总擦不干净？<br>喷一下，擦完不留痕。</div><div class="safe-cta">立即购买</div></div><div class="strip"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div></div></div>
+          <div class="actions"><button class="btn" data-prev="assets">← 返回素材分类</button><button class="btn primary" data-next="results">确认分镜，生成 3 条 →</button></div>
+        </section>
+
+        <section class="screen" id="results">
+          <div class="intro"><div><h2>3 条版本，直接挑最能卖的</h2><p>每条只改变开头、镜头和字幕节奏，商品信息和核心卖点保持一致。</p></div><div class="helper"><span class="tag">任务已完成</span><br>输出目录已准备好</div></div>
+          <div class="notice">已生成 3 条信息流版本。建议先看前3秒，再比较完整观看率、商品展示是否清楚。</div>
+          <div class="results">
+            <article class="result"><div class="result-cover"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/水印测试源视频.mp4"></video><span class="result-badge">版本 A · 结果先行</span></div><div class="result-body"><b>前后对比开场</b><small>24 秒 · 字幕清晰 · 画面节奏快</small><button class="btn primary">预览并导出</button></div></article>
+            <article class="result"><div class="result-cover"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/竖屏预览测试.mp4"></video><span class="result-badge">版本 B · 痛点开场</span></div><div class="result-body"><b>问题提问开场</b><small>26 秒 · 口播自然 · 产品露出更早</small><button class="btn">预览并导出</button></div></article>
+            <article class="result"><div class="result-cover"><video autoplay muted loop playsinline src="../../../测试素材库/Project_03_水印测试/水印测试源视频.mp4"></video><span class="result-badge">版本 C · 人物口播</span></div><div class="result-body"><b>达人出镜开场</b><small>22 秒 · 原声更强 · 适合直播切片</small><button class="btn">预览并导出</button></div></article>
+          </div>
+          <div class="panel" style="margin-top:16px"><div class="panel-body"><div class="status-line"><span>导出任务 · MP4 / 1080×1920 / 30fps</span><strong style="color:var(--teal)">3 / 3 已完成</strong></div><div class="progress"><i style="width:100%"></i></div><div class="status-line"><span>E:\\输出\\玻璃清洁喷雾_信息流成片</span><button class="btn" id="openFolder">打开输出目录</button></div></div></div>
+          <div class="actions"><button class="btn" data-prev="storyboard">← 返回分镜</button><button class="btn primary" id="newTask">新建下一组带货任务</button></div>
+        </section>
+      </section>
+    </main>
+  </div>
+  <script>
+    const steps = [...document.querySelectorAll('.step')];
+    const screens = [...document.querySelectorAll('.screen')];
+    function showScreen(id) {
+      screens.forEach(s => s.classList.toggle('active', s.id === id));
+      steps.forEach((s, i) => { const active = s.dataset.screen === id; s.classList.toggle('active', active); s.classList.toggle('done', i < steps.findIndex(x => x.dataset.screen === id)); });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    steps.forEach(step => step.addEventListener('click', () => showScreen(step.dataset.screen)));
+    document.querySelectorAll('[data-next]').forEach(btn => btn.addEventListener('click', () => showScreen(btn.dataset.next)));
+    document.querySelectorAll('[data-prev]').forEach(btn => btn.addEventListener('click', () => showScreen(btn.dataset.prev)));
+    document.querySelectorAll('.template').forEach(card => card.addEventListener('click', () => { document.querySelectorAll('.template').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); }));
+    document.getElementById('toggleCaption').addEventListener('click', (event) => { const caption = document.getElementById('previewCaption'); const hidden = caption.style.display === 'none'; caption.style.display = hidden ? '' : 'none'; event.target.textContent = hidden ? '隐藏字幕' : '显示字幕'; });
+    document.querySelectorAll('.shot-actions button').forEach(btn => btn.addEventListener('click', () => { const shot = btn.closest('.shot'); const target = btn.hasAttribute('data-up') ? shot.previousElementSibling : shot.nextElementSibling; if (!target) return; if (btn.hasAttribute('data-up')) shot.parentElement.insertBefore(shot, target); else shot.parentElement.insertBefore(target, shot); [...document.querySelectorAll('.shot .order')].forEach((n, i) => n.textContent = String(i + 1).padStart(2, '0')); }));
+    document.getElementById('addAsset').addEventListener('click', () => alert('原型提示：这里会打开系统文件夹选择器，并把新素材加入“待确认”列表。'));
+    document.getElementById('openFolder').addEventListener('click', () => alert('原型提示：这里会打开本次任务的真实输出目录。'));
+    document.getElementById('newTask').addEventListener('click', () => showScreen('brief'));
+  </script>
+</body>
+</html>

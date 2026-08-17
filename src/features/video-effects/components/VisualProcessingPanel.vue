@@ -43,6 +43,7 @@ const emit = defineEmits<{
   "update:zoomMinDurationSeconds": [value: number];
   "update:zoomMaxDurationSeconds": [value: number];
   selectWatermarkAsset: [];
+  autoDetect: [];
 }>();
 
 const trajectoryOptions: Array<{ key: WatermarkTrajectory; label: string }> = [
@@ -75,6 +76,9 @@ function toggleValue(event: Event) {
 </script>
 
 <template>
+  <button class="watermark-auto-detect" type="button" :disabled="props.disabled" @click="emit('autoDetect')">
+    自动检测常见水印区域
+  </button>
   <div class="visual-processing-panel" aria-label="画面处理参数">
     <section class="visual-processing-card">
       <header class="visual-processing-card__header">
@@ -85,9 +89,9 @@ function toggleValue(event: Event) {
         </label>
       </header>
       <div class="visual-processing-field-label">位置：</div>
-      <div class="visual-processing-segmented visual-processing-segmented--two">
-        <button type="button" class="is-active" disabled>手动框选</button>
-        <button type="button" disabled>自动检测</button>
+      <div class="visual-processing-mode-note">
+        <span>区域来源</span>
+        <strong>自动检测后可在预览画布中手动微调</strong>
       </div>
       <label class="visual-processing-number-row">
         <span>区域数</span>

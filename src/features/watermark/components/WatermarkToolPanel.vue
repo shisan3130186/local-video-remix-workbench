@@ -35,6 +35,7 @@ const emit = defineEmits<{
   "update:removalTrackingRegionWidthRatio": [value: number];
   "update:removalTrackingRegionHeightRatio": [value: number];
   "update:removalTrackingKeyframes": [value: WatermarkTrackingKeyframe[]];
+  autoDetectWatermark: [];
 }>();
 
 const activeSection = ref<"add" | "remove">("add");
@@ -111,5 +112,6 @@ const activeSection = ref<"add" | "remove">("add");
     @update:tracking-region-width-ratio="emit('update:removalTrackingRegionWidthRatio', $event)"
     @update:tracking-region-height-ratio="emit('update:removalTrackingRegionHeightRatio', $event)"
     @update:tracking-keyframes="emit('update:removalTrackingKeyframes', $event)"
+    @auto-detect="emit('autoDetectWatermark')"
   />
 </template>

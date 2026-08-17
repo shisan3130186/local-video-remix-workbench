@@ -44,6 +44,26 @@
   line-height: 1.55;
 }
 
+.watermark-auto-detect {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #4b8e7c;
+  border-radius: 6px;
+  color: #d8fff4;
+  background: #19372f;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.watermark-auto-detect:hover:not(:disabled) {
+  background: #245344;
+}
+
+.watermark-auto-detect:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
 .watermark-removal-modes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
