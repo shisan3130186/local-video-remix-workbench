@@ -5,13 +5,6 @@
   --ui-surface-glass: color-mix(in srgb, var(--theme-panel) 92%, transparent);
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
@@ -67,14 +60,21 @@ textarea:focus-visible {
 }
 
 .task-control-bar {
-  backdrop-filter: blur(18px) saturate(115%);
-  background: var(--ui-surface-glass);
-  box-shadow: 0 -8px 24px var(--theme-shadow);
+  background: var(--theme-panel);
 }
 
 .task-control-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
 }
+
+.task-control-summary { flex: 1 1 220px; }
+.task-control-summary > span:last-child { min-width: 0; }
+.task-counts, .task-quick-actions { flex: 0 0 auto; }
+.task-primary-action { flex: 0 0 auto; min-width: 140px; }
+.task-cancel-action, .task-retry-action { flex: 0 0 auto; }
 
 .task-control-summary,
 .task-counts,
@@ -88,7 +88,7 @@ textarea:focus-visible {
 }
 
 .task-quick-actions {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .task-quick-actions .panel-toggle,
@@ -107,8 +107,7 @@ textarea:focus-visible {
 
 .workspace-drawer.info-drawer,
 .task-queue-panel {
-  backdrop-filter: blur(18px) saturate(115%);
-  background: var(--ui-surface-glass);
+  background: var(--theme-panel);
   border-color: var(--theme-border);
   box-shadow: -18px 0 44px var(--theme-shadow);
 }
@@ -131,32 +130,15 @@ textarea:focus-visible {
 
 @media (max-width: 1320px) {
   .task-control-main {
-    grid-template-columns: minmax(160px, 1fr) auto auto minmax(132px, 0.8fr);
+    gap: 8px;
   }
-
-  .task-quick-actions {
-    grid-column: 2 / 4;
-    justify-content: flex-end;
-  }
+  .task-primary-action { min-width: 132px; }
+  .task-control-summary { flex-basis: 180px; }
 }
 
 @media (max-width: 1180px) {
   .task-control-main {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .task-counts {
-    justify-self: end;
-  }
-
-  .task-quick-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
-
-  .task-primary-action {
-    grid-column: 2;
-    grid-row: 1;
+    flex-wrap: wrap;
   }
 }
 
