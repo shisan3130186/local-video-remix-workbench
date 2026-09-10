@@ -123,7 +123,7 @@ export function useBasicExport(options: UseBasicExportOptions) {
             const completedVariants = completedByVideo.get(job.video.id) ?? 0;
             videoProcessingStates.value = { ...videoProcessingStates.value, [job.video.id]: { status: "processing", progress: Math.round((completedVariants / job.totalVariants) * 100), message: `正在处理第 ${job.variantIndex + 1}/${job.totalVariants} 个版本` } };
             try {
-              const result = await exportCurrentVideo(job.video.filePath, options.outputDirectory.value as string, job.video.durationSeconds, buildJobSettings(options.remixExportSettings.value, job), workerCount === 1 ? task.progress((job.index / jobs.length) * 100, ((job.index + 1) / jobs.length) * 100, `正在处理 ${job.index + 1}/${jobs.length}`) : undefined);
+              const result = await exportCurrentVideo(job.video.filePath, options.outputDirectory.value as string, job.video.durationSeconds, buildJobSettings(options.remixExportSettings.value, job), task.progress((job.index / jobs.length) * 100, ((job.index + 1) / jobs.length) * 100, `正在处理 ${job.index + 1}/${jobs.length}`));
               completedByVideo.set(job.video.id, completedVariants + 1);
               completedOutputPathsByVideo.set(job.video.id, [
                 ...(completedOutputPathsByVideo.get(job.video.id) ?? []),

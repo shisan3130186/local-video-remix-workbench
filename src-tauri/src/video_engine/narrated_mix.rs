@@ -1,6 +1,7 @@
 use crate::task_runtime::{run_ffmpeg, TaskProgressContext};
 use crate::temp_storage::TaskTempDirectory;
 use crate::video_engine::mix::{concat_narrated_prepared_segments, MixVideoResult, RemixSettings};
+use crate::video_engine::probe::validate_rendered_video;
 use crate::video_engine::subtitle::{
     ensure_ass_filter_available, prepare_ass_subtitle, NarratedSubtitleSettings,
 };
@@ -224,9 +225,8 @@ fn create_narrated_segment(
         "生成配音分镜失败。",
     )?;
 
-    if !output_path.is_file() {
-        return Err("配音分镜命令已结束，但没有找到临时视频。".to_string());
-    }
+    validate_rendered_video(output_path)
+        .map_err(|error| format!("配音分镜命令已结束，但临时视频校验失败：{error}"))?;
 
     Ok(())
 }

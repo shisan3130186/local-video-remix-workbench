@@ -8,7 +8,7 @@ use crate::video_engine::output::{
     append_final_output_args, build_output_video_filters, output_canvas_dimensions,
     resolve_output_video_dimensions, OutputSettings,
 };
-use crate::video_engine::probe::probe_video_dimensions;
+use crate::video_engine::probe::{probe_video_dimensions, validate_rendered_video};
 use crate::video_engine::render::RenderVideoResult;
 use crate::video_engine::subtitle::{
     ensure_ass_filter_available, prepare_ass_subtitle_with_style, NarratedSubtitlePosition,
@@ -1028,9 +1028,8 @@ fn concat_video_segments_with_options(
         return Err(error);
     }
 
-    if !output_path.is_file() {
-        return Err("拼接命令已结束，但没有找到输出文件。".to_string());
-    }
+    validate_rendered_video(&output_path)
+        .map_err(|error| format!("拼接命令已结束，但成片校验失败：{error}"))?;
 
     Ok(MixVideoResult {
         output_path: output_path.to_string_lossy().to_string(),
@@ -2004,9 +2003,8 @@ fn materialize_segmented_playback_source(
         Some(output_duration_seconds),
         "分段变速处理失败。",
     )?;
-    if !output_path.is_file() {
-        return Err("分段变速命令已结束，但没有生成临时视频。".to_string());
-    }
+    validate_rendered_video(output_path)
+        .map_err(|error| format!("分段变速命令已结束，但临时视频校验失败：{error}"))?;
     Ok(())
 }
 

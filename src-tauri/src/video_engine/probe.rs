@@ -161,6 +161,24 @@ pub(crate) fn probe_video_duration_seconds(file_path: &str) -> Result<f64, Strin
         .ok_or_else(|| "无法读取视频时长，无法进行自动检测。".to_string())
 }
 
+pub(crate) fn validate_rendered_video(file_path: &Path) -> Result<VideoMetadata, String> {
+    let metadata = fs::metadata(file_path).map_err(|error| format!("无法读取成片文件：{error}"))?;
+    if !metadata.is_file() || metadata.len() == 0 {
+        return Err("成片文件为空，已拒绝登记为成功结果。".to_string());
+    }
+    let details = probe_video_metadata(file_path.to_string_lossy().to_string())?;
+    if details.width.is_none() || details.height.is_none() {
+        return Err("成片缺少可识别的视频流，已拒绝登记为成功结果。".to_string());
+    }
+    if details
+        .duration_seconds
+        .is_none_or(|duration| !duration.is_finite() || duration <= 0.0)
+    {
+        return Err("成片时长无效，可能是截断文件，已拒绝登记为成功结果。".to_string());
+    }
+    Ok(details)
+}
+
 fn probe_tool(binary_name: &str, program: &Path) -> ToolProbeResult {
     let path = program.to_string_lossy().to_string();
     let bundled = is_bundled_program(program);

@@ -359,13 +359,11 @@ export function useRemixGeneration(options: UseRemixGenerationOptions) {
                   entry.segmentPaths,
                   entry.outputDirectory ?? options.outputDirectory.value as string,
                   settings,
-                  workerCount === 1
-                    ? task.progress(
-                        (index / entries.length) * 100,
-                        ((index + 1) / entries.length) * 100,
-                        `正在生成批量视频 ${index + 1}/${entries.length}`,
-                      )
-                    : undefined,
+                  task.progress(
+                    (index / entries.length) * 100,
+                    ((index + 1) / entries.length) * 100,
+                    `正在生成批量视频 ${index + 1}/${entries.length}`,
+                  ),
                   entry.segmentInputs,
                 );
                 batchMixResults.value.push(result.outputPath);
