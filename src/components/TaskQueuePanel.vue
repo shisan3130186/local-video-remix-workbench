@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import type { TaskSnapshot, TaskStatus } from "../features/task-center";
 
 defineProps<{
@@ -29,11 +28,6 @@ const statusTone: Record<TaskStatus, string> = {
   failed: "task-queue-panel__chip--failed",
   cancelled: "task-queue-panel__chip--cancelled",
 };
-
-const activePercent = computed(() => {
-  // placeholder; values are read per render below
-  return 0;
-});
 
 function activePercentOf(task: TaskSnapshot | null | undefined) {
   if (!task) return 0;

@@ -1,0 +1,171 @@
+/* Final UI quality pass: improve hierarchy and interaction feedback without
+   changing the existing workbench information architecture. */
+:root {
+  --ui-focus-ring: color-mix(in srgb, var(--theme-accent) 72%, transparent);
+  --ui-surface-glass: color-mix(in srgb, var(--theme-panel) 92%, transparent);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--ui-focus-ring);
+  outline-offset: 2px;
+}
+
+.smartcut-home,
+.app-shell,
+.workbench,
+.workbench--advanced {
+  background: var(--theme-page, var(--compact-bg));
+}
+
+.smartcut-home__main {
+  scrollbar-color: var(--theme-border-strong) transparent;
+}
+
+.smartcut-home__welcome,
+.smartcut-home__section {
+  border-color: var(--theme-border);
+}
+
+.smartcut-home__welcome h2,
+.smartcut-home__section-heading h3,
+.smartcut-home__welcome p,
+.smartcut-home__section-heading p {
+  color: var(--theme-text);
+}
+
+.smartcut-start-modes,
+.smartcut-start-modes > button,
+.smartcut-recent-project {
+  border-color: var(--theme-border);
+  background: var(--theme-panel);
+}
+
+.smartcut-start-modes > button:hover,
+.smartcut-recent-project:hover {
+  background: var(--theme-panel-soft);
+}
+
+.smartcut-start-modes strong,
+.smartcut-start-modes small,
+.smartcut-recent-project__copy strong {
+  color: var(--theme-text);
+}
+
+.smartcut-start-modes small,
+.smartcut-recent-project__copy small {
+  color: var(--theme-muted);
+}
+
+.task-control-bar {
+  backdrop-filter: blur(18px) saturate(115%);
+  background: var(--ui-surface-glass);
+  box-shadow: 0 -8px 24px var(--theme-shadow);
+}
+
+.task-control-main {
+  min-width: 0;
+}
+
+.task-control-summary,
+.task-counts,
+.task-quick-actions {
+  min-width: 0;
+}
+
+.task-control-summary small,
+.task-counts span {
+  color: var(--theme-muted);
+}
+
+.task-quick-actions {
+  flex-wrap: wrap;
+}
+
+.task-quick-actions .panel-toggle,
+.task-cancel-action,
+.task-retry-action,
+.task-primary-action {
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.task-quick-actions .panel-toggle:hover:not(:disabled),
+.task-cancel-action:hover:not(:disabled),
+.task-retry-action:hover:not(:disabled),
+.task-primary-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.workspace-drawer.info-drawer,
+.task-queue-panel {
+  backdrop-filter: blur(18px) saturate(115%);
+  background: var(--ui-surface-glass);
+  border-color: var(--theme-border);
+  box-shadow: -18px 0 44px var(--theme-shadow);
+}
+
+.workspace-drawer .drawer-header,
+.task-queue-panel__header {
+  background: color-mix(in srgb, var(--theme-bar) 88%, transparent);
+  border-color: var(--theme-border);
+}
+
+.workspace-drawer .drawer-body,
+.task-queue-panel__body {
+  scrollbar-color: var(--theme-border-strong) transparent;
+}
+
+.workspace-drawer .empty-text,
+.workspace-drawer .panel__label {
+  color: var(--theme-muted);
+}
+
+@media (max-width: 1320px) {
+  .task-control-main {
+    grid-template-columns: minmax(160px, 1fr) auto auto minmax(132px, 0.8fr);
+  }
+
+  .task-quick-actions {
+    grid-column: 2 / 4;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 1180px) {
+  .task-control-main {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .task-counts {
+    justify-self: end;
+  }
+
+  .task-quick-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .task-primary-action {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
